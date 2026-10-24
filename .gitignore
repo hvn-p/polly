@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# No secret may ever be committed: runtime configuration arrives through the
+# deployment environment.
+.env
+.env.*
+*.pem
+*.key
+
+# Claude Code's per-person settings.
+.claude/settings.local.json
+
+# Local noise
+*.log
+.DS_Store
