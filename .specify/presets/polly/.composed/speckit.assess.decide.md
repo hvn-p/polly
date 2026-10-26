@@ -100,28 +100,28 @@ Write `ASSESS_DIR/decision.md`:
 - Never overwrite an existing `decision.md` without confirmation.
 
 
-## Règles de polly : le verdict devient une issue
+## Polly rules: the verdict becomes an issue
 
-La réflexion n'a de valeur que retrouvable : l'issue est sa source, le dossier
-`.specify/assessments/<slug>/` n'est qu'un cache ignoré par git. Les artefacts sont
-rédigés en français.
+The assessment is only worth something if it can be found again: the issue is its
+source, the `.specify/assessments/<slug>/` directory is only a cache ignored by git.
+The artifacts are written in English.
 
-- **needs-clarification** : rien à créer, la réflexion continue.
-- **go** ou **kill** :
-  1. Chercher les précédents (`gh issue list --state all --search "<mots-clés>"`).
-     Une issue ouverte couvre déjà le sujet : la réflexion va dans celle-là. Une
-     issue fermée l'a écarté : la nouvelle dit ce qui a changé depuis.
-  2. Rédiger l'issue selon la skill `intent` (Intention, Pourquoi, Cadre, Fin),
-     depuis `decision.md` et `problem.md`. Montrer titre et corps à l'utilisateur,
-     et créer l'issue sur son accord.
-  3. Y verser la réflexion, un commentaire par artefact :
+- **needs-clarification**: nothing to create, the assessment goes on.
+- **go** or **kill**:
+  1. Look for precedents (`gh issue list --state all --search "<keywords>"`). An open
+     issue already covers the subject: the assessment goes into that one. A closed
+     issue ruled it out: the new one says what has changed since.
+  2. Write the issue following the `intent` skill (Intent, Why, Scope, Done), from
+     `decision.md` and `problem.md`. Show the title and body to the user, and create
+     the issue once they agree.
+  3. Pour the assessment into it, one comment per artifact:
 
      ```sh
-     node .specify/extensions/issue-sync/scripts/issue-sync.mjs push <numéro> \
-       --dir .specify/assessments/<slug> --prefix assess/ --note "réflexion préalable : <verdict>"
+     node .specify/extensions/issue-sync/scripts/issue-sync.mjs push <number> \
+       --dir .specify/assessments/<slug> --prefix assess/ --note "prior assessment: <verdict>"
      ```
 
-  4. **kill** seulement : fermer l'issue avec son motif, jamais en silence :
-     `gh issue close <numéro> --reason "not planned" --comment "<motif décisif>"`.
-- **go** : l'étape suivante est `/speckit-specify` sur la branche
-  `<numéro de l'issue>-<slug>`.
+  4. **kill** only: close the issue with its reason, never silently:
+     `gh issue close <number> --reason "not planned" --comment "<decisive reason>"`.
+- **go**: the next step is `/speckit-specify` on the branch
+  `<issue number>-<slug>`.

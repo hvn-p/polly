@@ -24,8 +24,8 @@ $ARGUMENTS
 1. Use the same issue number as the pull that opened the step.
 2. Write one sentence, in the issue's language, saying what the step changed
    and why it matters to a reader of the issue (not the list of files: the
-   script adds it). For example: "plan revu, la revue de sécurité devient
-   obligatoire parce que la fonctionnalité ajoute un champ saisi".
+   script adds it). For example: "plan reviewed, the security review becomes
+   mandatory because the feature adds an input field".
 3. Run:
 
    ```sh

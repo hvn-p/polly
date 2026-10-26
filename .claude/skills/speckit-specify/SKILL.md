@@ -13,24 +13,24 @@ disable-model-invocation: false
 
 # Speckit Specify Skill
 
-## Règles de polly pour cette étape
+## Polly rules for this step
 
-Elles priment sur les instructions génériques qui suivent.
+They take precedence over the generic instructions that follow.
 
-- **La fonctionnalité part de son issue GitHub**, qui est la source de tous ses
-  artefacts. Pas d'issue : s'arrêter et la faire créer d'abord (skill `intent`).
-- **Le dossier de la fonctionnalité est le cache de l'issue** que le hook
-  `before_specify` (`issue-sync pull`) vient de reconstruire, sous `.specify/tmp/`.
-  C'est la valeur de `SPECIFY_FEATURE_DIRECTORY` à l'étape 3 : ne rien créer sous
-  `specs/`. Aucune branche n'est créée ici ; elle se nomme `<numéro de l'issue>-<slug>`.
-- **La description de la fonctionnalité est l'issue** (`issue.md` du cache : Intention,
-  Pourquoi, Cadre, Fin, puis ses commentaires dans l'ordre, la décision la plus récente
-  l'emportant), complétée par ce que l'utilisateur a tapé. Si le cache contient une
-  réflexion préalable (`assess/`), la spec en part.
-- **La spec est rédigée en français**, comme les issues.
-- **La section « Cas et refus » est remplie entièrement** : chaque comportement,
-  chaque refus avec son code d'erreur nommé, chaque borne testée des deux côtés.
-  Ce qui reste ouvert y est marqué `[NEEDS CLARIFICATION]`, jamais deviné.
+- **The feature starts from its GitHub issue**, which is the source of all its
+  artifacts. No issue: stop and have it created first (skill `intent`).
+- **The feature directory is the cache of the issue** that the `before_specify` hook
+  (`issue-sync pull`) has just rebuilt, under `.specify/tmp/`. It is the value of
+  `SPECIFY_FEATURE_DIRECTORY` at step 3: create nothing under `specs/`. No branch is
+  created here; it is named `<issue number>-<slug>`.
+- **The feature description is the issue** (`issue.md` in the cache: Intent, Why,
+  Scope, Done, then its comments in order, the most recent decision winning),
+  completed by what the user typed. If the cache holds a prior assessment
+  (`assess/`), the spec starts from it.
+- **The spec is written in English**, like the issues.
+- **The "Cases and refusals" section is filled in completely**: every behaviour,
+  every refusal with its named error code, every bound tested on both sides.
+  Whatever remains open is marked `[NEEDS CLARIFICATION]` there, never guessed.
 
 
 ## User Input

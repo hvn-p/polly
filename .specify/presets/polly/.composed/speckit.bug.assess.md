@@ -4,24 +4,24 @@ description: Assess a bug report against the codebase and record the diagnosis i
 ---
 
 
-## Règles de polly pour cette étape
+## Polly rules for this step
 
-Elles priment sur les instructions génériques qui suivent.
+They take precedence over the generic instructions that follow.
 
-- **Un bug a son issue GitHub** (type `Bug`), source de son diagnostic. Pas d'issue :
-  la créer d'abord avec la skill `intent`.
-- **Le slug est le numéro de l'issue** : `BUG_DIR` vaut `.specify/bugs/<numéro>`,
-  un cache ignoré par git. Avant tout, le reconstruire depuis l'issue :
+- **A bug has its GitHub issue** (type `Bug`), the source of its diagnosis. No issue:
+  create it first with the `intent` skill.
+- **The slug is the issue number**: `BUG_DIR` is `.specify/bugs/<number>`, a cache
+  ignored by git. Before anything else, rebuild it from the issue:
 
   ```sh
-  node .specify/extensions/issue-sync/scripts/issue-sync.mjs pull <numéro> \
-    --dir .specify/bugs/<numéro> --prefix bug/
+  node .specify/extensions/issue-sync/scripts/issue-sync.mjs pull <number> \
+    --dir .specify/bugs/<number> --prefix bug/
   ```
 
-- **Le rapport de bug est l'issue** : `issue.md` du cache, sa description puis ses
-  commentaires dans l'ordre.
-- **Le diagnostic est rédigé en français.** Le correctif ne commence pas ici : il
-  passe par `/speckit-bug-fix`, qui reproduit d'abord le bug par un test.
+- **The bug report is the issue**: the cache's `issue.md`, its description then its
+  comments in order.
+- **The diagnosis is written in English.** The fix does not start here: it goes
+  through `/speckit-bug-fix`, which first reproduces the bug with a test.
 
 
 # Assess Bug
@@ -275,11 +275,11 @@ Check if `.specify/extensions.yml` exists in the project root.
 - If the bug report cannot be understood at all (empty, unrelated, spam), set verdict to `invalid` with a clear reason and stop.
 
 
-## Après le diagnostic
+## After the diagnosis
 
-Verser le diagnostic dans l'issue :
+Pour the diagnosis into the issue:
 
 ```sh
-node .specify/extensions/issue-sync/scripts/issue-sync.mjs push <numéro> \
-  --dir .specify/bugs/<numéro> --prefix bug/ --note "diagnostic : <verdict et cause en une phrase>"
+node .specify/extensions/issue-sync/scripts/issue-sync.mjs push <number> \
+  --dir .specify/bugs/<number> --prefix bug/ --note "diagnosis: <verdict and cause in one sentence>"
 ```

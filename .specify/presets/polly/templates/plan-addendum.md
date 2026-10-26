@@ -1,41 +1,40 @@
-
-## Stratégie de test *(obligatoire)*
-
-<!--
-  Chaque cas de « Cas et refus » a son niveau de test, choisi ici avant toute tâche :
-  le plus bas qui l'éprouve vraiment. Niveaux : calcul pur du domaine, module de l'API
-  contre la base, route de l'API par son contrat, outil MCP en process, analyse audio
-  sur des enregistrements de référence, écran. Ce qui ne se teste pas automatiquement dit
-  comment il se valide (validation fonctionnelle de converge).
--->
-
-| Cas | Niveau | Ce que le test exerce |
-|---|---|---|
-| C1 | [module] | [le geste, l'état de départ, ce qui est vérifié] |
-
-- **Données** : [ce que les tests ajoutent à leurs jeux de départ ; ce que le jeu de démo
-  gagne pour la validation fonctionnelle]
-- **Hors automatisation** : [cas, et comment il se valide]
-
-## Revue *(obligatoire)*
-
-- **`/code-review`** : niveau `[low | medium | high | xhigh | max]`, choisi selon la taille
-  de la fonctionnalité et ce qu'elle touche. [Une phrase : pourquoi ce niveau.]
-- **`/security-review`** : [obligatoire | non requise]. [La raison : un champ saisi, une
-  route, une règle d'accès, un secret, une dépendance ajoutés la rendent obligatoire.]
-
-Un humain ou un agent peut relever ces niveaux en cours de route ; la modification se
-fait ici, avec sa raison.
-
-## Écarts à la constitution *(obligatoire)*
+## Test strategy *(mandatory)*
 
 <!--
-  Un écart dans ce que la fonctionnalité modifie (la fonction, la route, la table
-  touchée) bloque : il se corrige dans cette PR, ou la convergence se fait d'abord.
-  Un écart déjà connu dans du code que la fonctionnalité ne touche pas se liste avec
-  l'issue de convergence qui le porte. Écrire « Aucun » plutôt que laisser vide.
+  Each case in "Cases and refusals" has its test level, chosen here before any task:
+  the lowest one that genuinely exercises it. Levels: pure domain computation, API
+  module against the database, API route through its contract, in-process MCP tool,
+  audio analysis on reference recordings, screen. What cannot be tested automatically
+  says how it is validated (converge's functional validation).
 -->
 
-| Principe | Où | Traitement |
+| Case | Level | What the test exercises |
 |---|---|---|
-| [ex. V] | [fichier, fonction] | [corrigé dans cette PR / hors périmètre, issue #] |
+| C1 | [module] | [the action, the starting state, what is checked] |
+
+- **Data**: [what the tests add to their starting data sets; what the demo data set
+  gains for functional validation]
+- **Outside automation**: [case, and how it is validated]
+
+## Review *(mandatory)*
+
+- **`/code-review`**: level `[low | medium | high | xhigh | max]`, chosen according to the
+  size of the feature and what it touches. [One sentence: why this level.]
+- **`/security-review`**: [mandatory | not required]. [The reason: an input field, a
+  route, an access rule, a secret or a dependency added makes it mandatory.]
+
+A human or an agent may raise these levels along the way; the change is made here,
+with its reason.
+
+## Constitution deviations *(mandatory)*
+
+<!--
+  A deviation in what the feature changes (the function, route or table touched)
+  blocks: it is fixed in this PR, or the convergence is done first. An already known
+  deviation in code the feature does not touch is listed with the convergence issue
+  that carries it. Write "None" rather than leaving it empty.
+-->
+
+| Principle | Where | Handling |
+|---|---|---|
+| [e.g. V] | [file, function] | [fixed in this PR / out of scope, issue #] |

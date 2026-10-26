@@ -1,6 +1,6 @@
-# Sources Spec Kit de polly
+# Polly's Spec Kit sources
 
-- Ce dossier est la seule source de l'extension `issue-sync` et du preset `polly`. Leurs
-  copies sous `.specify/` et les skills `.claude/skills/speckit-*` sont générées : ne jamais
-  les modifier à la main.
-- Après une modification, réinstaller et committer comme le dit `speckit/README.md`.
+- This directory is the only source of the `issue-sync` extension and the `polly`
+  preset. Their copies under `.specify/` and the `.claude/skills/speckit-*` skills are
+  generated: never edit them by hand.
+- After a change, reinstall and commit as `speckit/README.md` says.

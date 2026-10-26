@@ -1,15 +1,14 @@
-
-## Cas et refus *(obligatoire)*
+## Cases and refusals *(mandatory)*
 
 <!--
-  Ce dont les tests découlent : qui écrit les tests ne devine rien. Une ligne par
-  comportement, par cas limite et par refus, avec un identifiant stable que le plan
-  et les tâches citent. Un refus nomme son code d'erreur, une borne est testée des
-  deux côtés.
+  What the tests derive from: whoever writes the tests guesses nothing. One row per
+  behaviour, per edge case and per refusal, with a stable identifier that the plan
+  and the tasks cite. A refusal names its error code, a bound is tested on both
+  sides.
 -->
 
-| Id | Situation | Résultat attendu |
+| Id | Situation | Expected result |
 |---|---|---|
-| C1 | [entrée ou état précis] | [ce qui est enregistré ou affiché] |
-| C2 | [entrée refusée] | Refus `[CODE_ERREUR]` : [ce que l'interface en dit] |
-| C3 | [borne : juste dedans / juste dehors] | [accepté / refusé avec son code] |
+| C1 | [precise input or state] | [what is recorded or displayed] |
+| C2 | [refused input] | Refusal `[ERROR_CODE]`: [what the interface says about it] |
+| C3 | [bound: just inside / just outside] | [accepted / refused with its code] |

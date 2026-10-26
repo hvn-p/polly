@@ -1,14 +1,13 @@
-
 <!--
-  Règles de polly pour les tâches. Elles priment sur les exemples du gabarit qui précède.
+  Polly rules for the tasks. They take precedence over the examples of the template above.
 
-  - Une tâche de code est un lot : un ensemble de cas de « Cas et refus » testés puis
-    codés ensemble, ses tests écrits avant son code. Elle cite ses cas et leur niveau de
-    test, tels que la « Stratégie de test » du plan les fixe :
-      - [ ] T012 [US1] Refuser un virement vers un compte clos (C3, C4 ; service)
-  - Jamais de tâche « écrire les tests » à part, quoi qu'en disent les sections « Tests
-    (OPTIONAL) » du gabarit : les tests d'une tâche s'écrivent dans la tâche.
-  - Une tâche sans code (documentation, configuration, jeu de démo sans logique) le dit
-    par « (sans code) » et se fait directement.
-  - Chaque cas de « Cas et refus » est couvert par au moins une tâche.
+  - A code task is a batch: a set of cases from "Cases and refusals" tested then coded
+    together, its tests written before its code. It cites its cases and their test
+    level, as the plan's "Test strategy" sets them:
+      - [ ] T012 [US1] Refuse a transfer to a closed account (C3, C4; service)
+  - Never a separate "write the tests" task, whatever the template's "Tests
+    (OPTIONAL)" sections say: a task's tests are written within the task.
+  - A task without code (documentation, configuration, demo data without logic) says
+    so with "(no code)" and is done directly.
+  - Every case in "Cases and refusals" is covered by at least one task.
 -->

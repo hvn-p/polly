@@ -8,32 +8,32 @@ scripts:
 ---
 
 
-## Règles de polly pour cette étape
+## Polly rules for this step
 
-Elles priment sur les instructions génériques qui suivent.
+They take precedence over the generic instructions that follow.
 
-- **Le dossier de la fonctionnalité est le cache de son issue**, reconstruit par le
-  hook `before_plan`. Le plan et ses compagnons (`research.md`, `data-model.md`,
-  `contracts/`, `quickstart.md`) s'y écrivent et rejoignent l'issue après l'étape.
-- **Le plan est rédigé en français.**
-- **Section « Stratégie de test »** : pour chaque cas de « Cas et refus », le niveau
-  le plus bas qui l'éprouve vraiment (calcul pur du domaine, module de l'API contre la
-  base, route de l'API par son contrat, outil MCP en process, analyse audio sur des
-  enregistrements de référence, écran), les données que les tests ajoutent, et ce qui ne
-  s'automatise pas avec la façon de le valider. Les tâches et leurs tests en
-  partent ; un cas sans niveau est un plan incomplet.
-- **Section « Revue »** : le niveau d'effort de `/code-review` selon la taille de la
-  fonctionnalité, et si `/security-review` est obligatoire, avec la raison. Elle est
-  obligatoire dès que la fonctionnalité ajoute un champ saisi, une route, une règle
-  d'accès, un secret ou une dépendance.
-- **Section « Écarts à la constitution »** : chaque principe de
-  `.specify/memory/constitution.md` est confronté à ce que la fonctionnalité modifie.
-  Un écart dans le code touché (la fonction, la route, la table modifiée) bloque : le
-  plan le corrige, ou s'arrête et propose de faire d'abord la convergence. Un écart
-  connu dans du code non touché est listé avec l'issue de convergence qui le porte ;
-  sans issue, la proposer.
-- Avant de toucher un geste du domaine, lire le module de l'API qui le porte : le
-  commentaire d'en-tête de son service est le contrat.
+- **The feature directory is the cache of its issue**, rebuilt by the `before_plan`
+  hook. The plan and its companions (`research.md`, `data-model.md`, `contracts/`,
+  `quickstart.md`) are written there and join the issue after the step.
+- **The plan is written in English.**
+- **"Test strategy" section**: for each case in "Cases and refusals", the lowest
+  level that genuinely exercises it (pure domain computation, API module against the
+  database, API route through its contract, in-process MCP tool, audio analysis on
+  reference recordings, screen), the data the tests add, and what cannot be
+  automated together with how it is validated. Tasks and their tests start from it;
+  a case without a level is an incomplete plan.
+- **"Review" section**: the effort level of `/code-review` according to the size of
+  the feature, and whether `/security-review` is mandatory, with the reason. It is
+  mandatory as soon as the feature adds an input field, a route, an access rule, a
+  secret or a dependency.
+- **"Constitution deviations" section**: each principle of
+  `.specify/memory/constitution.md` is checked against what the feature changes. A
+  deviation in the touched code (the function, route or table changed) blocks: the
+  plan fixes it, or stops and proposes doing the convergence first. A known deviation
+  in untouched code is listed with the convergence issue that carries it; without an
+  issue, propose one.
+- Before touching a domain action, read the API module that carries it: the header
+  comment of its service is the contract.
 
 
 ## User Input

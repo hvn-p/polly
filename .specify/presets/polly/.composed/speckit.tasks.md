@@ -8,30 +8,30 @@ scripts:
 ---
 
 
-## Règles de polly pour cette étape
+## Polly rules for this step
 
-Elles priment sur les instructions génériques qui suivent.
+They take precedence over the generic instructions that follow.
 
-- **Les tâches vivent dans la description de la PR** de la fonctionnalité, dans une
-  section que `issue-sync` tient à jour ; le `tasks.md` du cache n'en est qu'une copie.
-  Avant de terminer l'étape (et donc avant le hook `after_tasks`), ouvrir la PR en
-  brouillon si la branche n'en a pas :
+- **The tasks live in the description of the feature's PR**, in a section that
+  `issue-sync` keeps up to date; the cache's `tasks.md` is only a copy. Before ending
+  the step (and therefore before the `after_tasks` hook), open the PR as a draft if
+  the branch has none:
 
   ```sh
-  git commit --allow-empty -m "chore: open <issue number>"   # seulement si la branche n'a aucun commit
+  git commit --allow-empty -m "chore: open <issue number>"   # only if the branch has no commit
   git push -u origin HEAD
-  gh pr create --draft --title "<titre de l'issue>" --body "Closes #<issue number>"
+  gh pr create --draft --title "<issue title>" --body "Closes #<issue number>"
   ```
 
-- **Chaque tâche de code est un lot qui porte ses tests** : elle cite les cas de « Cas
-  et refus » qu'elle couvre et leur niveau de test, pris dans la « Stratégie de test »
-  du plan. Jamais de tâche « écrire les tests » à part : à l'implémentation, chaque
-  tâche écrit ses tests avant son code. Les règles complètes sont à la fin du
-  gabarit des tâches.
-- Chaque cas de « Cas et refus » est couvert par au moins une tâche ; un cas sans
-  tâche est un trou du plan, à reprendre avant de continuer.
-- Le jeu de démo s'enrichit dans la même fonctionnalité dès qu'elle ajoute de quoi
-  afficher : c'est une tâche.
+- **Each code task is a batch that carries its tests**: it cites the cases from
+  "Cases and refusals" it covers and their test level, taken from the plan's "Test
+  strategy". Never a separate "write the tests" task: at implementation, each task
+  writes its tests before its code. The full rules are at the end of the tasks
+  template.
+- Every case in "Cases and refusals" is covered by at least one task; a case without
+  a task is a hole in the plan, to be fixed before going on.
+- The demo data set grows within the same feature as soon as it adds something to
+  display: that is a task.
 
 
 ## User Input
