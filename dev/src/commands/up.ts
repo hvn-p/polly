@@ -1,0 +1,129 @@
+// dev:up: brings the worktree's Polly up, creating only what is missing.
+// The order is that of contracts/dev-commands.md in the feature's issue.
+
+import { execFileSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
+import { join } from 'node:path'
+import { completeEnv } from '../config/index.ts'
+import { tryLock } from '../infra/flock.ts'
+import type { Infrastructure } from '../infra/ports.ts'
+import { Refusal } from './refusal.ts'
+import { bucketAccessOf, readEnv, readState, required, resourcesOf, writeState } from './state.ts'
+import { currentBranch, worktreeAt } from './worktree.ts'
+
+const template = join(import.meta.dirname, '..', '..', 'env.template')
+
+// The Postgres extensions Polly declares; none yet.
+const EXTENSIONS: readonly string[] = []
+
+export interface UpOptions {
+  root: string
+  infra: Infrastructure
+  out: (line: string) => void
+}
+
+async function freePort(): Promise<number> {
+  const server = createServer()
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  await new Promise((resolve) => server.close(resolve))
+  if (typeof address !== 'object' || address === null) {
+    throw new Error('no free port')
+  }
+  return address.port
+}
+
+// `git worktree add` does not initialise submodules.
+function initialiseInfraSubmodule(root: string): void {
+  const modules = join(root, '.gitmodules')
+  if (!existsSync(modules) || !readFileSync(modules, 'utf8').includes('path = vendors/infra')) {
+    return
+  }
+  const git = (...args: string[]) =>
+    execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  if (git('submodule', 'status', '--', 'vendors/infra').startsWith('-')) {
+    git('submodule', 'update', '--init', '--', 'vendors/infra')
+  }
+}
+
+export async function up({ root, infra, out }: UpOptions): Promise<void> {
+  const missing = await infra.prerequisites.missing()
+  if (missing !== undefined) {
+    throw new Refusal('MISSING_PREREQUISITE', `${missing} is missing; install it, then run nr dev:up again`)
+  }
+  const branch = currentBranch(root)
+  const worktree = worktreeAt(root)
+  const lock = await tryLock(worktree.upLock)
+  if (lock === undefined) {
+    throw new Refusal('DEV_UP_IN_PROGRESS', 'another dev:up runs in this worktree; let it finish')
+  }
+  try {
+    initialiseInfraSubmodule(root)
+    await infra.shared.ensureRunning()
+
+    const existing = existsSync(worktree.envFile) ? readFileSync(worktree.envFile, 'utf8') : ''
+    const completed = await completeEnv(readFileSync(template, 'utf8'), existing, {
+      branch,
+      postgresPort: infra.shared.postgresPort,
+      garagePort: infra.shared.garagePort,
+      freePort,
+      random: randomBytes,
+    })
+    if (completed !== existing) {
+      writeFileSync(worktree.envFile, completed, { mode: 0o600 })
+    }
+    const env = readEnv(worktree) ?? {}
+    const resources = resourcesOf(env)
+    const webPort = Number(required(env, 'POLLY_WEB_PORT'))
+    const state = readState(worktree)
+
+    const running = state.supervisor !== undefined && infra.supervisor.isRunning(state.supervisor)
+    if (!running) {
+      for (const key of ['POLLY_API_PORT', 'POLLY_WEB_PORT']) {
+        const port = Number(required(env, key))
+        const holder = await infra.ports.holderOf(port)
+        if (holder !== undefined) {
+          throw new Refusal(
+            'RESOURCE_CONFLICT',
+            `port ${port} (${key}) is held by ${holder}; stop it, then run nr dev:up`,
+          )
+        }
+      }
+    }
+    const routedPort = await infra.routes.portOf(resources.route)
+    if (routedPort !== undefined && routedPort !== webPort) {
+      throw new Refusal(
+        'RESOURCE_CONFLICT',
+        `${resources.host} is routed to port ${routedPort}, not ${webPort}; remove that route, then run nr dev:up`,
+      )
+    }
+
+    await infra.postgres.ensure(resources.database, EXTENSIONS)
+    const bucket = bucketAccessOf(env)
+    await infra.garage.ensure(bucket, Number(required(env, 'S3_EXPIRATION_DAYS')))
+    await infra.application.migrate(env)
+    await infra.application.seed(env)
+    if (routedPort === undefined) {
+      await infra.routes.add(resources.route, webPort)
+    }
+    let supervisor = state.supervisor
+    if (supervisor === undefined || !running) {
+      if (supervisor !== undefined) {
+        // Processes a killed supervisor left behind would hold the ports.
+        await infra.supervisor.stop(supervisor)
+      }
+      supervisor = await infra.supervisor.start({ root, processes: infra.application.processes(env), env })
+    }
+    writeState(worktree, {
+      supervisor,
+      route: resources.route,
+      role: resources.database.names.role,
+      garageKeyId: bucket.accessKeyId,
+    })
+    out(required(env, 'PUBLIC_URL'))
+  } finally {
+    await lock.release()
+  }
+}

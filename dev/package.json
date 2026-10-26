@@ -4,5 +4,10 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "3.1157.0",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1"
   }
 }

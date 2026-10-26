@@ -6,6 +6,8 @@ import { deriveIdentity, type ResourceNames, resourceNames } from '../identity/i
 
 export interface Generators {
   branch: string
+  postgresPort: number
+  garagePort: number
   freePort: () => Promise<number>
   random: (bytes: number) => Buffer
 }
@@ -47,6 +49,12 @@ async function generate(
       throw new Error(`env.template: {{${name}}} needs POLLY_WORKTREE_ID above it`)
     }
     return resourceNames(identity)[resource]
+  }
+  if (name === 'postgres-port') {
+    return String(generators.postgresPort)
+  }
+  if (name === 'garage-port') {
+    return String(generators.garagePort)
   }
   if (name === 'free-port') {
     return String(await generators.freePort())

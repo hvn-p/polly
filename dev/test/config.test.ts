@@ -7,6 +7,8 @@ const template = readFileSync(join(import.meta.dirname, '..', 'env.template'), '
 
 let nextPort = 41000
 const generators = {
+  postgresPort: 55432,
+  garagePort: 53900,
   freePort: async () => nextPort++,
   random: (bytes: number) => Buffer.alloc(bytes, 0xab),
 }
@@ -25,6 +27,7 @@ describe('worktree configuration', () => {
       `postgresql://polly_${underscored}:${'ab'.repeat(24)}@127.0.0.1:55432/polly_${underscored}`,
     )
     expect(env.get('TEST_DATABASE_URL')).toBe(`${env.get('DATABASE_URL')}_test`)
+    expect(env.get('S3_ENDPOINT')).toBe('http://127.0.0.1:53900')
     expect(env.get('S3_BUCKET')).toBe(`polly-${identity}`)
     expect(env.get('S3_ACCESS_KEY_ID')).toBe(`GK${'ab'.repeat(12)}`)
     expect(env.get('BETTER_AUTH_SECRET')).toBe(Buffer.alloc(32, 0xab).toString('base64url'))
@@ -41,6 +44,8 @@ describe('worktree configuration', () => {
     const edited = withoutSecret.replace(/^POLLY_WORKER_MODE=fake$/m, 'POLLY_WORKER_MODE=real')
     const completed = await completeEnv(template, edited, {
       branch: 'renamed',
+      postgresPort: 1,
+      garagePort: 1,
       freePort: async () => 1,
       random: (bytes: number) => Buffer.alloc(bytes, 0xcd),
     })
