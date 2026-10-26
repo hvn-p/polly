@@ -71,6 +71,23 @@ consent covers only those two and that channel: any other issue or PR is asked f
   HTTP request: the API answers at once and the result arrives through the event
   stream.
 
+## Layout
+
+- The API (`apps/api/src`) is split into tiers, each importing only those below it:
+  `entry` (Hono routes, SSE, MCP, composition root), `flows` (one use case per file,
+  DBOS workflows included), `domains`, `reference` (read-only language packs, identity),
+  `kernel` (ids, language code, score, clock; no domain rule).
+- The domains are `learner-memory`, `session-log`, `catalogue`, `evaluation` and
+  `audio`. No domain imports another, no flow imports another, and a module is imported
+  through its index file only. Review enforces this until a dependency check exists.
+- A domain that needs another domain's data declares a port it owns, and a flow feeds
+  it. Domains share events only through the session log: no in-process event bus.
+- The front end (`apps/web`) follows the Feature-Sliced Design layers.
+- Outside the apps: `services/pron-worker` (Python audio analysis), `languages/<code>/`
+  (language packs as neutral data, read by the API and the worker),
+  `packages/api-client` (client generated from the OpenAPI, for the front end and the
+  plugin), `plugin/` (the Claude Code plugin).
+
 ## Workflow
 
 - Everything written in the repository and on GitHub (code, comments, docs, issues,
