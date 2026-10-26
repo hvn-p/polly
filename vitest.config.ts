@@ -5,7 +5,20 @@ export default defineConfig({
     projects: ['apps/*', 'dev', 'plugin', 'scripts'],
     coverage: {
       provider: 'v8',
-      include: ['apps/*/src/**', 'dev/src/**', 'plugin/bin/**', 'scripts/**'],
+      include: [
+        'apps/*/src/**/*.{ts,tsx}',
+        'dev/src/**/*.ts',
+        'plugin/bin/**/*.mjs',
+        'scripts/**/*.{ts,mjs}',
+      ],
+      exclude: [
+        '**/*.test.ts',
+        // Applied by the API tests' global setup, in its own process; the
+        // startup tests check the schema they produce.
+        'apps/api/src/migrations/**',
+        // Installed and tested by the baudrier plugin.
+        'scripts/checks/agents-md.mjs',
+      ],
       thresholds: { lines: 90 },
     },
   },

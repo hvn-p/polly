@@ -1,0 +1,113 @@
+# Checks every pull request: lint, types, the repository guards, the tests with
+# their coverage gate, the worker, and secret scanning. vendors/infra is
+# private and nothing here reads it, so submodules are not fetched.
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The agents-md check diffs against the base branch.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      # The contract guard renders the worker's Python types.
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/checks/strict-configs.mjs
+      - run: node scripts/checks/dependencies.mjs
+      - run: node scripts/checks/pinned-actions.mjs
+      - run: node scripts/checks/contracts.mjs
+      - run: node scripts/checks/agents-md.mjs --base "origin/${{ github.base_ref }}"
+
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a # pg16
+        env:
+          POSTGRES_PASSWORD: ci-only
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgresql://polly_ci:ci-only@127.0.0.1:5432/polly_ci_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: pnpm install --frozen-lockfile
+      # The test database belongs to a role that is not a superuser, as a
+      # worktree's does.
+      - name: Create the test role and database
+        env:
+          PGPASSWORD: ci-only
+        run: |
+          psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE polly_ci LOGIN PASSWORD 'ci-only'" \
+            -c "CREATE DATABASE polly_ci_test OWNER polly_ci"
+      - run: pnpm exec vitest run --coverage
+      - run: pnpm run test:repo
+
+  worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/pron-worker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: uv sync --locked
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+      - run: uv run mypy src tests
+      - run: uv run pytest
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Scans the files of the pull request's head; the history before it was
+      # scanned by the pull requests that brought it.
+      - uses: docker://ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f # v8.30.1
+        with:
+          args: dir --redact --verbose .
