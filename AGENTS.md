@@ -1,83 +1,85 @@
 # polly
 
-Application web d'apprentissage des langues dont le professeur est l'agent IA de
-l'apprenant, branché par le MCP.
+Language-learning web app whose teacher is the learner's AI agent, connected through
+the MCP.
 
-## Lire avant d'agir
+## Read before acting
 
-- **La constitution** (`.specify/memory/constitution.md`) porte les principes qu'un agent
-  respecte quand il spécifie, planifie, écrit ou juge du code, chacun avec sa
-  vérification. La lire avant de concevoir ou de juger un changement.
-- **La direction du produit** et ses principes pédagogiques sont dans `PRODUCT.md`. Une
-  interface se compose avec la skill Impeccable, qui le lit.
+- **The constitution** (`.specify/memory/constitution.md`) holds the principles an agent
+  follows when it specifies, plans, writes or judges code, each with its check. Read it
+  before designing or judging a change.
+- **The product direction** and its teaching principles are in `PRODUCT.md`. An
+  interface is composed with the Impeccable skill, which reads it.
 
-## Où s'écrit une décision
+## Where a decision is written
 
-Chaque chose a un endroit et un seul : deux fichiers qui disent la même chose finissent
-par se contredire, et c'est le périmé qu'on croit.
+Each thing has one place and one only: two files that say the same thing end up
+contradicting each other, and the stale one is the one believed.
 
-| Ce qui vient d'être décidé | Où ça s'écrit |
+| What was just decided | Where it is written |
 |---|---|
-| Un principe qu'un agent respecte en écrivant ou en jugeant du code | La constitution |
-| La direction du produit, un principe pédagogique | `PRODUCT.md` |
-| Une règle de code propre à une partie du dépôt | L'`AGENTS.md` le plus proche de ce qu'elle gouverne |
-| Ce qu'une fonctionnalité doit faire : spec, plan | Son issue, un commentaire par artefact Spec Kit |
-| Comment elle se fait : les tâches | La description de sa PR |
-| Le récit : ce qui a été mesuré, écarté, ce qui a causé quoi | L'issue |
+| A principle an agent follows when writing or judging code | The constitution |
+| The product direction, a teaching principle | `PRODUCT.md` |
+| A code rule specific to one part of the repository | The `AGENTS.md` closest to what it governs |
+| What a feature must do: spec, plan | Its issue, one comment per Spec Kit artifact |
+| How it is done: the tasks | Its PR description |
+| The story: what was measured, ruled out, what caused what | The issue |
 
-Ces fichiers décrivent l'état actuel, au présent : ni date ni numéro d'issue en guise
-d'histoire, ni inventaire de ce qui existe. Une décision qui en corrige une autre la
-remplace. Un renvoi vers une issue ouverte reste légitime.
+These files describe the current state, in the present tense: no date or issue number
+standing in for history, no inventory of what exists. A decision that corrects another
+replaces it. A pointer to an open issue stays legitimate.
 
-## Issues et cycle d'une fonctionnalité
+## Issues and the feature cycle
 
-Toute intention se trace en issue GitHub, même quand personne ne l'attaque tout de suite.
-Avant de travailler un sujet, chercher ses précédents, ouverts comme fermés
+Every intent is tracked as a GitHub issue, even when nobody tackles it right away.
+Before working on a subject, look for its precedents, open and closed
 (`gh issue list --state all --search …`).
 
-Une fonctionnalité suit le cycle Spec Kit adapté au dépôt : `/speckit-specify`,
-`/speckit-plan`, `/speckit-tasks`, `/speckit-implement`, `/speckit-converge`. Une idée
-encore floue passe d'abord par `/speckit-assess-intake`. Un bug passe par
-`/speckit-bug-assess` puis `/speckit-bug-fix`. La branche se nomme
-`<numéro de l'issue>-<slug>`, et sa PR close l'issue.
+A feature follows the Spec Kit cycle adapted to the repository: `/speckit-specify`,
+`/speckit-plan`, `/speckit-tasks`, `/speckit-implement`, `/speckit-converge`. A still
+vague idea goes through `/speckit-assess-intake` first. A bug goes through
+`/speckit-bug-assess` then `/speckit-bug-fix`. The branch is named
+`<issue number>-<slug>`, and its PR closes the issue.
 
-**Lire une fonctionnalité** :
+**Reading a feature**:
 
-- le corps de l'issue porte l'intention ;
-- un commentaire de l'issue qui commence par `<!-- speckit-artifact: … -->` est un
-  artefact (spec, plan…), et fait foi : le cache local, ignoré par git, n'en est qu'une
-  copie reconstruite à chaque étape ;
-- les tâches sont dans la description de la PR, entre les marqueurs `speckit-tasks` ;
-- les commentaires se lisent dans l'ordre : quand deux décisions se contredisent, la plus
-  récente l'emporte.
+- the issue body carries the intent;
+- an issue comment starting with `<!-- speckit-artifact: … -->` is an artifact (spec,
+  plan…) and is authoritative: the local cache, ignored by git, is only a copy rebuilt
+  at each step;
+- the tasks are in the PR description, between the `speckit-tasks` markers;
+- comments are read in order: when two decisions contradict each other, the most
+  recent wins.
 
-**Accord d'écriture** : les commandes Spec Kit écrivent dans l'issue et la PR de la
-fonctionnalité en cours, par l'extension `issue-sync`, et ouvrent cette PR en brouillon,
-sans demander. L'accord ne couvre que ces deux-là et ce canal : toute autre issue ou PR
-se demande.
+**Write consent**: Spec Kit commands write to the issue and PR of the current feature,
+through the `issue-sync` extension, and open that PR as a draft, without asking. The
+consent covers only those two and that channel: any other issue or PR is asked for.
 
 ## Stack
 
-- **Front React et API Hono 4 séparés**, dans un monorepo pnpm. L'API est aussi le
-  serveur d'autorisation OAuth du MCP, par Better Auth (plugins `mcp` et `cimd`), dont le
-  code de polly ne passe que par les points d'extension.
-- **TypeScript 7 seul**, compilé par `tsc`.
-- **Biome** pour le lint et le format.
-- **Frontières** : schémas Zod, contrat OpenAPI généré depuis eux, client généré par
-  lequel passent le front et le MCP. Un refus qui dépend de l'état revient en code
-  d'erreur nommé.
-- **Postgres** : l'instance partagée du socle pikmine, jointe uniquement par
+- **Separate React front end and Hono 4 API**, in a pnpm monorepo. The API is also the
+  MCP's OAuth authorization server, through Better Auth (`mcp` and `cimd` plugins),
+  which polly's code only reaches through its extension points.
+- **TypeScript 7 only**, compiled by `tsc`.
+- **Biome** for lint and format.
+- **Boundaries**: Zod schemas, an OpenAPI contract generated from them, a generated
+  client through which the front end and the MCP go. A refusal that depends on state
+  comes back as a named error code.
+- **Postgres**: the shared instance of the pikmine platform, reached only through
   `DATABASE_URL`.
-- **L'analyse audio** est un service Python séparé, sur CPU. Aucune analyse ne se fait
-  dans une requête HTTP : l'API répond aussitôt et le résultat arrive par le flux
-  d'événements.
+- **Audio analysis** is a separate Python service, on CPU. No analysis runs inside an
+  HTTP request: the API answers at once and the result arrives through the event
+  stream.
 
-## Flux de travail
+## Workflow
 
-- Tout passe par une PR ; pas de commit direct sur `main`.
-- Lancer `nr lint` sans pipe avant de committer : `| tail` masque son code de sortie.
-- Après une trouvaille qui pourrait revenir au-delà du travail en cours (une revue, une
-  validation, un retour humain), se demander ce qui l'aurait évitée : un contrôle
-  d'abord, sinon une règle dans l'`AGENTS.md` le plus proche, sinon rien.
-- Quand un changement retire la cause d'une telle règle (un contrôle la couvre, le code a
-  changé), la mettre à jour ou la retirer.
+- Everything written in the repository and on GitHub (code, comments, docs, issues,
+  PRs, commits, Spec Kit artifacts) is in English; only the product interface is
+  translated.
+- Everything goes through a PR; no direct commit on `main`.
+- Run `nr lint` without a pipe before committing: `| tail` hides its exit code.
+- After a finding that could recur beyond the current work (a review, a validation,
+  human feedback), ask what would have prevented it: a check first, otherwise a rule
+  in the nearest `AGENTS.md`, otherwise nothing.
+- When a change removes the cause of such a rule (a check covers it, the code has
+  changed), update or remove the rule.
