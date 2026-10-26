@@ -6,7 +6,9 @@ requires-python = "==3.14.*"
 dependencies = ["dbos==3.3.0"]
 
 [dependency-groups]
-dev = ["mypy==2.4.0", "pytest==9.1.1", "pytest-cov==7.1.0", "ruff==0.17.2"]
+dev = [
+  "datamodel-code-generator[ruff]==0.86.0",
+  "mypy==2.4.0", "pytest==9.1.1", "pytest-cov==7.1.0", "ruff==0.17.2"]
 
 [build-system]
 requires = ["uv_build==0.13.5"]
