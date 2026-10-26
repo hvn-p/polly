@@ -5,6 +5,9 @@ export default defineConfig({
     projects: ['apps/*', 'dev', 'plugin', 'scripts'],
     coverage: {
       provider: 'v8',
+      // The gate reads the text report; nothing is written into the repository.
+      reporter: ['text'],
+      reportsDirectory: 'node_modules/.vitest/coverage',
       include: [
         'apps/*/src/**/*.{ts,tsx}',
         'dev/src/**/*.ts',
