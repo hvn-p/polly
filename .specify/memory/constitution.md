@@ -71,29 +71,42 @@ event arrives once and in order; a test that rebuilds a session from its log alo
 Polly follows hexagonal architecture (ports and adapters). The domain defines its ports;
 the database, file storage, AI clients, background workers and the clock are adapters. The
 domain never imports an adapter, and an adapter can be replaced without touching the
-domain. The allowed dependency graph is written in one place, and adding an edge to it is
-approved by a human.
+domain.
 
 Why: every external piece can change, and the domain must stay testable without any of
 them.
 
-*Verified by*: a test that compares actual dependencies with the declared graph; domain
-tests that run on in-memory adapters; code review.
+*Verified by*: domain tests that run on in-memory adapters; the dependency check of the
+next principle; code review.
 
-### VII. DRY, with value objects
+### VII. Ordered tiers, no imports between peers
+
+Modules are arranged in ordered tiers, and dependencies only point down. Modules on the same
+tier never import each other: whatever needs two modules is composed in the tier above. A
+module is entered only through its public entry point. The graph has no cycle.
+
+Why: a graph between peers grows one reasonable-looking edge at a time until everything
+calls everything; a ban between peers leaves no such edge to add.
+
+*Verified by*: a dependency-graph check in CI that fails on any violation and whose message
+names the fix.
+
+### VIII. DRY, with value objects
 
 Every piece of knowledge has a single, unambiguous, authoritative representation: DRY in its
 original sense, which is about knowledge, not text. Domain concepts are value objects,
 defined once, validating themselves, and reused everywhere. Contracts between processes are
 generated from a single schema, for every process whatever its language. Two pieces of code
-that merely look alike may stay apart.
+that change for the same reason are one piece of knowledge and live in one place; code that
+only looks alike and changes for different reasons stays separate. A variation is passed as
+data, not as a flag that switches behaviour.
 
 Why: a rule written twice drifts, and two screens end up doing the same thing differently.
 
 *Verified by*: CI that regenerates the contracts and fails if they differ; code review,
 which refuses a second definition of a known notion.
 
-### VIII. No heavy computation inside a request
+### IX. No heavy computation inside a request
 
 A request answers fast. Long or heavy work runs as a durable background task, and its result
 reaches the learner as an event. Every step of a task can run again without side effects,
@@ -104,7 +117,7 @@ Why: a request that waits on heavy work blocks the learner and falls over under 
 *Verified by*: a test that kills a worker mid-task and checks for exactly one result; code
 review of every route that triggers work.
 
-### IX. An established component rather than an in-house one
+### X. An established component rather than an in-house one
 
 What the market already does well (authentication, durable tasks, storage, speech models) is
 adopted, not rewritten. Choosing a component is recorded as an ADR, and an in-house
@@ -116,7 +129,7 @@ Why: Polly's value is in learning, not in solving problems that are already solv
 
 ## Fabrication
 
-### X. A strict language, configured to refuse
+### XI. A strict language, configured to refuse
 
 The project's own code is checked at the strictest setting of each language. No typing
 workaround is allowed, and a lint warning is an error. Every piece of data entering from
@@ -128,7 +141,7 @@ Why: what the compiler refuses never reaches a review or a learner.
 relaxing a strictness option; a CI check of those configurations; a reason required in the
 pull request for any change to them.
 
-### XI. Tests state the behaviour, and what passes today passes tomorrow
+### XII. Tests state the behaviour, and what passes today passes tomorrow
 
 Tests are written first, in the same session as the code. Every behaviour, case and refusal
 of a spec has a test that fails if it breaks, and a fixed bug leaves a test. A test is
@@ -140,7 +153,7 @@ Why: tests are the only description of the behaviour that cannot go stale silent
 *Verified by*: the coverage gate in CI; outbound network blocked in tests; the test review
 at the end of development.
 
-### XII. What a program can check, a program checks
+### XIII. What a program can check, a program checks
 
 A rule that can be enforced by a type, a lint, a script or a test is enforced that way, in
 CI. Every guard has its own test, which feeds it a deliberate defect and requires it to
@@ -150,7 +163,7 @@ Why: a rule in prose is applied unevenly; a check is applied every time.
 
 *Verified by*: each guard's own test; code review, which refuses a new guard without one.
 
-### XIII. An MCP tool is a full interface
+### XIV. An MCP tool is a full interface
 
 The AI uses Polly through its MCP tools the way a person uses screens. Every tool is tested,
 and its name and description are written and reviewed with the care of a screen. An AI
@@ -163,7 +176,7 @@ names and descriptions.
 
 ## Security and Data
 
-### XIV. No route without an access rule
+### XV. No route without an access rule
 
 Every route, web or MCP, declares its access rule from a closed, generic set, and access is
 denied by default. A learner's data is visible and changeable by that learner only.
@@ -174,7 +187,7 @@ Why: an access rule left to each route is eventually forgotten on one of them.
 walks every route (anonymous refused on a protected route, a second learner refused on the
 first one's data).
 
-### XV. Nothing entered is trustworthy
+### XVI. Nothing entered is trustworthy
 
 Everything comes from input, by a person or by an AI, so everything is hostile until proven
 otherwise, AI output included. Every field exists for a reason, is bounded, and is validated
@@ -188,7 +201,7 @@ Why: a learner's text reaches an AI, which makes prompt injection a real path.
 an injection text and checks it comes back delimited; a security review when a feature adds
 a field.
 
-### XVI. Nothing secret or personal where it does not belong
+### XVII. Nothing secret or personal where it does not belong
 
 A log holds identifiers only: no learner text, no recording. A voice recording is personal
 data, kept for a bounded period and then deleted automatically. No secret and no server
@@ -199,7 +212,7 @@ Why: a leaked log or repository must not expose a learner or the platform.
 *Verified by*: a test that plays sessions and searches the logs for the text it entered;
 secret scanning in CI; a check that refuses an unpinned CI action; a security review.
 
-### XVII. Everything is in English, except what the learner reads
+### XVIII. Everything is in English, except what the learner reads
 
 Code, identifiers, comments, documentation, specs, issues, pull requests and commits are in
 English. Only the product interface is translated, English and French at first, and its
