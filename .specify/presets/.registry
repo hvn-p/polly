@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "presets": {
+    "polly": {
+      "version": "1.1.0",
+      "source": "local",
+      "manifest_hash": "sha256:c34bbc06414685d796b363f8b98f0e3ba47792490abf947edbd5ae373893ca59",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.specify",
+          "speckit.plan",
+          "speckit.tasks",
+          "speckit.implement",
+          "speckit.converge",
+          "speckit.assess.decide",
+          "speckit.bug.assess",
+          "speckit.bug.fix"
+        ]
+      },
+      "registered_skills": {
+        "claude": [
+          "speckit-specify",
+          "speckit-plan",
+          "speckit-tasks",
+          "speckit-implement",
+          "speckit-converge",
+          "speckit-assess-decide",
+          "speckit-bug-assess",
+          "speckit-bug-fix"
+        ]
+      },
+      "installed_at": "2026-10-24T11:43:29.285291+00:00"
+    }
+  }
+}
