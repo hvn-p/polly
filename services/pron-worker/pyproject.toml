@@ -1,0 +1,35 @@
+[project]
+name = "pron-worker"
+version = "0.0.0"
+description = "Polly's audio analysis worker"
+requires-python = "==3.14.*"
+dependencies = ["dbos==3.3.0"]
+
+[dependency-groups]
+dev = ["mypy==2.4.0", "pytest==9.1.1", "pytest-cov==7.1.0", "ruff==0.17.2"]
+
+[build-system]
+requires = ["uv_build==0.13.5"]
+build-backend = "uv_build"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["ALL"]
+# D203/D213 conflict with D211/D212; COM812 conflicts with the formatter; the
+# repository carries no per-file copyright notice (CPY001).
+ignore = ["D203", "D213", "COM812", "CPY001"]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest asserts with `assert`.
+"tests/**" = ["S101"]
+
+[tool.mypy]
+strict = true
+python_version = "3.14"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=pron_worker --cov-report=term-missing --cov-fail-under=90"

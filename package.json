@@ -7,12 +7,23 @@
     "node": ">=24"
   },
   "scripts": {
-    "lint": "biome check .",
+    "dev:up": "pnpm install --frozen-lockfile && node dev/src/main.ts up",
+    "dev:down": "node dev/src/main.ts down",
+    "dev:worker": "node dev/src/main.ts worker",
+    "dev:e2e": "node dev/src/main.ts e2e",
+    "dev:url": "node dev/src/main.ts url",
+    "agent": "node dev/src/main.ts agent",
+    "lint": "biome check --error-on-warnings .",
     "lint:fix": "biome check --write .",
-    "test": "pnpm run test:repo",
+    "typecheck": "pnpm -r --no-bail run typecheck",
+    "test": "vitest run && pnpm run test:repo",
     "test:repo": "node --test 'speckit/extensions/*/test/*.test.mjs'"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.2"
+    "@biomejs/biome": "2.6.2",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.0.5",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
   }
 }

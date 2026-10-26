@@ -10,6 +10,9 @@ the MCP.
   before designing or judging a change.
 - **The product direction** and its teaching principles are in `PRODUCT.md`. An
   interface is composed with the Impeccable skill, which reads it.
+- **The platform** Polly runs on (shared Postgres, Garage, vault, the contract with an
+  application) is the submodule `vendors/infra`, read-only. Read its `CLAUDE.md` before
+  touching infrastructure, configuration or deployment.
 
 ## Where a decision is written
 
