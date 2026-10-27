@@ -55,6 +55,10 @@ export const renderPython: PythonRenderer = async (jsonSchema) =>
     [
       'run',
       '--quiet',
+      // The worker's environment is synced beforehand (dev:up, a CI step):
+      // rendering downloads nothing.
+      '--frozen',
+      '--no-sync',
       '--project',
       workerProject,
       'datamodel-codegen',

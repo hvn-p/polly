@@ -49,6 +49,8 @@ jobs:
       # The contract guard renders the worker's Python types.
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       - run: pnpm install --frozen-lockfile
+      - run: uv sync --locked
+        working-directory: services/pron-worker
       - run: node scripts/checks/strict-configs.mjs
       - run: node scripts/checks/dependencies.mjs
       - run: node scripts/checks/pinned-actions.mjs
@@ -76,6 +78,10 @@ jobs:
           cache: pnpm
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       - run: pnpm install --frozen-lockfile
+      # The tests run the worker and render its contract types with the synced
+      # environment, and download nothing.
+      - run: uv sync --locked
+        working-directory: services/pron-worker
       # The test database belongs to a role that is not a superuser, as a
       # worktree's does.
       - name: Create the test role and database
