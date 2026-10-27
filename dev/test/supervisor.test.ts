@@ -43,7 +43,7 @@ describe('process supervisor', { timeout: 30_000 }, () => {
     await until(() => groupMembers(state.pid).length === 2)
     process.kill(state.pid, 'SIGKILL')
     await until(() => !supervisor.isRunning(state))
-    expect(groupMembers(state.pid)).toHaveLength(1)
+    await until(() => groupMembers(state.pid).length === 1)
     await supervisor.stop(state)
     expect(groupMembers(state.pid)).toEqual([])
     await expect(supervisor.stop(state)).resolves.toBeUndefined()
