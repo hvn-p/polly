@@ -1,7 +1,7 @@
 import { afterAll } from 'vitest'
 import type { Config } from '../../src/entry/config.ts'
 import { createDatabase } from '../../src/entry/database.ts'
-import { type RunningServer, startServer } from '../../src/entry/server.ts'
+import { type RunningServer, type ServerOptions, startServer } from '../../src/entry/server.ts'
 import { createIdentity, type Identity } from '../../src/reference/identity/index.ts'
 import { testConfig } from './config.ts'
 
@@ -18,9 +18,17 @@ export interface TestServer extends RunningServer {
 
 // The API in process, on an ephemeral loopback port, against the test
 // database. Closed after the test file.
-export async function testServer(overrides: Partial<Config> = {}): Promise<TestServer> {
+export async function testServer(
+  overrides: Partial<Config> = {},
+  options: Pick<ServerOptions, 'clock'> = {},
+): Promise<TestServer> {
   const config = testConfig(overrides)
-  const server = await startServer({ config, port: 0, fetchClientMetadataResource: noClientMetadataFetch })
+  const server = await startServer({
+    config,
+    port: 0,
+    fetchClientMetadataResource: noClientMetadataFetch,
+    ...options,
+  })
   const db = createDatabase(config.DATABASE_URL)
   const identity = createIdentity({
     publicUrl: config.PUBLIC_URL,

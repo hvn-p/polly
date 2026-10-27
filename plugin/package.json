@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "echo no source yet"
+    "typecheck": "tsc -p ."
   }
 }

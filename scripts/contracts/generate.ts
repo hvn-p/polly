@@ -31,7 +31,14 @@ export function fromSource(source: string): Contract['load'] {
   }
 }
 
-export const CONTRACTS: Contract[] = []
+export const CONTRACTS: Contract[] = [
+  {
+    name: 'agent-events',
+    source: 'apps/api/src/entry/contracts/agent-events.ts',
+    load: fromSource('apps/api/src/entry/contracts/agent-events.ts'),
+    jsonSchema: ['plugin/contracts/agent-events.schema.json'],
+  },
+]
 
 const workerProject = join(repositoryRoot, 'services/pron-worker')
 

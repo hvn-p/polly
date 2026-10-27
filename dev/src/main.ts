@@ -2,6 +2,7 @@
 // A refusal prints `<CODE>: <message>` and exits 1; an unexpected failure
 // exits 2.
 
+import { agent } from './commands/agent.ts'
 import { down } from './commands/down.ts'
 import { Refusal } from './commands/refusal.ts'
 import { up } from './commands/up.ts'
@@ -33,6 +34,8 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
       case 'down':
         await down({ root: io.cwd, infra: await infrastructure(io), out: io.stdout })
         return 0
+      case 'agent':
+        return await agent({ root: io.cwd, args: argv.slice(1), out: io.stderr })
       case 'url':
         url({ root: io.cwd, out: io.stdout })
         return 0

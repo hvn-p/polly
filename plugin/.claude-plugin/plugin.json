@@ -1,0 +1,21 @@
+{
+  "name": "polly",
+  "version": "0.0.0",
+  "description": "Polly, a language teacher you reach through its MCP server.",
+  "mcpServers": {
+    "polly": {
+      "type": "http",
+      "url": "${POLLY_MCP_URL:-https://unconfigured.invalid/mcp}"
+    }
+  },
+  "experimental": {
+    "monitors": [
+      {
+        "name": "agent-events",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/agent-events.mjs\"",
+        "description": "Polly lesson events",
+        "when": "on-skill-invoke:polly:lesson"
+      }
+    ]
+  }
+}

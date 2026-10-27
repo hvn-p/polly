@@ -3,7 +3,7 @@ import { type Kysely, sql } from 'kysely'
 import type { Migration } from 'kysely/migration'
 import { afterAll, describe, expect, inject, it } from 'vitest'
 import { createDatabase, type Database } from '../src/entry/database.ts'
-import { startServer } from '../src/entry/server.ts'
+import { startServer, startWhenSchemaCurrent } from '../src/entry/server.ts'
 import { assertSchemaCurrent, migrate } from '../src/entry/startup.ts'
 import { migrations } from '../src/migrations/index.ts'
 import { identityOptions } from '../src/reference/identity/index.ts'
@@ -57,5 +57,30 @@ describe('migrations and schema check', () => {
     await expect(startServer({ config, port: 0, migrations: { ...migrations, ...fixture } })).rejects.toThrow(
       /SCHEMA_BEHIND/,
     )
+  })
+})
+
+describe('waiting for the schema', () => {
+  it('C20: refuses to serve while the database is behind, then serves once it matches the code', async () => {
+    const behind: string[] = []
+    // The fixture leaves the set once "dev:up has migrated": the server's view
+    // of the schema then matches, with no write to the shared test database.
+    const pending: Record<string, Migration> = {
+      ...migrations,
+      '9998_fixture_migrated_later': { up: async () => undefined },
+    }
+    const starting = startWhenSchemaCurrent({
+      config: testConfig(),
+      port: 0,
+      migrations: pending,
+      retryMs: 20,
+      onBehind: (message) => behind.push(message),
+    })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(behind).toEqual([expect.stringMatching(/^SCHEMA_BEHIND: 9998_fixture_migrated_later/)])
+    delete pending['9998_fixture_migrated_later']
+    const server = await starting
+    expect((await fetch(`${server.url}/.well-known/oauth-protected-resource/mcp`)).status).toBe(200)
+    await server.close()
   })
 })

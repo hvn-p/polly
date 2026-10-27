@@ -1,9 +1,15 @@
-import { Kysely, PostgresDialect } from 'kysely'
+import { type Generated, Kysely, PostgresDialect } from 'kysely'
 import pg from 'pg'
 
 // The tables the API's own code queries; Better Auth's are its own.
-// biome-ignore lint/complexity/noBannedTypes: no table of the API's own yet.
-export type Database = {}
+export interface Database {
+  agent_event_code: {
+    code_hash: string
+    learner_id: string
+    bound_at: Generated<Date>
+    revoked_at: Date | null
+  }
+}
 
 export function createDatabase(url: string): Kysely<Database> {
   return new Kysely<Database>({
