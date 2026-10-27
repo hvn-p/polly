@@ -63,7 +63,7 @@ describe('Garage adapter', { timeout: 60_000 }, () => {
           },
         }),
       ),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ name: 'AccessDenied' })
     const info = JSON.parse(await garage('GetBucketInfo', { globalAlias: a.bucket })) as {
       lifecycleRules: { Expiration: { Days: number } }[]
     }
@@ -96,7 +96,7 @@ describe('Garage adapter', { timeout: 60_000 }, () => {
     // Reading the rule needs `owner`, which the worktree's key lacks.
     await expect(
       client(access('a')).send(new GetBucketLifecycleConfigurationCommand({ Bucket: access('a').bucket })),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ name: 'AccessDenied' })
     const info = JSON.parse(await garage('GetBucketInfo', { globalAlias: access('a').bucket })) as {
       lifecycleRules: { Expiration: { Days: number } }[]
     }

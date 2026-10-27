@@ -38,6 +38,7 @@ describe('dev:down with faked infrastructure', () => {
     infra.calls.length = 0
     await down({ root, infra, out })
     expect(id).toMatch(/^feature-before-/)
+    expect(infra.calls).toContain(`postgres.release polly_${id.replaceAll('-', '_')}`)
     expect(infra.calls).toContain(`garage.release polly-${id}`)
     expect(infra.calls).toContain(`routes.remove ${id}.polly`)
   })

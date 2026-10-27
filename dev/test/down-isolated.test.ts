@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { down } from '../src/commands/down.ts'
@@ -35,6 +36,19 @@ afterAll(async () => {
 const infrastructure = () => isolatedWorktreeInfrastructure(shared, supervisors)
 const superuser = (sql: string) => superuserOf(shared, sql)
 const out = () => undefined
+
+// A worktree's own S3 client, from its configuration.
+function s3Of(env: Record<string, string>): S3Client {
+  return new S3Client({
+    endpoint: env['S3_ENDPOINT'] ?? '',
+    region: env['S3_REGION'] ?? '',
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: env['S3_ACCESS_KEY_ID'] ?? '',
+      secretAccessKey: env['S3_SECRET_ACCESS_KEY'] ?? '',
+    },
+  })
+}
 
 async function released(env: Record<string, string>): Promise<void> {
   const database = env['DATABASE_URL']?.split('/').pop() ?? ''
@@ -84,11 +98,21 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     await up({ root: b, ...loaded(infra), out })
     await query(a, 'create table mine (value text)')
     await query(b, `create table mine (value text); insert into mine values ('b')`)
+    await query(
+      b,
+      `insert into "session" ("id", "expiresAt", "token", "updatedAt", "userId")
+       select 'session-b', now() + interval '1 day', 'token-b', now(), "id" from "user"`,
+    )
+    const bucketB = s3Of(envOf(b))
+    const object = { Bucket: envOf(b)['S3_BUCKET'], Key: 'kept.txt' }
+    await bucketB.send(new PutObjectCommand({ ...object, Body: 'kept' }))
     const bSupervisor = stateOf(b).supervisor.pid
     await down({ root: a, infra, out })
     await until(() => groupMembers(bSupervisor).length === 2)
     expect(await query(b, 'select value from mine')).toEqual([{ value: 'b' }])
-    expect(await garageOf(shared, 'GetBucketInfo', { globalAlias: envOf(b)['S3_BUCKET'] })).toBeDefined()
+    expect(await query(b, `select "token" from "session"`)).toEqual([{ token: 'token-b' }])
+    const kept = await bucketB.send(new GetObjectCommand(object))
+    expect(await kept.Body?.transformToString()).toBe('kept')
 
     await up({ root: a, ...loaded(infra), out })
     expect(
