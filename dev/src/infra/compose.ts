@@ -5,10 +5,11 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { Refusal } from '../commands/refusal.ts'
 import { lock } from './flock.ts'
 import type { SharedInfrastructure } from './ports.ts'
 
-const composeFile = join(import.meta.dirname, '..', '..', 'compose.yaml')
+const worktreeComposeFile = join(import.meta.dirname, '..', '..', 'compose.yaml')
 
 export interface ComposeSettings {
   project: string
@@ -17,6 +18,8 @@ export interface ComposeSettings {
   // Machine-wide state of the project: the start lock, and the Postgres
   // superuser password, generated once.
   machineDirectory: string
+  // The worktree's compose file by default.
+  composeFile?: string
 }
 
 export interface ComposeInfrastructure extends SharedInfrastructure {
@@ -68,11 +71,36 @@ export function composeInfrastructure(settings: ComposeSettings): ComposeInfrast
     POLLY_DEV_POSTGRES_PORT: String(settings.postgresPort),
     POLLY_DEV_GARAGE_PORT: String(settings.garagePort),
   })
+  const composeFile = settings.composeFile ?? worktreeComposeFile
   const compose = (args: readonly string[], input?: string) =>
     run('docker', ['compose', '-f', composeFile, '-p', settings.project, ...args], {
       env: env(),
       ...(input === undefined ? {} : { input }),
     })
+  // The services whose containers run a configuration other than this
+  // worktree's compose file: up would recreate them under every worktree.
+  const differingServices = async () => {
+    const hashes = (output: string) =>
+      new Map(
+        output
+          .trim()
+          .split('\n')
+          .map((line) => line.split(' ') as [string, string]),
+      )
+    const expected = hashes(await compose(['config', '--hash', '*']))
+    const running = await run('docker', [
+      'ps',
+      '--all',
+      '--filter',
+      `label=com.docker.compose.project=${settings.project}`,
+      '--format',
+      '{{.Label "com.docker.compose.service"}} {{.Label "com.docker.compose.config-hash"}}',
+    ])
+    return [...hashes(running)]
+      .filter(([service, hash]) => service !== '' && expected.get(service) !== hash)
+      .map(([service]) => service)
+      .sort()
+  }
   return {
     project: settings.project,
     postgresPort: settings.postgresPort,
@@ -80,6 +108,14 @@ export function composeInfrastructure(settings: ComposeSettings): ComposeInfrast
     ensureRunning: async () => {
       const held = await lock(join(settings.machineDirectory, 'infra.lock'))
       try {
+        const differing = await differingServices()
+        if (differing.length > 0) {
+          throw new Refusal(
+            'SHARED_INFRASTRUCTURE_DIFFERS',
+            `${differing.join(', ')} of ${settings.project} run a configuration other than ${composeFile}; ` +
+              `once every worktree has that change, run docker compose -p ${settings.project} down (the data stays), then this command again`,
+          )
+        }
         await compose(['up', '--detach', '--wait', '--quiet-pull'])
       } finally {
         await held.release()

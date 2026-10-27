@@ -4,7 +4,11 @@ import { mkdtempSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { type ComposeInfrastructure, composeInfrastructure } from '../../src/infra/compose.ts'
+import {
+  type ComposeInfrastructure,
+  type ComposeSettings,
+  composeInfrastructure,
+} from '../../src/infra/compose.ts'
 
 async function freePort(): Promise<number> {
   const server = createServer()
@@ -16,16 +20,20 @@ async function freePort(): Promise<number> {
 
 // A compose project of the test's own, never the shared polly-dev: stopping or
 // removing it touches no worktree, and two test runs never share one.
-export async function isolatedInfrastructure(): Promise<ComposeInfrastructure & { destroy: () => void }> {
+export async function isolatedInfrastructure(): Promise<
+  ComposeInfrastructure & { settings: ComposeSettings; destroy: () => void }
+> {
   const project = `polly-dev-test-${randomBytes(3).toString('hex')}`
-  const compose = composeInfrastructure({
+  const settings: ComposeSettings = {
     project,
     postgresPort: await freePort(),
     garagePort: await freePort(),
     machineDirectory: mkdtempSync(join(tmpdir(), `${project}-`)),
-  })
+  }
+  const compose = composeInfrastructure(settings)
   return {
     ...compose,
+    settings,
     destroy: () => {
       execFileSync('docker', ['compose', '-p', project, 'down', '--volumes', '--timeout', '1'], {
         stdio: 'ignore',

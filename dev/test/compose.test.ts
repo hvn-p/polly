@@ -1,5 +1,9 @@
 import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { composeInfrastructure } from '../src/infra/compose.ts'
 import { containerIds, isolatedInfrastructure } from './support/isolated-infrastructure.ts'
 
 let infra: Awaited<ReturnType<typeof isolatedInfrastructure>>
@@ -38,5 +42,22 @@ describe('shared infrastructure (compose)', { timeout: 180_000 }, () => {
       'select datname from pg_database',
     ])
     expect(databases.split('\n')).toContain('kept')
+  })
+
+  it('refuses to recreate the running containers from a compose file that differs, naming the service', async () => {
+    await infra.ensureRunning()
+    const before = containerIds(infra.project)
+    const changed = join(mkdtempSync(join(tmpdir(), 'compose-')), 'compose.yaml')
+    const source = readFileSync(join(import.meta.dirname, '../compose.yaml'), 'utf8')
+    writeFileSync(
+      changed,
+      source.replace('restart: unless-stopped\n    command:', 'restart: always\n    command:'),
+    )
+    const branch = composeInfrastructure({ ...infra.settings, composeFile: changed })
+    await expect(branch.ensureRunning()).rejects.toMatchObject({
+      code: 'SHARED_INFRASTRUCTURE_DIFFERS',
+      message: expect.stringMatching(/garage/),
+    })
+    expect(containerIds(infra.project)).toBe(before)
   })
 })
