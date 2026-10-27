@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Readable } from 'node:stream'
@@ -70,6 +70,16 @@ async function lockHeld(): Promise<boolean> {
   return lock === undefined
 }
 
+// Another worktree's real worker: one process holding the lock, its name
+// written in it, so killing that process frees the lock.
+function holdRealWorker(): ChildProcess {
+  return spawn('sh', [
+    '-c',
+    'exec 9>"$0" && flock 9 && printf other > "$0" && echo held && exec sleep 30',
+    realWorkerLock,
+  ])
+}
+
 function modeOf(root: string): string | undefined {
   return parseEnv(readFileSync(join(root, '.env.local'), 'utf8')).get('POLLY_WORKER_MODE')
 }
@@ -133,12 +143,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     const start = a.infra.supervisor.start
     a.infra.supervisor.start = async (options) => {
       if (holder === undefined) {
-        holder = spawn('flock', [
-          realWorkerLock,
-          'sh',
-          '-c',
-          `printf other > ${realWorkerLock}; echo held; sleep 30`,
-        ])
+        holder = holdRealWorker()
         await once(holder.stdout as Readable, 'data')
       }
       return start(options)
@@ -151,6 +156,36 @@ describe('dev:worker', { timeout: 30_000 }, () => {
       expect(modeOf(a.root)).toBe('fake')
     } finally {
       holder?.kill()
+    }
+  })
+
+  it('C31: dev:up of a worktree left in real mode runs the fake worker while another holds the real one, and says so', async () => {
+    const holder = spawn('flock', [
+      realWorkerLock,
+      'sh',
+      '-c',
+      `printf other > ${realWorkerLock}; echo held; sleep 30`,
+    ])
+    try {
+      await once(holder.stdout, 'data')
+      const a = await worktree('feature/real-up')
+      const envFile = join(a.root, '.env.local')
+      writeFileSync(
+        envFile,
+        readFileSync(envFile, 'utf8').replace(/^POLLY_WORKER_MODE=.*$/m, 'POLLY_WORKER_MODE=real'),
+      )
+      const { supervisor } = JSON.parse(readFileSync(join(a.root, '.dev/state.json'), 'utf8')) as {
+        supervisor: { pid: number }
+      }
+      await a.infra.supervisor.stop(supervisor)
+      const lines: string[] = []
+      await up({ root: a.root, ...loaded(a.infra), out: (line) => lines.push(line) })
+      expect(modeOf(a.root)).toBe('fake')
+      expect(lines).toContainEqual(expect.stringMatching(/worker: fake.*real worker runs for other/))
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(readFileSync(realWorkerLock, 'utf8')).toBe('other')
+    } finally {
+      holder.kill()
     }
   })
 

@@ -41,7 +41,7 @@ export function workerProcess(
   }
 }
 
-function setMode(worktree: Worktree, mode: string): Record<string, string> {
+export function setMode(worktree: Worktree, mode: string): Record<string, string> {
   const content = readFileSync(worktree.envFile, 'utf8')
   writeFileSync(worktree.envFile, content.replace(/^POLLY_WORKER_MODE=.*$/m, `POLLY_WORKER_MODE=${mode}`))
   return readEnv(worktree) ?? {}
@@ -49,7 +49,7 @@ function setMode(worktree: Worktree, mode: string): Record<string, string> {
 
 // The worktree holding the real worker's lock, once a holder has written it;
 // undefined while the lock is free.
-async function realWorkerHolder(lockFile: string): Promise<string | undefined> {
+export async function realWorkerHolder(lockFile: string): Promise<string | undefined> {
   const free = await tryLock(lockFile)
   if (free !== undefined) {
     await free.release()

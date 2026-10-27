@@ -11,6 +11,7 @@ import { tryLock } from '../infra/flock.ts'
 import type { Infrastructure, Prerequisites } from '../infra/ports.ts'
 import { Refusal } from './refusal.ts'
 import { bucketAccessOf, readEnv, readState, required, resourcesOf, writeState } from './state.ts'
+import { realWorkerHolder, setMode } from './worker.ts'
 import { currentBranch, worktreeAt } from './worktree.ts'
 
 const template = join(import.meta.dirname, '..', '..', 'env.template')
@@ -78,7 +79,7 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
     if (completed !== existing) {
       writeFileSync(worktree.envFile, completed, { mode: 0o600 })
     }
-    const env = readEnv(worktree) ?? {}
+    let env = readEnv(worktree) ?? {}
     const resources = resourcesOf(env)
     const webPort = Number(required(env, 'POLLY_WEB_PORT'))
     const state = readState(worktree)
@@ -119,6 +120,16 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
     }
     let supervisor = state.supervisor
     if (supervisor === undefined || !running) {
+      if (env['POLLY_WORKER_MODE'] === 'real') {
+        // As dev:worker real: one real worker on the machine.
+        const holder = await realWorkerHolder(infra.realWorkerLock)
+        if (holder !== undefined && holder !== resources.identity) {
+          env = setMode(worktree, 'fake')
+          out(
+            `worker: fake, the real worker runs for ${holder || 'another worktree'}; nr dev:worker real once it is free`,
+          )
+        }
+      }
       supervisor = await infra.supervisor.start({ root, processes: infra.application.processes(env), env })
     }
     writeState(worktree, {
