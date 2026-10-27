@@ -4,6 +4,7 @@
 import type { AddressInfo } from 'node:net'
 import { fetchClientMetadataResource as fetchOverNetwork } from '@better-auth/cimd/node'
 import { serve } from '@hono/node-server'
+import { assertSchemaCurrent } from '@polly/database'
 import type { Migration } from 'kysely/migration'
 import { type Clock, systemClock } from '../kernel/clock/index.ts'
 import { createIdentity, type IdentitySettings } from '../reference/identity/index.ts'
@@ -18,7 +19,6 @@ import { registerMcpRoute } from './mcp/index.ts'
 import { startLesson } from './mcp/start-lesson.ts'
 import { whoami } from './mcp/whoami.ts'
 import { type Guards, type Route, RouteRegistry } from './routes.ts'
-import { assertSchemaCurrent } from './startup.ts'
 
 export interface ServerOptions {
   config: Config

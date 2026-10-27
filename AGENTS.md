@@ -89,8 +89,8 @@ consent covers only those two and that channel: any other issue or PR is asked f
 - The front end (`apps/web`) follows the Feature-Sliced Design layers.
 - Outside the apps: `services/pron-worker` (Python audio analysis), `languages/<code>/`
   (language packs as neutral data, read by the API and the worker),
-  `packages/api-client` (client generated from the OpenAPI, for the front end and the
-  plugin), `plugin/` (the Claude Code plugin), `dev/` (each worktree's local Polly: read
+  `packages/database` (the migrations and the schema check, shared by the API
+  and the worker), `plugin/` (the Claude Code plugin), `dev/` (each worktree's local Polly: read
   `dev/README.md` before running or validating anything locally).
 - A contract between two processes is changed in its Zod source under
   `apps/api/src/entry/contracts/`, then regenerated with `nr contracts`.

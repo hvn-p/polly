@@ -1,0 +1,30 @@
+// The database tests run against: the worktree's test database, never another.
+// Locally its URL comes from .env.local, in CI from the job.
+
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { parseEnv } from 'node:util'
+
+export function assertTestDatabase(url: string | undefined): string {
+  if (url === undefined || url === '') {
+    throw new Error(
+      'NOT_A_TEST_DATABASE: TEST_DATABASE_URL is not set; run nr dev:up to create the test database',
+    )
+  }
+  const name = decodeURIComponent(new URL(url).pathname.slice(1))
+  if (!/^[a-z0-9_]+_test$/.test(name)) {
+    throw new Error(`NOT_A_TEST_DATABASE: ${name || '(none)'} does not end in _test; tests never touch it`)
+  }
+  return url
+}
+
+// The test database's URL, once checked to name a test database.
+export function testDatabaseUrl(): string {
+  if (process.env['TEST_DATABASE_URL'] !== undefined) {
+    return assertTestDatabase(process.env['TEST_DATABASE_URL'])
+  }
+  const envFile = join(import.meta.dirname, '..', '..', '..', '.env.local')
+  return assertTestDatabase(
+    existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8'))['TEST_DATABASE_URL'] : undefined,
+  )
+}

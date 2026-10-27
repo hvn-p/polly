@@ -75,8 +75,8 @@ export async function garage(
   ) as Record<string, unknown>
 }
 
-// The migrations the API ships, as a migrated database lists them.
+// The shipped migrations, as a migrated database lists them.
 export async function shippedMigrations(): Promise<{ name: string }[]> {
-  const { migrations } = await import('../../../apps/api/src/migrations/index.ts')
+  const { migrations } = await import('../../../packages/database/src/migrations/index.ts')
   return Object.keys(migrations).map((name) => ({ name }))
 }

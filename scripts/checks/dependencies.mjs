@@ -2,8 +2,8 @@
 // Checks the dependency graph of the API (constitution principle VII): tiers
 // entry > flows > domains > reference > kernel, imports point down only, no
 // import between two flows or two domains, a module is entered through its
-// index.ts only, no cycle between modules. Migrations import nothing of the
-// application, and only entry imports them.
+// index.ts only, no cycle between modules. The migrations live in
+// packages/database, never in the API.
 //
 // Usage: node scripts/checks/dependencies.mjs [apps/api/src]
 
@@ -13,7 +13,6 @@ import { fileURLToPath } from 'node:url'
 import { report } from './report.mjs'
 
 const TIERS = ['entry', 'flows', 'domains', 'reference', 'kernel']
-const MIGRATIONS = 'migrations'
 /** @type {Record<string, string>} */
 const PEER_FIXES = {
   flows: 'two flows never import each other: compose them in entry',
@@ -50,7 +49,7 @@ function listSources(directory, found = []) {
  */
 function locate(path) {
   const [tier = '', first = '', ...rest] = path.split('/')
-  if (tier === 'entry' || tier === MIGRATIONS) {
+  if (tier === 'entry') {
     return { tier, module: tier, isEntryPoint: true }
   }
   const isFile = rest.length === 0
@@ -105,7 +104,11 @@ export function checkDependencies(src) {
     return violations
   }
   for (const entry of readdirSync(src)) {
-    if (!TIERS.includes(entry) && entry !== MIGRATIONS) {
+    if (entry === 'migrations') {
+      violations.push(
+        `${entry}: the database belongs to Polly, not to the API; move them to packages/database`,
+      )
+    } else if (!TIERS.includes(entry)) {
       violations.push(`${entry}: not a tier; place it under one of ${TIERS.join(', ')}`)
     }
   }
@@ -115,7 +118,7 @@ export function checkDependencies(src) {
   for (const file of listSources(src)) {
     const from = relative(src, file).split(sep).join('/')
     const source = locate(from)
-    if (!TIERS.includes(source.tier) && source.tier !== MIGRATIONS) {
+    if (!TIERS.includes(source.tier)) {
       continue
     }
     for (const [, specifier = ''] of readFileSync(file, 'utf8').matchAll(IMPORT)) {
@@ -135,16 +138,6 @@ export function checkDependencies(src) {
         continue
       }
       const prefix = `${from} imports ${to}`
-      if (source.tier === MIGRATIONS) {
-        violations.push(`${prefix}: migrations import nothing of the application; inline what they need`)
-        continue
-      }
-      if (destination.tier === MIGRATIONS) {
-        if (source.tier !== 'entry') {
-          violations.push(`${prefix}: only entry runs migrations`)
-        }
-        continue
-      }
       const sourceRank = TIERS.indexOf(source.tier)
       const destinationRank = TIERS.indexOf(destination.tier)
       if (destinationRank < sourceRank) {

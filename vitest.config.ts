@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    projects: ['apps/*', 'dev', 'plugin', 'scripts'],
+    projects: ['apps/*', 'dev', 'packages/*', 'plugin', 'scripts'],
     coverage: {
       provider: 'v8',
       // The gate reads the text report; nothing is written into the repository.
@@ -11,6 +11,7 @@ export default defineConfig({
       include: [
         'apps/*/src/**/*.{ts,tsx}',
         'dev/src/**/*.ts',
+        'packages/*/src/**/*.ts',
         'plugin/bin/**/*.mjs',
         'scripts/**/*.{ts,mjs}',
       ],
@@ -25,9 +26,9 @@ export default defineConfig({
         'apps/api/src/entry/main.ts',
         // The driven agent run: on demand, never in CI (nr dev:e2e).
         'dev/src/e2e/claude.ts',
-        // Applied by the API tests' global setup, in its own process; the
+        // Applied by the tests' global setups, in their own process; the
         // startup tests check the schema they produce.
-        'apps/api/src/migrations/**',
+        'packages/database/src/migrations/**',
         // Installed and tested by the baudrier plugin.
         'scripts/checks/agents-md.mjs',
       ],

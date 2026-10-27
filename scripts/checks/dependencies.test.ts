@@ -17,8 +17,7 @@ function fixture(files: Record<string, string>): string {
 
 const valid = {
   'entry/server.ts': "import { seed } from '../flows/seed/index.ts'\nimport { app } from './app.ts'\n",
-  'entry/app.ts': "import { up } from '../migrations/index.ts'\n",
-  'migrations/index.ts': "import { Kysely } from 'kysely'\n",
+  'entry/app.ts': "import { migrate } from '@polly/database'\n",
   'flows/seed/index.ts': "export * from './seed.ts'\n",
   'flows/seed/seed.ts': "import type { Memory } from '../../domains/memory/index.ts'\n",
   'domains/memory/index.ts': "export { now } from '../../kernel/clock/index.ts'\n",
@@ -69,9 +68,9 @@ describe('dependencies guard', () => {
     ])
   })
 
-  it('refuses a migration that imports application code', () => {
-    const root = fixture({ ...valid, 'migrations/index.ts': "import '../kernel/ids/index.ts'\n" })
-    expect(checkDependencies(root)).toEqual([expect.stringMatching(/migrations import nothing/)])
+  it('refuses migrations inside the API, naming the package they belong to', () => {
+    const root = fixture({ ...valid, 'migrations/index.ts': "import { Kysely } from 'kysely'\n" })
+    expect(checkDependencies(root)).toEqual([expect.stringMatching(/^migrations: .*packages\/database/)])
   })
 
   it('ignores a unit test sitting next to its file, which may assemble several tiers', () => {

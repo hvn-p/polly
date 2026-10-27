@@ -1,9 +1,9 @@
-// What runs before the API serves: the schema check, and the migrations that
-// dev:up and the test setup apply.
+// Brings a database to the schema of the shipped migrations, and checks that
+// it is there before a process serves.
 
 import type { Kysely } from 'kysely'
 import { type Migration, Migrator } from 'kysely/migration'
-import { migrations as shippedMigrations } from '../migrations/index.ts'
+import { migrations as shippedMigrations } from './migrations/index.ts'
 
 function migrator<DB>(db: Kysely<DB>, migrations: Record<string, Migration>): Migrator {
   return new Migrator({ db, provider: { getMigrations: async () => migrations } })

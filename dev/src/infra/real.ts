@@ -14,18 +14,19 @@ import { prerequisites } from './prerequisites.ts'
 
 const codeRoot = join(import.meta.dirname, '..', '..', '..')
 const apiCli = join(codeRoot, 'apps/api/src/entry/cli.ts')
+const databaseCli = join(codeRoot, 'packages/database/src/cli.ts')
 
-// The API's command line, and the processes of a worktree (the API, the
-// front-end dev server and the worker), run on its configuration.
+// The database's and the API's command lines, and the processes of a worktree
+// (the API, the front-end dev server and the worker), run on its configuration.
 export function apiApplication(realWorkerLock: string): Application {
-  const cli = (command: string, env: Record<string, string>) =>
-    run(process.execPath, [apiCli, command], { env: { ...process.env, ...env } })
+  const cli = (path: string, command: string, env: Record<string, string>) =>
+    run(process.execPath, [path, command], { env: { ...process.env, ...env } })
   return {
     migrate: async (env) => {
-      await cli('migrate', env)
+      await cli(databaseCli, 'migrate', env)
     },
     seed: async (env) => {
-      await cli('seed-demo', env)
+      await cli(apiCli, 'seed-demo', env)
     },
     processes: (env) => [
       {

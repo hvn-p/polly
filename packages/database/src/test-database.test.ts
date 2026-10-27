@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assertTestDatabase } from './global-setup.ts'
+import { assertTestDatabase } from './test-database.ts'
 
 describe('test-database guard', () => {
   it('C35: refuses a database whose name does not end in _test', () => {

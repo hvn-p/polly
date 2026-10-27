@@ -1,5 +1,5 @@
-// The API's command line, run by dev:up on a worktree's database:
-// `node apps/api/src/entry/cli.ts migrate|seed-demo`.
+// The API's command line, run by dev:up on a worktree's database once it is
+// migrated: `node apps/api/src/entry/cli.ts seed-demo`.
 
 import { fetchClientMetadataResource } from '@better-auth/cimd/node'
 import { DEMO_ACCOUNT, seedDemoAccount } from '../flows/seed-demo-account/index.ts'
@@ -7,9 +7,8 @@ import { Refusal } from '../kernel/refusal/index.ts'
 import { createIdentity } from '../reference/identity/index.ts'
 import { readConfig } from './config.ts'
 import { createDatabase } from './database.ts'
-import { migrate } from './startup.ts'
 
-const COMMANDS = ['migrate', 'seed-demo']
+const COMMANDS = ['seed-demo']
 
 export interface CliIo {
   env: Record<string, string | undefined>
@@ -32,11 +31,6 @@ export async function runCli(argv: readonly string[], { env, out, err }: CliIo):
   }
   const db = createDatabase(config.DATABASE_URL)
   try {
-    if (command === 'migrate') {
-      const applied = await migrate(db)
-      out(applied.length === 0 ? 'migrations: up to date' : `migrations applied: ${applied.join(', ')}`)
-      return 0
-    }
     const identity = createIdentity({
       publicUrl: config.PUBLIC_URL,
       secret: config.BETTER_AUTH_SECRET,

@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - dev
+  - packages/*
   - plugin
 minimumReleaseAgeExclude:
   - "@aws-sdk/checksums@3.1001.6"

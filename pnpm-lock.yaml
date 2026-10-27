@@ -208,6 +208,9 @@ importers:
       '@modelcontextprotocol/server':
         specifier: 2.4.0
         version: 2.4.0
+      '@polly/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       better-auth:
         specifier: 1.7.13
         version: 1.7.13(@opentelemetry/api@1.10.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
@@ -277,6 +280,19 @@ importers:
         specifier: 8.23.1
         version: 8.23.1
       pg:
+        specifier: 8.23.1
+        version: 8.23.1
+
+  packages/database:
+    dependencies:
+      kysely:
+        specifier: 0.29.7
+        version: 0.29.7
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
+    devDependencies:
+      '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
 

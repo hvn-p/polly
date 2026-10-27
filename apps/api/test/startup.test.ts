@@ -1,11 +1,10 @@
+import { assertSchemaCurrent, migrations } from '@polly/database'
 import { getMigrations as getAuthMigrations } from 'better-auth/db/migration'
 import { type Kysely, sql } from 'kysely'
 import type { Migration } from 'kysely/migration'
 import { afterAll, describe, expect, inject, it } from 'vitest'
 import { createDatabase, type Database } from '../src/entry/database.ts'
 import { startServer, startWhenSchemaCurrent } from '../src/entry/server.ts'
-import { assertSchemaCurrent, migrate } from '../src/entry/startup.ts'
-import { migrations } from '../src/migrations/index.ts'
 import { identityOptions } from '../src/reference/identity/index.ts'
 import { testConfig } from './support/config.ts'
 
@@ -40,31 +39,6 @@ describe('migrations and schema check', () => {
     const plan = await getAuthMigrations(options)
     expect(plan.toBeCreated.map(({ table }) => table)).toEqual([])
     expect(plan.toBeAdded.map(({ table }) => table)).toEqual([])
-  })
-
-  it('a migration that fails is reported, and applies nothing', async () => {
-    const broken: Record<string, Migration> = {
-      ...migrations,
-      '9997_fixture_broken': {
-        up: async () => {
-          throw new Error('broken fixture migration')
-        },
-      },
-    }
-    await expect(migrate(db, broken)).rejects.toThrow('broken fixture migration')
-    const { rows } = await sql<{ count: number }>`
-      select count(*)::int as count from kysely_migration where name = '9997_fixture_broken'`.execute(db)
-    expect(rows).toEqual([{ count: 0 }])
-  })
-
-  it('migrating an up-to-date database changes nothing', async () => {
-    await expect(migrate(db)).resolves.toEqual([])
-  })
-
-  it('C20: a database behind the code is refused with SCHEMA_BEHIND naming nr dev:up', async () => {
-    await expect(assertSchemaCurrent(db, { ...migrations, ...fixture })).rejects.toThrow(
-      /^SCHEMA_BEHIND: 9999_fixture_not_applied .*nr dev:up/,
-    )
   })
 
   it('C20: the server does not start, and serves no route, against a database behind the code', async () => {
