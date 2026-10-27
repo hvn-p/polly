@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { SupervisedProcess } from '../src/infra/ports.ts'
+import type { SupervisedProcess } from '../src/ports/index.ts'
 import { groupMembers, processSupervisor } from '../src/supervisor/index.ts'
 import { until } from './support/until.ts'
 

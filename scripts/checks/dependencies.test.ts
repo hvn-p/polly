@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { checkDependencies, checkPackageImports } from './dependencies.mjs'
+import { checkDependencies, checkPackageImports, DEV_LAYOUT } from './dependencies.mjs'
 
 const repositoryRoot = join(import.meta.dirname, '..', '..')
 
@@ -162,5 +162,61 @@ describe('package imports guard', () => {
     expect(checkPackageImports(root)).toEqual([
       expect.stringMatching(/imports @polly\/web: .*add the entry to its package\.json exports/),
     ])
+  })
+})
+
+const devValid = {
+  'main.ts': "import { up } from './commands/index.ts'\nimport { realInfrastructure } from './real.ts'\n",
+  'real.ts': "import { processSupervisor } from './supervisor/index.ts'\n",
+  'commands/index.ts': "export * from './up.ts'\n",
+  'commands/up.ts':
+    "import { realWorkerHolder } from './worker.ts'\nimport { readEnv } from '../worktree/index.ts'\n",
+  'commands/worker.ts': "import { Refusal } from '../kernel/index.ts'\n",
+  'worktree/index.ts': "import type { Infrastructure } from '../ports/index.ts'\n",
+  'supervisor/index.ts': "import type { Supervisor } from '../ports/index.ts'\n",
+  'ports/index.ts': "import type { ResourceNames } from '../identity/index.ts'\n",
+  'identity/index.ts': 'export {}\n',
+  'kernel/index.ts': 'export class Refusal {}\n',
+}
+
+describe('dependencies guard on dev/src', () => {
+  it('accepts dev/src as it is', () => {
+    expect(checkDependencies(join(repositoryRoot, 'dev/src'), DEV_LAYOUT)).toEqual([])
+  })
+
+  it('accepts downward imports between directories, through their index, and any import inside one', () => {
+    expect(checkDependencies(fixture(devValid), DEV_LAYOUT)).toEqual([])
+  })
+
+  it('refuses an upward import and names the fix', () => {
+    const root = fixture({ ...devValid, 'kernel/index.ts': "import '../commands/index.ts'\n" })
+    expect(checkDependencies(root, DEV_LAYOUT)).toEqual([
+      expect.stringMatching(
+        /^kernel\/index\.ts imports commands\/index\.ts: dependencies point down \(entry > commands > .* > kernel\)/,
+      ),
+    ])
+  })
+
+  it('refuses an import of a module below the composition root from a lower module', () => {
+    const root = fixture({ ...devValid, 'supervisor/index.ts': "import '../real.ts'\n" })
+    expect(checkDependencies(root, DEV_LAYOUT)).toEqual([
+      expect.stringMatching(/supervisor\/index\.ts imports real\.ts: dependencies point down/),
+    ])
+  })
+
+  it('refuses an import that bypasses a directory index', () => {
+    const root = fixture({
+      ...devValid,
+      'commands/worker.ts': "import { Refusal } from '../kernel/refusal.ts'\n",
+      'kernel/refusal.ts': 'export class Refusal {}\n',
+    })
+    expect(checkDependencies(root, DEV_LAYOUT)).toEqual([
+      expect.stringMatching(/commands\/worker\.ts imports kernel\/refusal\.ts: .*kernel\/index\.ts/),
+    ])
+  })
+
+  it('refuses a directory that is not a tier', () => {
+    const root = fixture({ ...devValid, 'helpers/index.ts': 'export {}\n' })
+    expect(checkDependencies(root, DEV_LAYOUT)).toEqual([expect.stringMatching(/^helpers: not a tier/)])
   })
 })

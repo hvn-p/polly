@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { installDependencies } from '../src/infra/dependencies.ts'
+import { installDependencies } from '../src/machine/dependencies.ts'
 
 function project(manifest: object): string {
   const root = mkdtempSync(join(tmpdir(), 'dependencies-'))

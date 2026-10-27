@@ -5,8 +5,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname } from 'node:path'
 import { parseEnv } from '../config/index.ts'
 import { resourceNames } from '../identity/index.ts'
-import type { BucketAccess, DatabaseAccess, SupervisorState } from '../infra/ports.ts'
-import { Refusal } from './refusal.ts'
+import { Refusal } from '../kernel/index.ts'
+import type { BucketAccess, DatabaseAccess, SupervisorState } from '../ports/index.ts'
 import type { Worktree } from './worktree.ts'
 
 export interface WorktreeState {

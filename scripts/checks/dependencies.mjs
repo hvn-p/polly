@@ -1,10 +1,15 @@
 #!/usr/bin/env node
-// Checks the dependency graph (constitution principle VII). Inside the API:
-// tiers entry > flows > domains > reference > kernel, imports point down only,
-// no import between two flows or two domains, a module is entered through its
-// index.ts only, no cycle between modules; the migrations live in
-// packages/database, never in the API. Between workspace packages: a package
-// is entered through its package.json exports only, never one of its files.
+// Checks the dependency graph (constitution principle VII): modules in
+// ordered tiers, imports point down only, no import between two modules of a
+// tier that forbids it, a module is entered through its index.ts only, no
+// cycle between modules. Between workspace packages: a package is entered
+// through its package.json exports only, never one of its files.
+//
+// The API (apps/api/src): tiers entry > flows > domains > reference > kernel,
+// each holding modules; no import between two flows or two domains; the
+// migrations live in packages/database, never in the API.
+// The dev commands (dev/src): each directory is one module and one tier; the
+// files at the root are the composition root, above them all.
 //
 // Usage: node scripts/checks/dependencies.mjs [repository root]
 
@@ -13,13 +18,58 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { report } from './report.mjs'
 
-const TIERS = ['entry', 'flows', 'domains', 'reference', 'kernel']
-/** @type {Record<string, string>} */
-const PEER_FIXES = {
-  flows: 'two flows never import each other: compose them in entry',
-  domains:
-    'two domains never import each other: declare a port in the importing domain and feed it from a flow',
+/**
+ * @typedef {object} Layout
+ * @property {string[]} tiers the tiers, top first
+ * @property {boolean} tiersHoldModules whether a tier's subdirectories are its
+ *   modules, or the tier is a single module
+ * @property {string[]} singleModuleTiers tiers that are one module even when
+ *   tiers hold modules
+ * @property {string | undefined} rootFiles the tier of the files at the root
+ * @property {Record<string, string>} peerFixes tiers whose modules never
+ *   import each other, with the fix
+ * @property {Record<string, string>} misplaced directories that do not belong
+ *   here, with where they belong
+ */
+
+/** @type {Layout} */
+export const API_LAYOUT = {
+  tiers: ['entry', 'flows', 'domains', 'reference', 'kernel'],
+  tiersHoldModules: true,
+  singleModuleTiers: ['entry'],
+  rootFiles: undefined,
+  peerFixes: {
+    flows: 'two flows never import each other: compose them in entry',
+    domains:
+      'two domains never import each other: declare a port in the importing domain and feed it from a flow',
+  },
+  misplaced: {
+    migrations: 'the database belongs to Polly, not to the API; move them to packages/database',
+  },
 }
+
+/** @type {Layout} */
+export const DEV_LAYOUT = {
+  tiers: [
+    'entry',
+    'commands',
+    'e2e',
+    'worktree',
+    'supervisor',
+    'infra',
+    'machine',
+    'ports',
+    'config',
+    'identity',
+    'kernel',
+  ],
+  tiersHoldModules: false,
+  singleModuleTiers: [],
+  rootFiles: 'entry',
+  peerFixes: {},
+  misplaced: {},
+}
+
 const SOURCE_FILE = /\.(ts|tsx|mts|js|mjs)$/
 // A unit test sits next to its file and is no module of the graph.
 const TEST_FILE = /\.test\.(ts|tsx|mts|js|mjs)$/
@@ -48,15 +98,21 @@ function listSources(directory, found = [], withTests = false) {
 }
 
 /**
- * The location of a file inside src: its tier, its module (the first path
- * segment under the tier; entry is one module) and whether it is the
- * module's entry point.
+ * The location of a file inside src: its tier, its module and whether it is
+ * the module's entry point.
  * @param {string} path relative to src, with forward slashes
+ * @param {Layout} layout
  */
-function locate(path) {
+function locate(path, layout) {
   const [tier = '', first = '', ...rest] = path.split('/')
-  if (tier === 'entry') {
+  if (first === '' && layout.rootFiles !== undefined) {
+    return { tier: layout.rootFiles, module: layout.rootFiles, isEntryPoint: true }
+  }
+  if (layout.singleModuleTiers.includes(tier)) {
     return { tier, module: tier, isEntryPoint: true }
+  }
+  if (!layout.tiersHoldModules) {
+    return { tier, module: tier, isEntryPoint: first === 'index.ts' && rest.length === 0 }
   }
   const isFile = rest.length === 0
   return {
@@ -100,22 +156,24 @@ function findCycles(graph) {
 }
 
 /**
- * @param {string} src the API's source directory
+ * @param {string} src the source directory
+ * @param {Layout} [layout]
  * @returns {string[]} one line per violation, each naming its fix
  */
-export function checkDependencies(src) {
+export function checkDependencies(src, layout = API_LAYOUT) {
+  const { tiers } = layout
   /** @type {string[]} */
   const violations = []
   if (!existsSync(src)) {
     return violations
   }
-  for (const entry of readdirSync(src)) {
-    if (entry === 'migrations') {
-      violations.push(
-        `${entry}: the database belongs to Polly, not to the API; move them to packages/database`,
-      )
-    } else if (!TIERS.includes(entry)) {
-      violations.push(`${entry}: not a tier; place it under one of ${TIERS.join(', ')}`)
+  for (const entry of readdirSync(src, { withFileTypes: true })) {
+    const fix = layout.misplaced[entry.name]
+    if (fix !== undefined) {
+      violations.push(`${entry.name}: ${fix}`)
+    } else if (entry.isFile() && layout.rootFiles !== undefined) {
+    } else if (!tiers.includes(entry.name)) {
+      violations.push(`${entry.name}: not a tier; place it under one of ${tiers.join(', ')}`)
     }
   }
 
@@ -123,8 +181,8 @@ export function checkDependencies(src) {
   const graph = new Map()
   for (const file of listSources(src)) {
     const from = relative(src, file).split(sep).join('/')
-    const source = locate(from)
-    if (!TIERS.includes(source.tier)) {
+    const source = locate(from, layout)
+    if (!tiers.includes(source.tier)) {
       continue
     }
     for (const [, specifier = ''] of readFileSync(file, 'utf8').matchAll(IMPORT)) {
@@ -139,21 +197,21 @@ export function checkDependencies(src) {
       if (to.startsWith('..')) {
         continue
       }
-      const destination = locate(to)
+      const destination = locate(to, layout)
       if (destination.module === source.module) {
         continue
       }
       const prefix = `${from} imports ${to}`
-      const sourceRank = TIERS.indexOf(source.tier)
-      const destinationRank = TIERS.indexOf(destination.tier)
+      const sourceRank = tiers.indexOf(source.tier)
+      const destinationRank = tiers.indexOf(destination.tier)
       if (destinationRank < sourceRank) {
         violations.push(
-          `${prefix}: dependencies point down (${TIERS.join(' > ')}); ` +
+          `${prefix}: dependencies point down (${tiers.join(' > ')}); ` +
             'move the shared part down, or compose both in the tier above',
         )
         continue
       }
-      const peerFix = PEER_FIXES[source.tier]
+      const peerFix = layout.peerFixes[source.tier]
       if (destinationRank === sourceRank && peerFix !== undefined) {
         violations.push(`${prefix}: ${peerFix}`)
         continue
@@ -264,7 +322,14 @@ export function checkPackageImports(root) {
  */
 export function run(argv, write) {
   const root = resolve(argv[0] ?? '.')
-  return report([...checkDependencies(join(root, 'apps/api/src')), ...checkPackageImports(root)], write)
+  return report(
+    [
+      ...checkDependencies(join(root, 'apps/api/src'), API_LAYOUT),
+      ...checkDependencies(join(root, 'dev/src'), DEV_LAYOUT),
+      ...checkPackageImports(root),
+    ],
+    write,
+  )
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

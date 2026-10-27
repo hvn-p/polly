@@ -7,12 +7,20 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { completeEnv } from '../config/index.ts'
-import { tryLock } from '../infra/flock.ts'
-import type { Infrastructure, Prerequisites } from '../infra/ports.ts'
-import { Refusal } from './refusal.ts'
-import { bucketAccessOf, readEnv, readState, required, resourcesOf, writeState } from './state.ts'
+import { Refusal } from '../kernel/index.ts'
+import { tryLock } from '../machine/index.ts'
+import type { Infrastructure, Prerequisites } from '../ports/index.ts'
+import {
+  bucketAccessOf,
+  currentBranch,
+  readEnv,
+  readState,
+  required,
+  resourcesOf,
+  worktreeAt,
+  writeState,
+} from '../worktree/index.ts'
 import { realWorkerHolder, setMode } from './worker.ts'
-import { currentBranch, worktreeAt } from './worktree.ts'
 
 const template = join(import.meta.dirname, '..', '..', 'env.template')
 

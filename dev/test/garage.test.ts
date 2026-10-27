@@ -10,7 +10,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { parseEnv } from '../src/config/index.ts'
 import { garageAdmin } from '../src/infra/garage.ts'
-import type { BucketAccess } from '../src/infra/ports.ts'
+import type { BucketAccess } from '../src/ports/index.ts'
 import { isolatedInfrastructure } from './support/isolated-infrastructure.ts'
 
 let infra: Awaited<ReturnType<typeof isolatedInfrastructure>>

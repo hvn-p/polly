@@ -1,7 +1,7 @@
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import type { DatabaseAccess } from '../src/infra/ports.ts'
 import { postgresAdmin } from '../src/infra/postgres.ts'
+import type { DatabaseAccess } from '../src/ports/index.ts'
 import { isolatedInfrastructure } from './support/isolated-infrastructure.ts'
 
 let infra: Awaited<ReturnType<typeof isolatedInfrastructure>>

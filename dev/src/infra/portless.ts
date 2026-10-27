@@ -2,8 +2,8 @@
 // to the front-end dev server. portless overwrites a route silently, so the
 // commands read the table before adding one.
 
+import type { RouteTable } from '../ports/index.ts'
 import { run } from './compose.ts'
-import type { RouteTable } from './ports.ts'
 
 const ROUTE = /^\s*https:\/\/(\S+)\.localhost\s+->\s+\S+:(\d+)/
 

@@ -3,10 +3,9 @@
 // already gone is skipped, so it can run again.
 
 import { readFileSync, writeFileSync } from 'node:fs'
-import { lock } from '../infra/flock.ts'
-import type { Infrastructure } from '../infra/ports.ts'
-import { deleteState, readEnv, readState, resourcesOf } from './state.ts'
-import { type Worktree, worktreeAt } from './worktree.ts'
+import { lock } from '../machine/index.ts'
+import type { Infrastructure } from '../ports/index.ts'
+import { deleteState, readEnv, readState, resourcesOf, type Worktree, worktreeAt } from '../worktree/index.ts'
 
 export interface DownOptions {
   root: string

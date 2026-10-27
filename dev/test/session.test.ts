@@ -1,8 +1,8 @@
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { agentSession } from '../src/commands/agent.ts'
 import { up } from '../src/commands/up.ts'
 import { drivenSession } from '../src/e2e/session.ts'
+import { agentSession } from '../src/worktree/index.ts'
 import { fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
 import { temporaryRepository } from './support/repository.ts'
 

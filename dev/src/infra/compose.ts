@@ -5,9 +5,9 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { Refusal } from '../commands/refusal.ts'
-import { lock } from './flock.ts'
-import type { SharedInfrastructure } from './ports.ts'
+import { Refusal } from '../kernel/index.ts'
+import { lock } from '../machine/index.ts'
+import type { SharedInfrastructure } from '../ports/index.ts'
 
 const worktreeComposeFile = join(import.meta.dirname, '..', '..', 'compose.yaml')
 

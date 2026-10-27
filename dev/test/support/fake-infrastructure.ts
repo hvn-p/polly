@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { UpOptions } from '../../src/commands/up.ts'
-import type { Infrastructure, SupervisorState } from '../../src/infra/ports.ts'
+import type { Infrastructure, SupervisorState } from '../../src/ports/index.ts'
 
 export interface FakeInfrastructure extends Infrastructure {
   calls: string[]

@@ -2,16 +2,10 @@
 // A refusal prints `<CODE>: <message>` and exits 1; an unexpected failure
 // exits 2.
 
-import { agent } from './commands/agent.ts'
-import { down } from './commands/down.ts'
-import { e2e } from './commands/e2e.ts'
-import { Refusal } from './commands/refusal.ts'
-import { up } from './commands/up.ts'
-import { url } from './commands/url.ts'
-import { worker } from './commands/worker.ts'
-import { installDependencies } from './infra/dependencies.ts'
-import type { Infrastructure } from './infra/ports.ts'
-import { prerequisites } from './infra/prerequisites.ts'
+import { agent, down, e2e, up, url, worker } from './commands/index.ts'
+import { Refusal } from './kernel/index.ts'
+import { installDependencies, prerequisites } from './machine/index.ts'
+import type { Infrastructure } from './ports/index.ts'
 
 export interface Io {
   cwd: string
@@ -24,7 +18,7 @@ async function infrastructure(io: Io): Promise<Infrastructure> {
   if (io.infra !== undefined) {
     return io.infra
   }
-  const { realInfrastructure } = await import('./infra/real.ts')
+  const { realInfrastructure } = await import('./real.ts')
   return realInfrastructure()
 }
 

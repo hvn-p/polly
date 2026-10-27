@@ -1,6 +1,5 @@
-import { Refusal } from './refusal.ts'
-import { readEnv, required } from './state.ts'
-import { worktreeAt } from './worktree.ts'
+import { Refusal } from '../kernel/index.ts'
+import { readEnv, required, worktreeAt } from '../worktree/index.ts'
 
 // dev:url: the worktree's URL, from its configuration.
 export function url({ root, out }: { root: string; out: (line: string) => void }): void {

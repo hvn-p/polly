@@ -1,7 +1,7 @@
 // The tools dev:up needs on the machine, checked before it changes anything.
 
 import { execFile } from 'node:child_process'
-import type { Prerequisites } from './ports.ts'
+import type { Prerequisites } from '../ports/index.ts'
 
 export type Exec = (command: string, args: readonly string[]) => Promise<{ ok: boolean; output: string }>
 

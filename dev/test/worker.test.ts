@@ -9,8 +9,8 @@ import { down } from '../src/commands/down.ts'
 import { up } from '../src/commands/up.ts'
 import { worker, workerProcess } from '../src/commands/worker.ts'
 import { parseEnv } from '../src/config/index.ts'
-import { tryLock } from '../src/infra/flock.ts'
-import type { Infrastructure } from '../src/infra/ports.ts'
+import { tryLock } from '../src/machine/flock.ts'
+import type { Infrastructure } from '../src/ports/index.ts'
 import { groupMembers, processSupervisor } from '../src/supervisor/index.ts'
 import { fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
 import { temporaryRepository } from './support/repository.ts'
@@ -160,14 +160,9 @@ describe('dev:worker', { timeout: 30_000 }, () => {
   })
 
   it('C31: dev:up of a worktree left in real mode runs the fake worker while another holds the real one, and says so', async () => {
-    const holder = spawn('flock', [
-      realWorkerLock,
-      'sh',
-      '-c',
-      `printf other > ${realWorkerLock}; echo held; sleep 30`,
-    ])
+    const holder = holdRealWorker()
     try {
-      await once(holder.stdout, 'data')
+      await once(holder.stdout as Readable, 'data')
       const a = await worktree('feature/real-up')
       const envFile = join(a.root, '.env.local')
       writeFileSync(

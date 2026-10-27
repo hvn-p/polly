@@ -2,17 +2,20 @@
 
 import { tmpdir, userInfo } from 'node:os'
 import { join } from 'node:path'
-import { workerProcess } from '../commands/worker.ts'
-import { processSupervisor } from '../supervisor/index.ts'
-import { run, sharedInfrastructure } from './compose.ts'
-import { garageAdmin } from './garage.ts'
-import { listeningPorts } from './listening.ts'
-import { portlessRoutes } from './portless.ts'
-import type { Application, Infrastructure } from './ports.ts'
-import { postgresAdmin } from './postgres.ts'
-import { prerequisites } from './prerequisites.ts'
+import { workerProcess } from './commands/index.ts'
+import {
+  garageAdmin,
+  listeningPorts,
+  portlessRoutes,
+  postgresAdmin,
+  run,
+  sharedInfrastructure,
+} from './infra/index.ts'
+import { prerequisites } from './machine/index.ts'
+import type { Application, Infrastructure } from './ports/index.ts'
+import { processSupervisor } from './supervisor/index.ts'
 
-const codeRoot = join(import.meta.dirname, '..', '..', '..')
+const codeRoot = join(import.meta.dirname, '..', '..')
 const apiCli = join(codeRoot, 'apps/api/src/entry/cli.ts')
 const databaseCli = join(codeRoot, 'packages/database/src/cli.ts')
 

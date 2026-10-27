@@ -5,11 +5,10 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { lock, tryLock } from '../infra/flock.ts'
-import type { Infrastructure, SupervisedProcess, SupervisorState } from '../infra/ports.ts'
-import { Refusal } from './refusal.ts'
-import { readEnv, readState, required, writeState } from './state.ts'
-import { type Worktree, worktreeAt } from './worktree.ts'
+import { Refusal } from '../kernel/index.ts'
+import { lock, tryLock } from '../machine/index.ts'
+import type { Infrastructure, SupervisedProcess, SupervisorState } from '../ports/index.ts'
+import { readEnv, readState, required, type Worktree, worktreeAt, writeState } from '../worktree/index.ts'
 
 const MODES = ['real', 'fake']
 // How long the restarted real worker gets to take its lock.

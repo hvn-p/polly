@@ -7,7 +7,7 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { mkdirSync, openSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { SupervisedProcess } from '../infra/ports.ts'
+import type { SupervisedProcess } from '../ports/index.ts'
 import { SUPERVISOR_MARK } from './mark.ts'
 
 interface Spec {

@@ -3,8 +3,8 @@
 // is not a superuser owns the databases, nobody else may connect to them, and
 // the extensions are created by the superuser.
 
+import type { PostgresAdmin } from '../ports/index.ts'
 import type { ComposeInfrastructure } from './compose.ts'
-import type { PostgresAdmin } from './ports.ts'
 
 const IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/
 

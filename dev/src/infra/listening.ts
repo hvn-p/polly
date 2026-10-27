@@ -2,8 +2,8 @@
 
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
+import type { PortTable } from '../ports/index.ts'
 import { run } from './compose.ts'
-import type { PortTable } from './ports.ts'
 
 export function listeningPorts(): PortTable {
   return {

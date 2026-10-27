@@ -2,8 +2,8 @@
 // without the markers of a Claude Code session the run was started from
 // (inherited, they make the driven session a child that keeps no transcript).
 
-import { agentSession, type Session } from '../commands/agent.ts'
-import { Refusal } from '../commands/refusal.ts'
+import { Refusal } from '../kernel/index.ts'
+import { agentSession, type Session } from '../worktree/index.ts'
 
 export function drivenSession(root: string, args: readonly string[], baseEnv = process.env): Session {
   const inherited = Object.entries(baseEnv).filter(

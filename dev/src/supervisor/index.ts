@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
-import type { Supervisor } from '../infra/ports.ts'
+import type { Supervisor } from '../ports/index.ts'
 import { SUPERVISOR_MARK } from './mark.ts'
 
 const supervisorMain = join(import.meta.dirname, 'main.ts')

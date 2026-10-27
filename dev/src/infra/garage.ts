@@ -11,8 +11,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3'
 import { releaseKeyOf } from '../identity/index.ts'
+import type { BucketAccess, GarageAdmin } from '../ports/index.ts'
 import type { ComposeInfrastructure } from './compose.ts'
-import type { BucketAccess, GarageAdmin } from './ports.ts'
 
 interface BucketInfo {
   id: string
