@@ -4,7 +4,8 @@
 
 import { cimd } from '@better-auth/cimd'
 import { mcp } from '@better-auth/mcp'
-import { type BetterAuthOptions, betterAuth } from 'better-auth'
+import { BASE_ERROR_CODES, type BetterAuthOptions, betterAuth } from 'better-auth'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { jwt } from 'better-auth/plugins'
 import type { Kysely } from 'kysely'
 
@@ -22,12 +23,36 @@ export function mcpResource(publicUrl: string): string {
   return `${publicUrl}/mcp`
 }
 
+// The longest address SMTP carries (RFC 5321).
+const MAX_EMAIL_LENGTH = 254
+
+// The sign-in form's bounds, checked by the API (constitution principle XVI):
+// Better Auth checks an email's format but not its length, and a password's
+// length on sign-up only.
+const signInBounds = createAuthMiddleware(async (ctx) => {
+  if (ctx.path !== '/sign-in/email') {
+    return
+  }
+  const { email, password } = (ctx.body ?? {}) as { email?: unknown; password?: unknown }
+  const { minPasswordLength, maxPasswordLength } = ctx.context.password.config
+  if (typeof email === 'string' && email.length > MAX_EMAIL_LENGTH) {
+    throw APIError.from('BAD_REQUEST', BASE_ERROR_CODES.INVALID_EMAIL)
+  }
+  if (typeof password === 'string' && password.length < minPasswordLength) {
+    throw APIError.from('BAD_REQUEST', BASE_ERROR_CODES.PASSWORD_TOO_SHORT)
+  }
+  if (typeof password === 'string' && password.length > maxPasswordLength) {
+    throw APIError.from('BAD_REQUEST', BASE_ERROR_CODES.PASSWORD_TOO_LONG)
+  }
+})
+
 export function identityOptions(settings: IdentitySettings) {
   return {
     baseURL: settings.publicUrl,
     secret: settings.secret,
     database: { db: settings.db, type: 'postgres' },
     emailAndPassword: { enabled: true, disableSignUp: true },
+    hooks: { before: signInBounds },
     plugins: [
       jwt(),
       mcp({

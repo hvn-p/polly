@@ -21,6 +21,22 @@ describe('sign-in and the OAuth flow', () => {
     expect(await response.json()).toMatchObject({ code: 'INVALID_EMAIL_OR_PASSWORD' })
   })
 
+  it('refuses an email over 254 characters and a password outside 8 to 128', async () => {
+    const { email, password } = await createLearner(server)
+    const tooLong = `${'a'.repeat(60)}@${'b'.repeat(184)}.localhost`
+    expect(tooLong).toHaveLength(255)
+    const cases = [
+      { email: tooLong, password, code: 'INVALID_EMAIL' },
+      { email, password: 'x'.repeat(7), code: 'PASSWORD_TOO_SHORT' },
+      { email, password: 'x'.repeat(129), code: 'PASSWORD_TOO_LONG' },
+    ]
+    for (const attempt of cases) {
+      const response = await signIn(server, attempt.email, attempt.password)
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({ code: attempt.code })
+    }
+  })
+
   it('C25: the session cookie is host-only and secure, so worktrees keep separate sessions', async () => {
     const { email, password } = await createLearner(server)
     const cookies = (await signIn(server, email, password)).headers.getSetCookie()
