@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CONTRACTS, render } from '../contracts/generate.ts'
+import { report } from './report.mjs'
 
 /**
  * @param {string} root
@@ -32,12 +33,16 @@ export async function checkContracts(root, contracts) {
   return violations
 }
 
+/**
+ * The command line: `node scripts/checks/contracts.mjs [path]`.
+ * @param {string[]} argv
+ * @param {(line: string) => void} write
+ * @returns {Promise<number>}
+ */
+export async function run(argv, write) {
+  return report(await checkContracts(resolve(argv[0] ?? '.'), CONTRACTS), write)
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const violations = await checkContracts(resolve(process.argv[2] ?? '.'), CONTRACTS)
-  for (const violation of violations) {
-    console.error(violation)
-  }
-  if (violations.length > 0) {
-    process.exit(1)
-  }
+  process.exitCode = await run(process.argv.slice(2), (line) => console.error(line))
 }

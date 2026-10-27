@@ -64,6 +64,26 @@ describe('process supervisor', { timeout: 30_000 }, () => {
     }
   })
 
+  it('kills, after its grace period, a process that ignores SIGTERM', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'supervisor-'))
+    const stubborn = processSupervisor({ graceMs: 200 })
+    const state = await stubborn.start({
+      root,
+      processes: [
+        {
+          name: 'stubborn',
+          command: 'sh',
+          args: ['-c', "trap '' TERM; while :; do sleep 0.05; done"],
+          cwd: root,
+        },
+      ],
+      env: {},
+    })
+    await until(() => groupMembers(state.pid).length >= 2)
+    await stubborn.stop(state)
+    expect(groupMembers(state.pid)).toEqual([])
+  })
+
   it('does not take a reused PID for its supervisor', () => {
     expect(supervisor.isRunning({ pid: process.pid })).toBe(false)
   })

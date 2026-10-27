@@ -16,6 +16,13 @@ export default defineConfig({
       ],
       exclude: [
         '**/*.test.ts',
+        '**/vitest.config.ts',
+        // Process entry points: the tests run them as the processes they are
+        // (the monitor against a stub stream, the supervisor and the API by
+        // dev:up), and V8 coverage does not follow a child process.
+        'plugin/bin/agent-events.mjs',
+        'dev/src/supervisor/main.ts',
+        'apps/api/src/entry/main.ts',
         // Applied by the API tests' global setup, in its own process; the
         // startup tests check the schema they produce.
         'apps/api/src/migrations/**',

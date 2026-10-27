@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseEnv } from 'node:util'
+import { type Kysely, sql } from 'kysely'
 import type { TestProject } from 'vitest/node'
 
 export function assertTestDatabase(url: string | undefined): string {
@@ -28,10 +29,21 @@ function testDatabaseUrl(): string | undefined {
   return existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8'))['TEST_DATABASE_URL'] : undefined
 }
 
+// Empties every table but the migration bookkeeping, for a test run.
+async function emptyDatabase<DB>(db: Kysely<DB>): Promise<void> {
+  const { rows } = await sql<{ name: string }>`
+    select quote_ident(table_name) as name from information_schema.tables
+    where table_schema = 'public' and table_type = 'BASE TABLE' and table_name not like 'kysely_migration%'
+  `.execute(db)
+  if (rows.length > 0) {
+    await sql.raw(`truncate ${rows.map(({ name }) => name).join(', ')} cascade`).execute(db)
+  }
+}
+
 export default async function setup(project: TestProject): Promise<void> {
   const url = assertTestDatabase(testDatabaseUrl())
   const { createDatabase } = await import('../src/entry/database.ts')
-  const { emptyDatabase, migrate } = await import('../src/entry/startup.ts')
+  const { migrate } = await import('../src/entry/startup.ts')
   const db = createDatabase(url)
   try {
     await migrate(db)

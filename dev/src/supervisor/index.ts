@@ -9,7 +9,6 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import type { Supervisor } from '../infra/ports.ts'
 
 const supervisorMain = join(import.meta.dirname, 'main.ts')
-const STOP_GRACE_MS = 10_000
 
 // The live (not zombie) processes of a process group, read from /proc.
 export function groupMembers(pgid: number): number[] {
@@ -30,7 +29,8 @@ function groupAlive(pgid: number): boolean {
   return groupMembers(pgid).length > 0
 }
 
-export function processSupervisor(): Supervisor {
+// graceMs: how long the processes get to stop on SIGTERM before SIGKILL.
+export function processSupervisor({ graceMs = 10_000 }: { graceMs?: number } = {}): Supervisor {
   return {
     // A PID can be reused: it is the supervisor only if it runs supervisor/main.ts.
     isRunning: ({ pid }) => {
@@ -62,7 +62,7 @@ export function processSupervisor(): Supervisor {
         return
       }
       process.kill(-pid, 'SIGTERM')
-      const deadline = Date.now() + STOP_GRACE_MS
+      const deadline = Date.now() + graceMs
       while (groupAlive(pid) && Date.now() < deadline) {
         await sleep(100)
       }

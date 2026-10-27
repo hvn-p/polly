@@ -63,4 +63,4 @@ $ab click 'button[type=submit]'
 
 The home page then reads "Signed in as Demo Learner." When an OAuth client (the
 MCP) started the flow, the same form appears and leads to the consent page:
-`$ab click 'text=Allow'`.
+`$ab find role button click --name Allow`.

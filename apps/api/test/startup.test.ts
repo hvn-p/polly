@@ -42,6 +42,21 @@ describe('migrations and schema check', () => {
     expect(plan.toBeAdded.map(({ table }) => table)).toEqual([])
   })
 
+  it('a migration that fails is reported, and applies nothing', async () => {
+    const broken: Record<string, Migration> = {
+      ...migrations,
+      '9997_fixture_broken': {
+        up: async () => {
+          throw new Error('broken fixture migration')
+        },
+      },
+    }
+    await expect(migrate(db, broken)).rejects.toThrow('broken fixture migration')
+    const { rows } = await sql<{ count: number }>`
+      select count(*)::int as count from kysely_migration where name = '9997_fixture_broken'`.execute(db)
+    expect(rows).toEqual([{ count: 0 }])
+  })
+
   it('migrating an up-to-date database changes nothing', async () => {
     await expect(migrate(db)).resolves.toEqual([])
   })

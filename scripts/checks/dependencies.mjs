@@ -10,6 +10,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { report } from './report.mjs'
 
 const TIERS = ['entry', 'flows', 'domains', 'reference', 'kernel']
 const MIGRATIONS = 'migrations'
@@ -171,12 +172,16 @@ export function checkDependencies(src) {
   return violations
 }
 
+/**
+ * The command line: `node scripts/checks/dependencies.mjs [path]`.
+ * @param {string[]} argv
+ * @param {(line: string) => void} write
+ * @returns {number}
+ */
+export function run(argv, write) {
+  return report(checkDependencies(resolve(argv[0] ?? 'apps/api/src')), write)
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const violations = checkDependencies(resolve(process.argv[2] ?? 'apps/api/src'))
-  for (const violation of violations) {
-    console.error(violation)
-  }
-  if (violations.length > 0) {
-    process.exit(1)
-  }
+  process.exitCode = run(process.argv.slice(2), (line) => console.error(line))
 }

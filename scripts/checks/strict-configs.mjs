@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { report } from './report.mjs'
 
 // The value each strictness option must hold, in the base and everywhere else.
 const TS_STRICT = {
@@ -179,13 +180,20 @@ export function checkStrictConfigs(root) {
   return violations
 }
 
+/**
+ * The command line: `node scripts/checks/strict-configs.mjs [path]`.
+ * @param {string[]} argv
+ * @param {(line: string) => void} write
+ * @returns {number}
+ */
+export function run(argv, write) {
+  return report(
+    checkStrictConfigs(resolve(argv[0] ?? '.')),
+    write,
+    'Strictness is set once, in tsconfig.base.json and in each pyproject.toml: restore it.',
+  )
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const violations = checkStrictConfigs(resolve(process.argv[2] ?? '.'))
-  for (const violation of violations) {
-    console.error(violation)
-  }
-  if (violations.length > 0) {
-    console.error('Strictness is set once, in tsconfig.base.json and in each pyproject.toml: restore it.')
-    process.exit(1)
-  }
+  process.exitCode = run(process.argv.slice(2), (line) => console.error(line))
 }

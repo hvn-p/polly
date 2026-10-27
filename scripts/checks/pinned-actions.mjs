@@ -8,6 +8,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { report } from './report.mjs'
 
 const USES = /^\s*(?:-\s+)?uses:\s*['"]?([^'"\s#]+)/
 const PINNED_ACTION = /@[0-9a-f]{40}$/
@@ -46,12 +47,16 @@ export function checkPinnedActions(root) {
   return violations
 }
 
+/**
+ * The command line: `node scripts/checks/pinned-actions.mjs [path]`.
+ * @param {string[]} argv
+ * @param {(line: string) => void} write
+ * @returns {number}
+ */
+export function run(argv, write) {
+  return report(checkPinnedActions(resolve(argv[0] ?? '.')), write)
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const violations = checkPinnedActions(resolve(process.argv[2] ?? '.'))
-  for (const violation of violations) {
-    console.error(violation)
-  }
-  if (violations.length > 0) {
-    process.exit(1)
-  }
+  process.exitCode = run(process.argv.slice(2), (line) => console.error(line))
 }

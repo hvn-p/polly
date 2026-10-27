@@ -45,6 +45,9 @@ export function run(
         }
       },
     )
+    // A command that fails to start closes its stdin: its failure is
+    // reported through its exit, not through this write.
+    child.stdin?.on('error', () => undefined)
     child.stdin?.end(options.input ?? '')
   })
 }
