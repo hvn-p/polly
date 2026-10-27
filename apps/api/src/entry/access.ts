@@ -12,8 +12,8 @@ export function learnerGuard(identity: Identity, publicUrl: string, jwksUrl: () 
   let protect: ((request: Request) => Promise<Response>) | undefined
   return async (request) => {
     // Built on the first request: the JWKS URL names the port the server
-    // listens on, known once it listens. The JWKS is read on loopback, never
-    // through the worktree's public URL.
+    // listens on, known once it listens. The JWKS is read on the address the
+    // server listens on, never through the worktree's public URL.
     protect ??= requireMcpAuth(
       identity,
       async (verified, claims) => {

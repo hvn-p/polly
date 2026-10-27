@@ -23,6 +23,7 @@ describe('worktree configuration', () => {
     expect(env.get('PUBLIC_URL')).toBe(`https://${identity}.polly.localhost`)
     expect(env.get('POLLY_MCP_URL')).toBe(`https://${identity}.polly.localhost/mcp`)
     expect(env.get('POLLY_EVENTS_URL')).toBe(`https://${identity}.polly.localhost/api/agent-events`)
+    expect(env.get('POLLY_API_HOST')).toBe('127.0.0.1')
     expect(env.get('POLLY_API_PORT')).not.toBe(env.get('POLLY_WEB_PORT'))
     expect(env.get('DATABASE_URL')).toBe(
       `postgresql://polly_${underscored}:${'ab'.repeat(24)}@127.0.0.1:55432/polly_${underscored}`,

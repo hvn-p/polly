@@ -1,5 +1,6 @@
 // The composition root: wires the API's parts from its configuration and
-// serves them on loopback, once the database is known to match the code.
+// serves them on its listen address, once the database is known to match the
+// code.
 
 import type { AddressInfo } from 'node:net'
 import { fetchClientMetadataResource as fetchOverNetwork } from '@better-auth/cimd/node'
@@ -15,6 +16,7 @@ import { createApp } from './app.ts'
 import { registerAuthRoutes } from './auth.ts'
 import type { Config } from './config.ts'
 import { createDatabase } from './database.ts'
+import { ownOrigin } from './listen.ts'
 import { registerMcpRoute } from './mcp/index.ts'
 import { startLesson } from './mcp/start-lesson.ts'
 import { whoami } from './mcp/whoami.ts'
@@ -22,6 +24,8 @@ import { type Guards, type Route, RouteRegistry } from './routes.ts'
 
 export interface ServerOptions {
   config: Config
+  // The address to listen on: loopback locally, every interface in a container.
+  hostname: string
   port: number
   migrations?: Record<string, Migration>
   // How a client's metadata document is fetched; tests inject one that never
@@ -31,7 +35,8 @@ export interface ServerOptions {
 }
 
 export interface RunningServer {
-  // The loopback address the server listens on.
+  // The origin the server answers on, read back on loopback when it listens
+  // on every interface.
   url: string
   // The registered routes, for the route walk.
   routes: readonly Route[]
@@ -40,6 +45,7 @@ export interface RunningServer {
 
 export async function startServer({
   config,
+  hostname,
   port,
   migrations,
   fetchClientMetadataResource = fetchOverNetwork,
@@ -65,7 +71,7 @@ export async function startServer({
     learner: learnerGuard(
       identity,
       config.PUBLIC_URL,
-      () => `http://127.0.0.1:${listeningPort}/api/auth/jwks`,
+      () => `${ownOrigin(hostname, listeningPort)}/api/auth/jwks`,
     ),
     'event-code': eventCodeGuard(codes),
   }
@@ -75,11 +81,11 @@ export async function startServer({
   registerAgentEventRoute(registry, codes, clock)
   const app = createApp(registry)
   const server = await new Promise<ReturnType<typeof serve>>((resolve) => {
-    const listening = serve({ fetch: app.fetch, hostname: '127.0.0.1', port }, () => resolve(listening))
+    const listening = serve({ fetch: app.fetch, hostname, port }, () => resolve(listening))
   })
   listeningPort = (server.address() as AddressInfo).port
   return {
-    url: `http://127.0.0.1:${listeningPort}`,
+    url: ownOrigin(hostname, listeningPort),
     routes: registry.routes(),
     close: async () => {
       await new Promise<void>((resolve, reject) =>

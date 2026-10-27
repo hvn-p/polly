@@ -43,9 +43,9 @@ describe('migrations and schema check', () => {
 
   it('C20: the server does not start, and serves no route, against a database behind the code', async () => {
     const config = testConfig()
-    await expect(startServer({ config, port: 0, migrations: { ...migrations, ...fixture } })).rejects.toThrow(
-      /SCHEMA_BEHIND/,
-    )
+    await expect(
+      startServer({ config, hostname: '127.0.0.1', port: 0, migrations: { ...migrations, ...fixture } }),
+    ).rejects.toThrow(/SCHEMA_BEHIND/)
   })
 })
 
@@ -60,6 +60,7 @@ describe('waiting for the schema', () => {
     }
     const starting = startWhenSchemaCurrent({
       config: testConfig(),
+      hostname: '127.0.0.1',
       port: 0,
       migrations: pending,
       retryMs: 20,

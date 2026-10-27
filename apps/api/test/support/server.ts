@@ -16,15 +16,16 @@ export interface TestServer extends RunningServer {
   identity: Identity
 }
 
-// The API in process, on an ephemeral loopback port, against the test
-// database. Closed after the test file.
+// The API in process, on an ephemeral port of loopback unless the test names
+// another address, against the test database. Closed after the test file.
 export async function testServer(
   overrides: Partial<Config> = {},
-  options: Pick<ServerOptions, 'clock'> = {},
+  options: Partial<Pick<ServerOptions, 'clock' | 'hostname'>> = {},
 ): Promise<TestServer> {
   const config = testConfig(overrides)
   const server = await startServer({
     config,
+    hostname: '127.0.0.1',
     port: 0,
     fetchClientMetadataResource: noClientMetadataFetch,
     ...options,
