@@ -5,7 +5,11 @@
 
 import { isIP } from 'node:net'
 import { readConfig } from './config.ts'
+import { configureLogging, logger } from './logger.ts'
 import { startWhenSchemaCurrent } from './server.ts'
+
+await configureLogging()
+const log = logger('main')
 
 const hostname = process.env['POLLY_API_HOST'] ?? ''
 const port = Number(process.env['POLLY_API_PORT'])
@@ -14,7 +18,7 @@ const invalid = [
   ...(Number.isInteger(port) && port > 0 ? [] : ['POLLY_API_PORT']),
 ]
 if (invalid.length > 0) {
-  console.error(`INVALID_CONFIGURATION: ${invalid.join(', ')}`)
+  log.error('INVALID_CONFIGURATION: {keys}', { keys: invalid })
   process.exit(1)
 }
 try {
@@ -23,10 +27,10 @@ try {
     hostname,
     port,
     retryMs: 2000,
-    onBehind: (message) => console.error(message),
+    onBehind: (message) => log.warn('{message}', { message }),
   })
-  console.log(`API listening on ${server.url}`)
+  log.info('API listening on {url}', { url: server.url })
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error))
+  log.fatal('the API stopped: {error}', { error })
   process.exit(1)
 }

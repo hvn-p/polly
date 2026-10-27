@@ -7,27 +7,33 @@ import { Refusal } from '../kernel/refusal/index.ts'
 import { createIdentity } from '../reference/identity/index.ts'
 import { readConfig } from './config.ts'
 import { createDatabase } from './database.ts'
+import { configureLogging, logger } from './logger.ts'
 
 const COMMANDS = ['seed-demo']
 
+// What the command prints as its result; its refusals go to the log.
 export interface CliIo {
   env: Record<string, string | undefined>
   out: (line: string) => void
-  err: (line: string) => void
 }
 
-export async function runCli(argv: readonly string[], { env, out, err }: CliIo): Promise<number> {
+const log = logger('cli')
+
+function refuse(code: string, reason: string): number {
+  log.error('{code}: {reason}', { code, reason })
+  return 1
+}
+
+export async function runCli(argv: readonly string[], { env, out }: CliIo): Promise<number> {
   const [command = ''] = argv
   if (!COMMANDS.includes(command)) {
-    err(`UNKNOWN_COMMAND: ${command}; the commands are ${COMMANDS.join(', ')}`)
-    return 1
+    return refuse('UNKNOWN_COMMAND', `${command}; the commands are ${COMMANDS.join(', ')}`)
   }
   let config: ReturnType<typeof readConfig>
   try {
     config = readConfig(env)
   } catch (error) {
-    err(`INVALID_CONFIGURATION: ${error instanceof Error ? error.message : String(error)}`)
-    return 1
+    return refuse('INVALID_CONFIGURATION', error instanceof Error ? error.message : String(error))
   }
   const db = createDatabase(config.DATABASE_URL)
   try {
@@ -42,7 +48,7 @@ export async function runCli(argv: readonly string[], { env, out, err }: CliIo):
     return 0
   } catch (error) {
     if (error instanceof Refusal) {
-      err(error.message)
+      log.error('{message}', { code: error.code, message: error.message })
       return 1
     }
     throw error
@@ -52,9 +58,9 @@ export async function runCli(argv: readonly string[], { env, out, err }: CliIo):
 }
 
 if (process.argv[1] === import.meta.filename) {
+  await configureLogging()
   process.exitCode = await runCli(process.argv.slice(2), {
     env: process.env,
     out: (line) => console.log(line),
-    err: (line) => console.error(line),
   })
 }

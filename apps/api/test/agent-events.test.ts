@@ -2,8 +2,10 @@ import { createHash, randomBytes } from 'node:crypto'
 import { sql } from 'kysely'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createDatabase } from '../src/entry/database.ts'
+import { resetLogging } from '../src/entry/logger.ts'
 import { openStream, type StreamReader } from './support/event-stream.ts'
 import { fakeClock } from './support/fake-clock.ts'
+import { captureLog } from './support/log.ts'
 import { mcpClient } from './support/mcp.ts'
 import { createLearner, mcpAccessToken } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
@@ -114,6 +116,7 @@ describe('agent-event stream: events', () => {
   })
 
   it('C57: through a full binding and stream cycle, the code reaches no log line', async () => {
+    const log = await captureLog()
     const logged: string[] = []
     const capture = (...args: unknown[]) => {
       logged.push(args.map(String).join(' '))
@@ -133,7 +136,16 @@ describe('agent-event stream: events', () => {
       for (const spy of spies) {
         spy.mockRestore()
       }
+      await resetLogging()
     }
-    expect(logged.filter((line) => line.includes(code) || line.includes(code.slice(1)))).toEqual([])
+    // The request log saw the stream's requests, the refused one included.
+    expect(log.records()).toContainEqual(
+      expect.objectContaining({
+        logger: 'polly.http',
+        properties: expect.objectContaining({ url: '/api/agent-events', status: 400 }),
+      }),
+    )
+    const lines = [...log.lines, ...logged]
+    expect(lines.filter((line) => line.includes(code) || line.includes(code.slice(1)))).toEqual([])
   })
 })

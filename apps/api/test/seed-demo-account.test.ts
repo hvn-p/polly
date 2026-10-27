@@ -1,12 +1,16 @@
 import { sql } from 'kysely'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { runCli } from '../src/entry/cli.ts'
+import { resetLogging } from '../src/entry/logger.ts'
 import { DEMO_ACCOUNT, seedDemoAccount } from '../src/flows/seed-demo-account/index.ts'
 import { testConfig } from './support/config.ts'
+import { captureLog } from './support/log.ts'
 import { mcpAccessToken, signIn } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
 
 const server = await testServer()
+
+afterEach(resetLogging)
 
 async function demoUsers(): Promise<number> {
   const { rows } = await sql<{
@@ -47,18 +51,20 @@ describe('demo account seed', () => {
     const status = await runCli(['seed-demo'], {
       env: { ...testConfig() },
       out: (line) => lines.push(line),
-      err: () => undefined,
     })
     expect(status).toBe(0)
     expect(lines).toEqual(['demo account: demo@polly.localhost'])
   })
 
   it('C26: the command line refuses outside the local environment', async () => {
-    const errors: string[] = []
+    const log = await captureLog()
     const env = { ...testConfig({ POLLY_ENV: 'production' }) }
-    expect(await runCli(['seed-demo'], { env, out: () => undefined, err: (line) => errors.push(line) })).toBe(
-      1,
-    )
-    expect(errors).toEqual([expect.stringMatching(/^NOT_LOCAL_ENVIRONMENT: /)])
+    expect(await runCli(['seed-demo'], { env, out: () => undefined })).toBe(1)
+    expect(log.records()).toEqual([
+      expect.objectContaining({
+        level: 'ERROR',
+        properties: expect.objectContaining({ code: 'NOT_LOCAL_ENVIRONMENT' }),
+      }),
+    ])
   })
 })
