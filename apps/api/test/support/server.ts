@@ -1,0 +1,36 @@
+import { afterAll } from 'vitest'
+import type { Config } from '../../src/entry/config.ts'
+import { createDatabase } from '../../src/entry/database.ts'
+import { type RunningServer, startServer } from '../../src/entry/server.ts'
+import { createIdentity, type Identity } from '../../src/reference/identity/index.ts'
+import { testConfig } from './config.ts'
+
+// Tests never reach the network: a client metadata document is never fetched.
+export const noClientMetadataFetch = async (): Promise<never> => {
+  throw new Error('no network in tests')
+}
+
+export interface TestServer extends RunningServer {
+  config: Config
+  // The same identity the server uses, for server-side set-up in tests.
+  identity: Identity
+}
+
+// The API in process, on an ephemeral loopback port, against the test
+// database. Closed after the test file.
+export async function testServer(overrides: Partial<Config> = {}): Promise<TestServer> {
+  const config = testConfig(overrides)
+  const server = await startServer({ config, port: 0, fetchClientMetadataResource: noClientMetadataFetch })
+  const db = createDatabase(config.DATABASE_URL)
+  const identity = createIdentity({
+    publicUrl: config.PUBLIC_URL,
+    secret: config.BETTER_AUTH_SECRET,
+    db,
+    fetchClientMetadataResource: noClientMetadataFetch,
+  })
+  afterAll(async () => {
+    await server.close()
+    await db.destroy()
+  })
+  return { ...server, config, identity }
+}

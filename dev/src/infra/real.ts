@@ -13,7 +13,8 @@ import { prerequisites } from './prerequisites.ts'
 const codeRoot = join(import.meta.dirname, '..', '..', '..')
 const apiCli = join(codeRoot, 'apps/api/src/entry/cli.ts')
 
-// The API's command line and processes, run on a worktree's configuration.
+// The API's command line, and the processes of a worktree (the API and the
+// front-end dev server), run on its configuration.
 export function apiApplication(): Application {
   const cli = (command: string, env: Record<string, string>) =>
     run(process.execPath, [apiCli, command], { env: { ...process.env, ...env } })
@@ -30,6 +31,12 @@ export function apiApplication(): Application {
         command: process.execPath,
         args: ['--watch', join(codeRoot, 'apps/api/src/entry/main.ts')],
         cwd: codeRoot,
+      },
+      {
+        name: 'web',
+        command: process.execPath,
+        args: [join(codeRoot, 'apps/web/node_modules/vite/bin/vite.js')],
+        cwd: join(codeRoot, 'apps/web'),
       },
     ],
   }

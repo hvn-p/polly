@@ -28,8 +28,6 @@ export function isolatedWorktreeInfrastructure(shared: Shared, supervisors: numb
     ports: listeningPorts(),
     application: {
       ...apiApplication(),
-      // FIXME: the demo seed arrives with T025; it then runs for real here.
-      seed: async () => undefined,
       processes: () => [
         { name: 'api', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], cwd: '/' },
       ],

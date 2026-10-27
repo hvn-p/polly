@@ -96,5 +96,6 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
       ),
     ).toEqual([{ tables: 0 }])
     expect(await query(a, 'select name from kysely_migration')).toEqual([{ name: '0001_auth' }])
+    expect(await query(a, 'select email from "user"')).toEqual([{ email: 'demo@polly.localhost' }])
   })
 })

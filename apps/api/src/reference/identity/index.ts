@@ -48,3 +48,30 @@ export function createIdentity(settings: IdentitySettings) {
 }
 
 export type Identity = ReturnType<typeof createIdentity>
+
+export interface LearnerAccount {
+  name: string
+  email: string
+  password: string
+}
+
+// Creates a learner's account on the server side, since public sign-up is
+// closed. An existing account is kept as it is. Returns the learner's id.
+export async function createLearnerAccount(identity: Identity, account: LearnerAccount): Promise<string> {
+  const context = await identity.$context
+  const existing = await context.internalAdapter.findUserByEmail(account.email)
+  if (existing !== null) {
+    return existing.user.id
+  }
+  const user = await context.internalAdapter.createUser(
+    { name: account.name, email: account.email, emailVerified: true },
+    { method: 'admin' },
+  )
+  await context.internalAdapter.linkAccount({
+    userId: user.id,
+    providerId: 'credential',
+    accountId: user.id,
+    password: await context.password.hash(account.password),
+  })
+  return user.id
+}

@@ -56,6 +56,7 @@ describe('dev:up against an isolated infrastructure', { timeout: 240_000 }, () =
       name: env['S3_BUCKET'],
     })
     expect(await query(root, 'select name from kysely_migration')).toEqual([{ name: '0001_auth' }])
+    expect(await query(root, 'select email from "user"')).toEqual([{ email: 'demo@polly.localhost' }])
     await until(() => groupMembers(stateOf(root).supervisor.pid).length === 2)
   })
 
