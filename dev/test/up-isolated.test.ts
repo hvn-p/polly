@@ -8,6 +8,7 @@ import {
   garage as garageOf,
   isolatedWorktreeInfrastructure,
   query,
+  shippedMigrations,
   stateOf,
   superuser as superuserOf,
 } from './support/isolated-worktree.ts'
@@ -55,7 +56,9 @@ describe('dev:up against an isolated infrastructure', { timeout: 240_000 }, () =
     expect(await garage('GetKeyInfo', { id: env['S3_ACCESS_KEY_ID'] })).toMatchObject({
       name: env['S3_BUCKET'],
     })
-    expect(await query(root, 'select name from kysely_migration')).toEqual([{ name: '0001_auth' }])
+    expect(await query(root, 'select name from kysely_migration order by name')).toEqual(
+      await shippedMigrations(),
+    )
     expect(await query(root, 'select email from "user"')).toEqual([{ email: 'demo@polly.localhost' }])
     await until(() => groupMembers(stateOf(root).supervisor.pid).length === 2)
   })
@@ -91,17 +94,17 @@ describe('dev:up against an isolated infrastructure', { timeout: 240_000 }, () =
   })
 
   it('C4: applies a pending migration and keeps the data', async () => {
-    // The auth migration made pending again, as code bringing a new one would.
+    // The latest migration made pending again, as code bringing a new one would.
+    const [latest] = (await shippedMigrations()).slice(-1)
     await query(
       root,
-      `drop table "oauthClientAssertion"; delete from kysely_migration where name = '0001_auth'`,
-    )
-    await query(
-      root,
-      'drop table "oauthConsent", "oauthAccessToken", "oauthRefreshToken", "oauthClientResource", "oauthResource", "oauthClient", "jwks", "verification", "account", "session", "user"',
+      `drop table agent_event_code; delete from kysely_migration where name = '${latest?.name}'`,
     )
     await up({ root, infra: infrastructure(), out })
-    expect(await query(root, 'select name from kysely_migration')).toEqual([{ name: '0001_auth' }])
+    expect(await query(root, 'select name from kysely_migration order by name')).toEqual(
+      await shippedMigrations(),
+    )
+    expect(await query(root, 'select count(*)::int as rows from agent_event_code')).toEqual([{ rows: 0 }])
     expect(await query(root, 'select value from kept')).toEqual([{ value: 'row' }])
   })
 
@@ -112,7 +115,9 @@ describe('dev:up against an isolated infrastructure', { timeout: 240_000 }, () =
     expect(containerIds(shared.project).split(',')).toHaveLength(2)
     for (const each of roots) {
       await until(() => groupMembers(stateOf(each).supervisor.pid).length === 2)
-      expect(await query(each, 'select name from kysely_migration')).toEqual([{ name: '0001_auth' }])
+      expect(await query(each, 'select name from kysely_migration order by name')).toEqual(
+        await shippedMigrations(),
+      )
     }
   })
 })

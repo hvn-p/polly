@@ -10,6 +10,7 @@ import {
   garage as garageOf,
   isolatedWorktreeInfrastructure,
   query,
+  shippedMigrations,
   stateOf,
   superuser as superuserOf,
 } from './support/isolated-worktree.ts'
@@ -95,7 +96,9 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
         `select count(*)::int as tables from information_schema.tables where table_name = 'mine'`,
       ),
     ).toEqual([{ tables: 0 }])
-    expect(await query(a, 'select name from kysely_migration')).toEqual([{ name: '0001_auth' }])
+    expect(await query(a, 'select name from kysely_migration order by name')).toEqual(
+      await shippedMigrations(),
+    )
     expect(await query(a, 'select email from "user"')).toEqual([{ email: 'demo@polly.localhost' }])
   })
 })
