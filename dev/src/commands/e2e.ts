@@ -2,7 +2,7 @@
 // against this worktree, then prints pass or fail and the transcript's path.
 
 import type { RunResult } from '../e2e/claude.ts'
-import { type ClientStatus, probeClaude } from '../e2e/client.ts'
+import { type ClientStatus, probeClaude, probeDriverTools } from '../e2e/client.ts'
 import type { Scenario } from '../e2e/scenario.ts'
 import { smoke } from '../e2e/scenarios/smoke.ts'
 import type { Infrastructure } from '../infra/ports.ts'
@@ -30,6 +30,7 @@ export async function e2e({
   scenario: name,
   out,
   client = probeClaude,
+  tools = probeDriverTools,
   driver = realDriver,
 }: {
   root: string
@@ -37,6 +38,8 @@ export async function e2e({
   scenario: string
   out: (line: string) => void
   client?: () => Promise<ClientStatus>
+  // The first tool the driver needs that is missing.
+  tools?: () => Promise<string | undefined>
   driver?: Driver
 }): Promise<void> {
   const status = await client()
@@ -55,6 +58,10 @@ export async function e2e({
   const scenario = SCENARIOS[name]
   if (scenario === undefined) {
     throw new Refusal('UNKNOWN_SCENARIO', `${name}; the scenarios are ${Object.keys(SCENARIOS).join(', ')}`)
+  }
+  const missing = await tools()
+  if (missing !== undefined) {
+    throw new Refusal('MISSING_PREREQUISITE', `${missing} is missing; install it, then run nr dev:e2e again`)
   }
   const { failures, transcript } = await driver({ root, env, scenario, out })
   out(`transcript: ${transcript}`)

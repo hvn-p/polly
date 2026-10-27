@@ -50,6 +50,25 @@ describe('nr dev:e2e refusals', () => {
 
 describe('nr dev:e2e outcome', () => {
   const client = async () => ({ installed: true, signedIn: true })
+  const tools = async () => undefined
+
+  it('refuses when a tool the driver needs is missing, naming it, and drives nothing', async () => {
+    const root = temporaryRepository()
+    const infra = fakeInfrastructure()
+    await up({ root, ...loaded(infra), out })
+    let driven = false
+    const driver = async () => {
+      driven = true
+      return { failures: [], transcript: '' }
+    }
+    await expect(
+      e2e({ root, infra, scenario: 'smoke', out, client, tools: async () => 'agent-browser', driver }),
+    ).rejects.toMatchObject({
+      code: 'MISSING_PREREQUISITE',
+      message: expect.stringContaining('agent-browser'),
+    })
+    expect(driven).toBe(false)
+  })
 
   it('C38: prints pass and the transcript path', async () => {
     const root = temporaryRepository()
@@ -57,7 +76,7 @@ describe('nr dev:e2e outcome', () => {
     await up({ root, ...loaded(infra), out })
     const lines: string[] = []
     const driver = async () => ({ failures: [], transcript: '/tmp/session.jsonl' })
-    await e2e({ root, infra, scenario: 'smoke', out: (line) => lines.push(line), client, driver })
+    await e2e({ root, infra, scenario: 'smoke', out: (line) => lines.push(line), client, tools, driver })
     expect(lines).toEqual(['transcript: /tmp/session.jsonl', 'PASS smoke'])
   })
 
@@ -66,7 +85,7 @@ describe('nr dev:e2e outcome', () => {
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out })
     const driver = async () => ({ failures: ['whoami was not called'], transcript: '/tmp/session.jsonl' })
-    await expect(e2e({ root, infra, scenario: 'smoke', out, client, driver })).rejects.toMatchObject({
+    await expect(e2e({ root, infra, scenario: 'smoke', out, client, tools, driver })).rejects.toMatchObject({
       code: 'E2E_FAILED',
       message: 'smoke: whoami was not called',
     })
