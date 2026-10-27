@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Checks the dependency graph of the API (constitution principle VII): tiers
-// entry > flows > domains > reference > kernel, imports point down only, no
-// import between two flows or two domains, a module is entered through its
-// index.ts only, no cycle between modules. The migrations live in
-// packages/database, never in the API.
+// Checks the dependency graph (constitution principle VII). Inside the API:
+// tiers entry > flows > domains > reference > kernel, imports point down only,
+// no import between two flows or two domains, a module is entered through its
+// index.ts only, no cycle between modules; the migrations live in
+// packages/database, never in the API. Between workspace packages: a package
+// is entered through its package.json exports only, never one of its files.
 //
-// Usage: node scripts/checks/dependencies.mjs [apps/api/src]
+// Usage: node scripts/checks/dependencies.mjs [repository root]
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
@@ -24,17 +25,22 @@ const SOURCE_FILE = /\.(ts|tsx|mts|js|mjs)$/
 const TEST_FILE = /\.test\.(ts|tsx|mts|js|mjs)$/
 const IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g
 
+const NOT_SOURCES = new Set(['node_modules', 'dist', 'coverage'])
+
 /**
  * @param {string} directory
  * @param {string[]} found
+ * @param {boolean} [withTests]
  * @returns {string[]}
  */
-function listSources(directory, found = []) {
+function listSources(directory, found = [], withTests = false) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)
     if (entry.isDirectory()) {
-      listSources(path, found)
-    } else if (SOURCE_FILE.test(entry.name) && !TEST_FILE.test(entry.name)) {
+      if (!NOT_SOURCES.has(entry.name)) {
+        listSources(path, found, withTests)
+      }
+    } else if (SOURCE_FILE.test(entry.name) && (withTests || !TEST_FILE.test(entry.name))) {
       found.push(path)
     }
   }
@@ -168,13 +174,97 @@ export function checkDependencies(src) {
 }
 
 /**
- * The command line: `node scripts/checks/dependencies.mjs [path]`.
+ * The workspace packages: their directory, relative to the root, by name.
+ * @param {string} root
+ * @returns {Map<string, { directory: string, exports: string[] }>}
+ */
+function listPackages(root) {
+  /** @type {Map<string, { directory: string, exports: string[] }>} */
+  const packages = new Map()
+  const manifest = readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8')
+  const list = manifest.split('packages:')[1]?.split(/\n(?=\S)/)[0] ?? ''
+  for (const [, pattern = ''] of list.matchAll(/^\s+-\s+['"]?([^'"\s]+)/gm)) {
+    const directories = pattern.endsWith('/*')
+      ? readdirSync(join(root, pattern.slice(0, -2)), { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => `${pattern.slice(0, -2)}/${entry.name}`)
+      : [pattern]
+    for (const directory of directories) {
+      const path = join(root, directory, 'package.json')
+      if (existsSync(path)) {
+        const { name, exports } = JSON.parse(readFileSync(path, 'utf8'))
+        packages.set(name, { directory, exports: Object.keys(exports ?? {}) })
+      }
+    }
+  }
+  return packages
+}
+
+/**
+ * @param {string} name
+ * @param {string[]} exports
+ */
+function exportFix(name, exports) {
+  return exports.length === 0
+    ? `add the entry to its package.json exports`
+    : `import ${name} through its package.json exports (${exports.map((key) => join(name, key)).join(', ')})`
+}
+
+/**
+ * Imports between workspace packages, tests included: by the package name,
+ * through an entry of its exports, never by a path into its files.
+ * @param {string} root the repository root
+ * @returns {string[]} one line per violation, each naming its fix
+ */
+export function checkPackageImports(root) {
+  /** @type {string[]} */
+  const violations = []
+  const packages = listPackages(root)
+  const owner = (/** @type {string} */ path) =>
+    [...packages.entries()].find(([, { directory }]) => path.startsWith(`${directory}/`))
+  for (const [, { directory }] of packages) {
+    const files = listSources(join(root, directory), [], true)
+    for (const file of files) {
+      const from = relative(root, file).split(sep).join('/')
+      for (const [, specifier = ''] of readFileSync(file, 'utf8').matchAll(IMPORT)) {
+        if (specifier.startsWith('.')) {
+          const to = relative(root, resolve(dirname(file), specifier))
+            .split(sep)
+            .join('/')
+          const target = owner(to)
+          if (target !== undefined && target[1].directory !== directory) {
+            violations.push(`${from} imports ${to}: ${exportFix(target[0], target[1].exports)}`)
+          }
+          continue
+        }
+        const name = specifier.split('/').slice(0, 2).join('/')
+        const target = packages.get(name)
+        if (target === undefined) {
+          continue
+        }
+        const subpath = `.${specifier.slice(name.length)}`
+        if (target.exports.length === 0) {
+          violations.push(`${from} imports ${specifier}: ${exportFix(name, [])}`)
+        } else if (!target.exports.includes(subpath)) {
+          violations.push(
+            `${from} imports ${specifier}: not in its package.json exports; ${exportFix(name, target.exports)}`,
+          )
+        }
+      }
+    }
+  }
+  return violations
+}
+
+/**
+ * The command line: `node scripts/checks/dependencies.mjs [root]`.
  * @param {string[]} argv
  * @param {(line: string) => void} write
  * @returns {number}
  */
 export function run(argv, write) {
-  return report(checkDependencies(resolve(argv[0] ?? 'apps/api/src')), write)
+  const root = resolve(argv[0] ?? '.')
+  return report([...checkDependencies(join(root, 'apps/api/src')), ...checkPackageImports(root)], write)
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

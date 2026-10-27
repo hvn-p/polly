@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { checkDependencies } from './dependencies.mjs'
+import { checkDependencies, checkPackageImports } from './dependencies.mjs'
 
 const repositoryRoot = join(import.meta.dirname, '..', '..')
 
@@ -94,6 +94,73 @@ describe('dependencies guard', () => {
     })
     expect(checkDependencies(root)).toEqual([
       expect.stringMatching(/cycle: kernel\/(clock|ids) -> .* -> kernel\/\1/),
+    ])
+  })
+})
+
+const workspace = {
+  'pnpm-workspace.yaml': 'packages:\n  - apps/*\n  - dev\n# a comment\nother: []\n',
+  'apps/api/package.json': JSON.stringify({
+    name: '@polly/api',
+    exports: { './demo-account': './src/flows/seed-demo-account/index.ts' },
+  }),
+  'apps/api/src/flows/seed-demo-account/index.ts': "export * from './demo-account.ts'\n",
+  'apps/api/src/flows/seed-demo-account/demo-account.ts': 'export const DEMO_ACCOUNT = {}\n',
+  'apps/web/package.json': JSON.stringify({ name: '@polly/web' }),
+  'dev/package.json': JSON.stringify({ name: '@polly/dev' }),
+  'dev/src/e2e/claude.ts': "import { DEMO_ACCOUNT } from '@polly/api/demo-account'\nimport './redact.ts'\n",
+  'dev/src/e2e/redact.ts': "import { z } from 'zod'\n",
+}
+
+describe('package imports guard', () => {
+  it('accepts the repository as it is', () => {
+    expect(checkPackageImports(repositoryRoot)).toEqual([])
+  })
+
+  it('accepts an import through an entry of the package exports', () => {
+    expect(checkPackageImports(fixture(workspace))).toEqual([])
+  })
+
+  it('refuses a relative import into an inner file of another package, naming its exports', () => {
+    const root = fixture({
+      ...workspace,
+      'dev/src/e2e/claude.ts':
+        "import { DEMO_ACCOUNT } from '../../../apps/api/src/flows/seed-demo-account/demo-account.ts'\n",
+    })
+    expect(checkPackageImports(root)).toEqual([
+      'dev/src/e2e/claude.ts imports apps/api/src/flows/seed-demo-account/demo-account.ts: ' +
+        'import @polly/api through its package.json exports (@polly/api/demo-account)',
+    ])
+  })
+
+  it('refuses a relative import into another package even from a test file', () => {
+    const root = fixture({
+      ...workspace,
+      'dev/test/up.test.ts': "await import('../../apps/api/src/flows/seed-demo-account/index.ts')\n",
+    })
+    expect(checkPackageImports(root)).toEqual([
+      expect.stringMatching(
+        /^dev\/test\/up\.test\.ts imports apps\/api\/.*through its package\.json exports/,
+      ),
+    ])
+  })
+
+  it('refuses a package path its exports do not list', () => {
+    const root = fixture({
+      ...workspace,
+      'dev/src/e2e/redact.ts': "import '@polly/api/src/flows/seed-demo-account/demo-account.ts'\n",
+    })
+    expect(checkPackageImports(root)).toEqual([
+      expect.stringMatching(
+        /^dev\/src\/e2e\/redact\.ts imports @polly\/api\/src\/.*not in its package\.json exports/,
+      ),
+    ])
+  })
+
+  it('refuses a package that exports nothing, naming the fix', () => {
+    const root = fixture({ ...workspace, 'dev/src/e2e/redact.ts': "import '@polly/web'\n" })
+    expect(checkPackageImports(root)).toEqual([
+      expect.stringMatching(/imports @polly\/web: .*add the entry to its package\.json exports/),
     ])
   })
 })

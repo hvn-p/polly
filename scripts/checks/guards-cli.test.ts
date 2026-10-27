@@ -28,7 +28,7 @@ describe('guard command lines', () => {
   it('exit 0 and print nothing on the repository as it is', async () => {
     const out = output()
     expect(strictConfigs([repositoryRoot], out.write)).toBe(0)
-    expect(dependencies([join(repositoryRoot, 'apps/api/src')], out.write)).toBe(0)
+    expect(dependencies([repositoryRoot], out.write)).toBe(0)
     expect(pinnedActions([repositoryRoot], out.write)).toBe(0)
     expect(await contracts([repositoryRoot], out.write)).toBe(0)
     expect(out.lines).toEqual([])
@@ -43,7 +43,12 @@ describe('guard command lines', () => {
     const pinned = output()
     expect(pinnedActions([unpinned], pinned.write)).toBe(1)
     expect(pinned.lines).toHaveLength(1)
-    const tiers = root({ 'kernel/a/index.ts': "import '../../flows/b/index.ts'\n", 'flows/b/index.ts': '' })
+    const tiers = root({
+      'pnpm-workspace.yaml': 'packages:\n  - apps/*\n',
+      'apps/api/package.json': '{"name":"@polly/api"}',
+      'apps/api/src/kernel/a/index.ts': "import '../../flows/b/index.ts'\n",
+      'apps/api/src/flows/b/index.ts': '',
+    })
     expect(dependencies([tiers], output().write)).toBe(1)
   })
 

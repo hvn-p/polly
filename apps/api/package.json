@@ -2,6 +2,9 @@
   "name": "@polly/api",
   "private": true,
   "type": "module",
+  "exports": {
+    "./demo-account": "./src/flows/seed-demo-account/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc -p ."
   },

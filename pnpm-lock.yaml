@@ -276,6 +276,12 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 3.1157.0
         version: 3.1157.0
+      '@polly/api':
+        specifier: workspace:*
+        version: link:../apps/api
+      '@polly/database':
+        specifier: workspace:*
+        version: link:../packages/database
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
