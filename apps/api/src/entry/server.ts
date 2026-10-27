@@ -4,7 +4,7 @@
 import type { AddressInfo } from 'node:net'
 import { fetchClientMetadataResource as fetchOverNetwork } from '@better-auth/cimd/node'
 import { serve } from '@hono/node-server'
-import { assertSchemaCurrent } from '@polly/database'
+import { assertSchemaCurrent, SchemaBehind } from '@polly/database'
 import type { Migration } from 'kysely/migration'
 import { type Clock, systemClock } from '../kernel/clock/index.ts'
 import { createIdentity, type IdentitySettings } from '../reference/identity/index.ts'
@@ -101,7 +101,7 @@ export async function startWhenSchemaCurrent(
     try {
       return await startServer(options)
     } catch (error) {
-      if (!(error instanceof Error && error.message.startsWith('SCHEMA_BEHIND'))) {
+      if (!(error instanceof SchemaBehind)) {
         throw error
       }
       if (!reported) {

@@ -6,7 +6,7 @@ import { Kysely, PostgresDialect } from 'kysely'
 import pg from 'pg'
 
 export { migrations } from './migrations/index.ts'
-export { assertSchemaCurrent, migrate } from './migrator.ts'
+export { assertSchemaCurrent, migrate, SchemaBehind } from './migrator.ts'
 
 export function connect<DB>(url: string): Kysely<DB> {
   return new Kysely<DB>({

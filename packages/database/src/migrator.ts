@@ -21,6 +21,15 @@ export async function migrate<DB>(
   return results.map(({ migrationName }) => migrationName)
 }
 
+// The database lacks shipped migrations: a process refuses to serve on it.
+export class SchemaBehind extends Error {
+  readonly code = 'SCHEMA_BEHIND'
+
+  constructor(pending: readonly string[]) {
+    super(`SCHEMA_BEHIND: ${pending.join(', ')} not applied; run nr dev:up`)
+  }
+}
+
 export async function assertSchemaCurrent<DB>(
   db: Kysely<DB>,
   migrations: Record<string, Migration> = shippedMigrations,
@@ -29,6 +38,6 @@ export async function assertSchemaCurrent<DB>(
     .filter(({ executedAt }) => executedAt === undefined)
     .map(({ name }) => name)
   if (pending.length > 0) {
-    throw new Error(`SCHEMA_BEHIND: ${pending.join(', ')} not applied; run nr dev:up`)
+    throw new SchemaBehind(pending)
   }
 }

@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { Refusal } from '../../kernel/refusal/index.ts'
 import type { EventCodes } from '../agent-events/codes.ts'
 import { eventCode } from '../contracts/agent-events.ts'
-import type { ToolDefinition } from './index.ts'
+import { defineTool, type ToolDefinition } from './index.ts'
 
 const REFUSALS = {
   INVALID_EVENT_CODE: 'the event code must be the 43 characters your event listener printed',
@@ -10,35 +11,28 @@ const REFUSALS = {
   EVENT_CODE_REVOKED: 'this event code was revoked; use the new one your event listener prints',
 }
 
-function refused(code: keyof typeof REFUSALS) {
-  return { isError: true, content: [{ type: 'text' as const, text: `${code}: ${REFUSALS[code]}` }] }
+function refused(code: keyof typeof REFUSALS): Refusal {
+  return new Refusal(code, REFUSALS[code])
 }
 
 export function startLesson(codes: EventCodes): ToolDefinition {
-  return (server, { learnerId }) => {
-    server.registerTool(
-      'start_lesson',
-      {
-        description:
-          "Connects the lesson's event stream to the signed-in learner. Call it with the event code your Polly event listener gave you, each time it gives a new one. The code is a secret: do not repeat it to the user.",
-        // Bounded here, checked exactly below, so a malformed code gets its
-        // named refusal.
-        inputSchema: z.object({ code: z.string().max(256) }),
-        outputSchema: z.object({ bound: z.literal(true) }),
-      },
-      async ({ code }) => {
-        if (!eventCode.safeParse(code).success) {
-          return refused('INVALID_EVENT_CODE')
-        }
-        const outcome = await codes.bind(learnerId, code)
-        if (outcome !== 'bound') {
-          return refused(outcome)
-        }
-        return {
-          content: [{ type: 'text', text: '{"bound":true}' }],
-          structuredContent: { bound: true as const },
-        }
-      },
-    )
-  }
+  return defineTool({
+    name: 'start_lesson',
+    description:
+      "Connects the lesson's event stream to the signed-in learner. Call it with the event code your Polly event listener gave you, each time it gives a new one. The code is a secret: do not repeat it to the user.",
+    // Bounded here, checked exactly below, so a malformed code gets its
+    // named refusal.
+    inputSchema: z.object({ code: z.string().max(256) }),
+    outputSchema: z.object({ bound: z.literal(true) }),
+    handle: async ({ code }, { learnerId }) => {
+      if (!eventCode.safeParse(code).success) {
+        throw refused('INVALID_EVENT_CODE')
+      }
+      const outcome = await codes.bind(learnerId, code)
+      if (outcome !== 'bound') {
+        throw refused(outcome)
+      }
+      return { bound: true as const }
+    },
+  })
 }

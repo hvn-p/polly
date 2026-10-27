@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest'
+import { Refusal } from '../kernel/refusal/index.ts'
 import { createApp } from './app.ts'
 import { type Guards, type Route, RouteRegistry } from './routes.ts'
 
 const guards: Guards = {
   public: async () => ({}),
-  learner: async (request) =>
-    request.headers.get('authorization') === 'Bearer ok'
-      ? { learnerId: 'learner-1' }
-      : Response.json({ code: 'UNAUTHORIZED' }, { status: 401 }),
-  'event-code': async () => Response.json({ code: 'UNAUTHORIZED' }, { status: 401 }),
+  learner: async (request) => {
+    if (request.headers.get('authorization') !== 'Bearer ok') {
+      throw new Refusal('UNAUTHORIZED', 'no token')
+    }
+    return { learnerId: 'learner-1' }
+  },
+  'event-code': async () => {
+    throw new Refusal('UNAUTHORIZED', 'no code')
+  },
 }
 
 describe('route registry', () => {
@@ -44,6 +49,31 @@ describe('route registry', () => {
     expect(await (await app.request('/api/mine', { headers: { authorization: 'Bearer ok' } })).text()).toBe(
       'learner-1',
     )
+  })
+
+  it('answers a refusal a route throws with its HTTP translation, and lets any other error through', async () => {
+    const registry = new RouteRegistry(guards)
+      .add({
+        method: 'GET',
+        path: '/api/revoked',
+        access: 'public',
+        handle: () => {
+          throw new Refusal('EVENT_CODE_REVOKED', 'revoked')
+        },
+      })
+      .add({
+        method: 'GET',
+        path: '/api/broken',
+        access: 'public',
+        handle: () => {
+          throw new Error('broken')
+        },
+      })
+    const app = createApp(registry)
+    const refused = await app.request('/api/revoked')
+    expect(refused.status).toBe(403)
+    expect(await refused.json()).toEqual({ code: 'EVENT_CODE_REVOKED' })
+    expect((await app.request('/api/broken')).status).toBe(500)
   })
 
   it('denies by default: an unregistered path answers 404', async () => {

@@ -55,6 +55,7 @@ jobs:
       - run: node scripts/checks/dependencies.mjs
       - run: node scripts/checks/pinned-actions.mjs
       - run: node scripts/checks/contracts.mjs
+      - run: node scripts/checks/refusals.mjs
       - run: node scripts/checks/agents-md.mjs --base "origin/${{ github.base_ref }}"
 
   tests:

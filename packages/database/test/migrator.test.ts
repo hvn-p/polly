@@ -1,7 +1,7 @@
 import { sql } from 'kysely'
 import type { Migration } from 'kysely/migration'
 import { afterAll, describe, expect, inject, it } from 'vitest'
-import { assertSchemaCurrent, connect, migrate, migrations } from '../src/index.ts'
+import { assertSchemaCurrent, connect, migrate, migrations, SchemaBehind } from '../src/index.ts'
 
 const db = connect(inject('testDatabaseUrl'))
 
@@ -35,8 +35,11 @@ describe('migrations and schema check', () => {
 
   it('C20: a database behind the code is refused with SCHEMA_BEHIND naming nr dev:up', async () => {
     const fixture: Record<string, Migration> = { '9999_fixture_not_applied': { up: async () => undefined } }
-    await expect(assertSchemaCurrent(db, { ...migrations, ...fixture })).rejects.toThrow(
-      /^SCHEMA_BEHIND: 9999_fixture_not_applied .*nr dev:up/,
-    )
+    const refusal = assertSchemaCurrent(db, { ...migrations, ...fixture })
+    await expect(refusal).rejects.toBeInstanceOf(SchemaBehind)
+    await expect(refusal).rejects.toMatchObject({
+      code: 'SCHEMA_BEHIND',
+      message: expect.stringMatching(/^SCHEMA_BEHIND: 9999_fixture_not_applied .*nr dev:up/),
+    })
   })
 })

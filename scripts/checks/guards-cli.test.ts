@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { run as contracts } from './contracts.mjs'
 import { run as dependencies } from './dependencies.mjs'
 import { run as pinnedActions } from './pinned-actions.mjs'
+import { run as refusals } from './refusals.mjs'
 import { report } from './report.mjs'
 import { run as strictConfigs } from './strict-configs.mjs'
 
@@ -31,6 +32,7 @@ describe('guard command lines', () => {
     expect(dependencies([repositoryRoot], out.write)).toBe(0)
     expect(pinnedActions([repositoryRoot], out.write)).toBe(0)
     expect(await contracts([repositoryRoot], out.write)).toBe(0)
+    expect(refusals([join(repositoryRoot, 'apps/api/src')], out.write)).toBe(0)
     expect(out.lines).toEqual([])
   })
 

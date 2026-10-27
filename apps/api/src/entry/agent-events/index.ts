@@ -7,6 +7,7 @@
 
 import type { z } from 'zod'
 import type { Clock } from '../../kernel/clock/index.ts'
+import { Refusal } from '../../kernel/refusal/index.ts'
 import { eventCode, type refusalCode } from '../contracts/agent-events.ts'
 import type { Guard, RouteRegistry } from '../routes.ts'
 import { type EventCodes, hashCode } from './codes.ts'
@@ -15,23 +16,24 @@ const BINDING_CHECK_MS = 1_000
 const UNBOUND_LIMIT_MS = 120_000
 const KEEPALIVE_MS = 15_000
 
-function refused(status: number, code: z.infer<typeof refusalCode>): Response {
-  return Response.json({ code }, { status })
+// The stream's refusals are its contract's.
+function refused(code: z.infer<typeof refusalCode>, message: string): Refusal {
+  return new Refusal(code, message)
 }
 
 export function eventCodeGuard(codes: EventCodes): Guard<'event-code'> {
   return async (request) => {
     const header = request.headers.get('authorization') ?? ''
     if (!header.startsWith('Bearer ')) {
-      return refused(401, 'UNAUTHORIZED')
+      throw refused('UNAUTHORIZED', 'the event code goes in Authorization: Bearer <code>')
     }
     const code = header.slice('Bearer '.length)
     if (!eventCode.safeParse(code).success) {
-      return refused(400, 'INVALID_EVENT_CODE')
+      throw refused('INVALID_EVENT_CODE', 'an event code is 43 base64url characters')
     }
     const codeHash = hashCode(code)
     if ((await codes.stateOf(codeHash)).state === 'revoked') {
-      return refused(403, 'EVENT_CODE_REVOKED')
+      throw refused('EVENT_CODE_REVOKED', 'this event code was revoked; draw a new one')
     }
     return { codeHash }
   }

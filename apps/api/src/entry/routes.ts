@@ -1,6 +1,10 @@
 // Every route declares its access rule from a closed set (constitution
 // principle XV). A route cannot be registered without one, and its handler only
-// runs once the rule has let the request through.
+// runs once the rule has let the request through. A rule or a route refuses by
+// throwing a Refusal, answered with its HTTP translation.
+
+import { Refusal } from '../kernel/refusal/index.ts'
+import { refusalResponse } from './refusals.ts'
 
 export type Access = 'public' | 'learner' | 'event-code'
 
@@ -11,6 +15,8 @@ export interface AccessContext {
   'event-code': { codeHash: string }
 }
 
+// A response is passed on as is: Better Auth answers a request it refuses
+// itself (the OAuth challenge of an MCP request).
 export type Guard<A extends Access> = (request: Request) => Promise<AccessContext[A] | Response>
 
 export type Guards = { [A in Access]: Guard<A> }
@@ -52,15 +58,22 @@ export class RouteRegistry {
   // The request handler of a route: its access rule first, then the route.
   handler(route: Route): (request: Request) => Promise<Response> {
     return async (request) => {
-      const guard = this.#guards[route.access] as Guard<typeof route.access>
-      const context = await guard(request)
-      if (context instanceof Response) {
-        return context
+      try {
+        const guard = this.#guards[route.access] as Guard<typeof route.access>
+        const context = await guard(request)
+        if (context instanceof Response) {
+          return context
+        }
+        return await (route.handle as (request: Request, context: unknown) => Response | Promise<Response>)(
+          request,
+          context,
+        )
+      } catch (error) {
+        if (error instanceof Refusal) {
+          return refusalResponse(error)
+        }
+        throw error
       }
-      return (route.handle as (request: Request, context: unknown) => Response | Promise<Response>)(
-        request,
-        context,
-      )
     }
   }
 }
