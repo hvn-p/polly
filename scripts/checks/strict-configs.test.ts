@@ -7,6 +7,14 @@ import { checkStrictConfigs } from './strict-configs.mjs'
 const repositoryRoot = join(import.meta.dirname, '..', '..')
 const base = readFileSync(join(repositoryRoot, 'tsconfig.base.json'), 'utf8')
 const pyproject = readFileSync(join(repositoryRoot, 'services/pron-worker/pyproject.toml'), 'utf8')
+const biome = JSON.parse(readFileSync(join(repositoryRoot, 'biome.json'), 'utf8')) as {
+  linter: { rules: Record<string, unknown> }
+}
+const manifest = readFileSync(join(repositoryRoot, 'package.json'), 'utf8')
+
+function biomeWith(rules: Record<string, unknown>): string {
+  return JSON.stringify({ ...biome, linter: { ...biome.linter, rules: { ...biome.linter.rules, ...rules } } })
+}
 
 function fixture(files: Record<string, string>): string {
   const root = mkdtempSync(join(tmpdir(), 'strict-configs-'))
@@ -85,5 +93,48 @@ describe('strict-configs guard', () => {
     const relaxed = pyproject.replace('strict = true', 'strict = true\ndisallow_untyped_defs = false')
     const root = fixture({ 'tsconfig.base.json': base, 'svc/pyproject.toml': relaxed })
     expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('disallow_untyped_defs')])
+  })
+
+  it('refuses a Biome rule turned off, or down to info, without a recorded reason', () => {
+    const root = fixture({
+      'tsconfig.base.json': base,
+      'biome.json': biomeWith({
+        suspicious: { noExplicitAny: 'off', noDebugger: { level: 'info' } },
+        complexity: { useLiteralKeys: 'off' },
+      }),
+    })
+    expect(checkStrictConfigs(root)).toEqual([
+      expect.stringMatching(/^biome\.json: suspicious\.noExplicitAny may not be off/),
+      expect.stringMatching(/^biome\.json: suspicious\.noDebugger may not be info/),
+    ])
+  })
+
+  it('refuses a Biome configuration that leaves the recommended rules', () => {
+    const root = fixture({ 'tsconfig.base.json': base, 'biome.json': biomeWith({ preset: 'none' }) })
+    expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('biome.json: linter.rules.preset')])
+  })
+
+  it('refuses a lint script that lets warnings pass', () => {
+    const relaxed = manifest.replace('biome check --error-on-warnings .', 'biome check .')
+    const root = fixture({ 'tsconfig.base.json': base, 'package.json': relaxed })
+    expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('--error-on-warnings')])
+  })
+
+  it('refuses a ruff exclusion other than the generated contracts', () => {
+    const relaxed = pyproject.replace(
+      'extend-exclude = ["src/pron_worker/contracts"]',
+      'extend-exclude = ["src/pron_worker/contracts", "src/pron_worker/legacy"]',
+    )
+    const root = fixture({ 'tsconfig.base.json': base, 'svc/pyproject.toml': relaxed })
+    expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('src/pron_worker/legacy')])
+  })
+
+  it('refuses S101 outside the tests', () => {
+    const everywhere = pyproject.replace('"CPY001"]', '"CPY001", "S101"]')
+    const inSource = pyproject.replace('"tests/**" = ["S101"]', '"tests/**" = ["S101"]\n"src/**" = ["S101"]')
+    for (const relaxed of [everywhere, inSource]) {
+      const root = fixture({ 'tsconfig.base.json': base, 'svc/pyproject.toml': relaxed })
+      expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('S101')])
+    }
   })
 })

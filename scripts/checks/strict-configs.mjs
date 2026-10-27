@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Refuses a configuration that relaxes the strictness of the project's code
 // (constitution principle XI): every tsconfig.json extends tsconfig.base.json
-// without turning a strictness option off, the base keeps all of them, and
-// every pyproject.toml keeps ruff on all rules and mypy strict.
+// without turning a strictness option off, the base keeps all of them, Biome
+// keeps its recommended rules and fails on a warning, and every
+// pyproject.toml keeps ruff on all rules and mypy strict.
 //
 // Usage: node scripts/checks/strict-configs.mjs [root]
 
@@ -44,10 +45,23 @@ const TS_STRICT_FAMILY = [
   'useUnknownInCatchVariables',
 ]
 
-// Ruff rules that may be ignored, and why: D203/D213 conflict with D211/D212,
-// COM812 conflicts with the formatter, the repository carries no per-file
-// copyright notice (CPY001), and tests assert with `assert` (S101).
-const RUFF_ALLOWED_IGNORES = new Set(['D203', 'D213', 'COM812', 'CPY001', 'S101'])
+// Ruff rules that may be ignored everywhere, and why: D203/D213 conflict with
+// D211/D212, COM812 conflicts with the formatter, the repository carries no
+// per-file copyright notice (CPY001).
+const RUFF_ALLOWED_IGNORES = new Set(['D203', 'D213', 'COM812', 'CPY001'])
+
+// Ruff rules that may be ignored for some files only: tests assert with
+// `assert` (S101).
+/** @type {Record<string, string>} */
+const RUFF_ALLOWED_FILE_IGNORES = { S101: 'tests/**' }
+
+// Paths ruff may skip, and why: the contracts generated from the API's Zod
+// sources (nr contracts), checked by mypy only.
+const RUFF_ALLOWED_EXCLUDES = new Set(['src/pron_worker/contracts'])
+
+// Biome rules that may be off, and why: noPropertyAccessFromIndexSignature
+// requires `env['KEY']`, which useLiteralKeys would rewrite to `env.KEY`.
+const BIOME_ALLOWED_OFF = new Set(['complexity/useLiteralKeys'])
 
 const SKIPPED_DIRECTORIES = new Set(['node_modules', '.git', 'vendors', '.venv', 'dist', '.specify'])
 
@@ -140,10 +154,21 @@ function checkPyprojects(root, violations) {
     if (JSON.stringify(lint.select) !== JSON.stringify(['ALL'])) {
       violations.push(`${label}: tool.ruff.lint.select must be ["ALL"]`)
     }
-    const ignored = [...(lint.ignore ?? []), ...Object.values(lint['per-file-ignores'] ?? {}).flat()]
-    for (const rule of ignored) {
+    for (const rule of lint.ignore ?? []) {
       if (!RUFF_ALLOWED_IGNORES.has(rule)) {
         violations.push(`${label}: ruff rule ${rule} may not be ignored`)
+      }
+    }
+    for (const [pattern, rules] of Object.entries(lint['per-file-ignores'] ?? {})) {
+      for (const rule of /** @type {string[]} */ (rules)) {
+        if (!RUFF_ALLOWED_IGNORES.has(rule) && RUFF_ALLOWED_FILE_IGNORES[rule] !== pattern) {
+          violations.push(`${label}: ruff rule ${rule} may not be ignored for ${pattern}`)
+        }
+      }
+    }
+    for (const path of [...(tool.ruff?.exclude ?? []), ...(tool.ruff?.['extend-exclude'] ?? [])]) {
+      if (!RUFF_ALLOWED_EXCLUDES.has(path)) {
+        violations.push(`${label}: ruff may not skip ${path}`)
       }
     }
     if (lint['extend-ignore'] !== undefined || tool.ruff?.['extend-ignore'] !== undefined) {
@@ -170,12 +195,48 @@ function checkPyprojects(root, violations) {
 
 /**
  * @param {string} root
+ * @param {string[]} violations
+ */
+function checkBiome(root, violations) {
+  const path = join(root, 'biome.json')
+  if (existsSync(path)) {
+    const linter = readJson(path).linter ?? {}
+    if (linter.enabled === false) {
+      violations.push('biome.json: linter.enabled must not be false')
+    }
+    const { preset = 'recommended', ...groups } = linter.rules ?? {}
+    if (preset !== 'recommended' && preset !== 'all') {
+      violations.push('biome.json: linter.rules.preset must be recommended or all')
+    }
+    for (const [group, rules] of Object.entries(groups)) {
+      for (const [rule, setting] of Object.entries(
+        typeof rules === 'object' && rules !== null ? rules : {},
+      )) {
+        const level = typeof setting === 'object' && setting !== null ? setting.level : setting
+        if ((level === 'off' || level === 'info') && !BIOME_ALLOWED_OFF.has(`${group}/${rule}`)) {
+          violations.push(`biome.json: ${group}.${rule} may not be ${level}; record its reason in this guard`)
+        }
+      }
+    }
+  }
+  const manifest = join(root, 'package.json')
+  if (existsSync(manifest)) {
+    const lint = readJson(manifest).scripts?.lint ?? ''
+    if (!/\bbiome check\b/.test(lint) || !lint.includes('--error-on-warnings')) {
+      violations.push('package.json: the lint script must run biome check --error-on-warnings')
+    }
+  }
+}
+
+/**
+ * @param {string} root
  * @returns {string[]} one line per violation, empty when every configuration is strict
  */
 export function checkStrictConfigs(root) {
   /** @type {string[]} */
   const violations = []
   checkTsconfigs(root, violations)
+  checkBiome(root, violations)
   checkPyprojects(root, violations)
   return violations
 }
@@ -190,7 +251,7 @@ export function run(argv, write) {
   return report(
     checkStrictConfigs(resolve(argv[0] ?? '.')),
     write,
-    'Strictness is set once, in tsconfig.base.json and in each pyproject.toml: restore it.',
+    'Strictness is set once, in tsconfig.base.json, biome.json and each pyproject.toml: restore it.',
   )
 }
 
