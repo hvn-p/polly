@@ -123,6 +123,9 @@ describe('agent-event monitor', () => {
     expect(monitor.stdout.filter((line) => line.startsWith('WORKTREE_NOT_CONFIGURED'))).toEqual([
       'WORKTREE_NOT_CONFIGURED: run nr dev:up, then restart the session with nr agent',
     ])
+    // The code line comes first, as in every case: the agent reads it there.
+    expect(monitor.stdout[0]).toMatch(/^polly event code: [A-Za-z0-9_-]{43}\. /)
+    expect(monitor.stdout[1]).toMatch(/^WORKTREE_NOT_CONFIGURED/)
     expect(new Set(monitor.stderr.filter((line) => line.startsWith('RESOLVE')))).toEqual(
       new Set(['RESOLVE unconfigured.invalid']),
     )

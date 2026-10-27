@@ -87,13 +87,13 @@ async function listen(url, code) {
   return undefined
 }
 
+// The code line comes first in every case: the agent reads it there.
+let code = drawCode()
 const configured = process.env['POLLY_EVENTS_URL']
 if (configured === undefined || configured === '') {
   say('WORKTREE_NOT_CONFIGURED: run nr dev:up, then restart the session with nr agent')
 }
 const url = configured || UNCONFIGURED_URL
-
-let code = drawCode()
 for (;;) {
   let ending
   try {
