@@ -63,7 +63,8 @@ consent covers only those two and that channel: any other issue or PR is asked f
 - **Separate React front end and Hono 4 API**, in a pnpm monorepo. The API is also the
   MCP's OAuth authorization server, through Better Auth (`mcp` and `cimd` plugins),
   which polly's code only reaches through its extension points.
-- **TypeScript 7 only**, compiled by `tsc`.
+- **TypeScript 7 only**, type-checked by `tsc`: Node strips the types and Vite builds the
+  front end.
 - **Biome** for lint and format.
 - **Boundaries**: Zod schemas, an OpenAPI contract generated from them, a generated
   client through which the front end and the MCP go. A refusal that depends on state
