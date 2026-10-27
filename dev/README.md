@@ -6,7 +6,7 @@ supervisor that runs the worktree's API, front-end dev server and worker.
 
 ## Prerequisites
 
-Linux with Docker and compose, `flock`, worktrunk, portless with its proxy
+Linux with Docker and compose, `flock`, `ss` (iproute2), worktrunk, portless with its proxy
 running and its CA trusted, uv, Node 24 and pnpm. `nr dev:up` checks them and names
 what is missing.
 

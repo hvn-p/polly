@@ -57,7 +57,7 @@ describe('machine adapters', () => {
     const missing = await prerequisites.missing()
     expect(
       missing === undefined ||
-        ['docker', 'docker compose', 'flock', 'portless', 'uv', 'pnpm'].includes(missing) ||
+        ['docker', 'docker compose', 'flock', 'ss', 'portless', 'uv', 'pnpm'].includes(missing) ||
         missing.startsWith('the portless proxy'),
     ).toBe(true)
   })

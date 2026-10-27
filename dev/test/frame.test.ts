@@ -93,6 +93,11 @@ describe('prerequisite probe', () => {
     expect(await probePrerequisites({ exec, nodeVersion: '24.21.0' })).toBe('flock')
   })
 
+  it('C6: names ss, which finds the holder of a port', async () => {
+    const exec = async (command: string) => (command === 'ss' ? { ok: false, output: '' } : present())
+    expect(await probePrerequisites({ exec, nodeVersion: '24.21.0' })).toBe('ss')
+  })
+
   it('names docker compose, a stopped portless proxy, and an old Node', async () => {
     const noCompose = async (command: string, args: readonly string[]) =>
       command === 'docker' && args[0] === 'compose' ? { ok: false, output: '' } : present()

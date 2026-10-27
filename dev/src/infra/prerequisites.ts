@@ -19,6 +19,8 @@ const TOOLS: { name: string; command: string; args: string[] }[] = [
   { name: 'docker', command: 'docker', args: ['--version'] },
   { name: 'docker compose', command: 'docker', args: ['compose', 'version'] },
   { name: 'flock', command: 'flock', args: ['--version'] },
+  // Finds which process holds a port (RESOURCE_CONFLICT names it).
+  { name: 'ss', command: 'ss', args: ['--version'] },
   { name: 'portless', command: 'portless', args: ['--version'] },
   { name: 'uv', command: 'uv', args: ['--version'] },
   { name: 'pnpm', command: 'pnpm', args: ['--version'] },
