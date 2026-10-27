@@ -11,6 +11,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { DEMO_ACCOUNT } from '../../../apps/api/src/flows/seed-demo-account/demo-account.ts'
+import { redactEventCodes } from './redact.ts'
 import type { Scenario } from './scenario.ts'
 import { drivenSession } from './session.ts'
 
@@ -172,7 +173,7 @@ export async function runScenario({
     // What the terminal showed, to see where the session stopped.
     const screen = join(root, '.dev', 'logs', `e2e-${sessionId}.log`)
     mkdirSync(dirname(screen), { recursive: true })
-    writeFileSync(screen, session.output())
+    writeFileSync(screen, redactEventCodes(session.output()))
     out(`terminal: ${screen}`)
   }
   return { failures, transcript: transcriptOf(sessionId) ?? '(no transcript)' }
