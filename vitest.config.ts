@@ -23,6 +23,8 @@ export default defineConfig({
         'plugin/bin/agent-events.mjs',
         'dev/src/supervisor/main.ts',
         'apps/api/src/entry/main.ts',
+        // The driven agent run: on demand, never in CI (nr dev:e2e).
+        'dev/src/e2e/claude.ts',
         // Applied by the API tests' global setup, in its own process; the
         // startup tests check the schema they produce.
         'apps/api/src/migrations/**',

@@ -4,6 +4,7 @@
 
 import { agent } from './commands/agent.ts'
 import { down } from './commands/down.ts'
+import { e2e } from './commands/e2e.ts'
 import { Refusal } from './commands/refusal.ts'
 import { up } from './commands/up.ts'
 import { url } from './commands/url.ts'
@@ -39,6 +40,9 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
         return await agent({ root: io.cwd, args: argv.slice(1), out: io.stderr })
       case 'worker':
         await worker({ root: io.cwd, infra: await infrastructure(io), mode: argv[1] ?? '', out: io.stdout })
+        return 0
+      case 'e2e':
+        await e2e({ root: io.cwd, infra: await infrastructure(io), scenario: argv[1] ?? '', out: io.stdout })
         return 0
       case 'url':
         url({ root: io.cwd, out: io.stdout })

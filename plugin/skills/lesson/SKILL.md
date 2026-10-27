@@ -8,14 +8,16 @@ description: Start a Polly lesson and handle its events. Use when the learner as
 Polly is reached through the `polly` MCP server. Its event listener runs while
 this skill is active and prints lines into the session.
 
+## When the lesson starts
+
+Call the `whoami` tool of the `polly` MCP server, to check that Polly is reachable
+and that the learner is signed in.
+
 ## When the listener prints `polly event code: <code>. …`
 
 Call the `start_lesson` tool of the `polly` MCP server with that code. Do it
 for every such line: the listener draws a new code when the previous one stops
 being valid. The code is a secret: never repeat it to the learner.
-
-If `start_lesson` answers that the server is not reachable, call `whoami` to
-check the connection and the sign-in.
 
 ## When the listener prints `polly event <type>, …`
 
