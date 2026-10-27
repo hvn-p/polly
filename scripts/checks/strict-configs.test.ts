@@ -8,6 +8,7 @@ const repositoryRoot = join(import.meta.dirname, '..', '..')
 const base = readFileSync(join(repositoryRoot, 'tsconfig.base.json'), 'utf8')
 const pyproject = readFileSync(join(repositoryRoot, 'services/pron-worker/pyproject.toml'), 'utf8')
 const biome = JSON.parse(readFileSync(join(repositoryRoot, 'biome.json'), 'utf8')) as {
+  files: { includes: string[] }
   linter: { rules: Record<string, unknown> }
 }
 const manifest = readFileSync(join(repositoryRoot, 'package.json'), 'utf8')
@@ -106,6 +107,21 @@ describe('strict-configs guard', () => {
     expect(checkStrictConfigs(root)).toEqual([
       expect.stringMatching(/^biome\.json: suspicious\.noExplicitAny may not be off/),
       expect.stringMatching(/^biome\.json: suspicious\.noDebugger may not be info/),
+    ])
+  })
+
+  it('refuses a path excluded from lint without a recorded reason, from the files or the linter', () => {
+    const root = fixture({
+      'tsconfig.base.json': base,
+      'biome.json': JSON.stringify({
+        ...biome,
+        files: { includes: [...biome.files.includes, '!src/legacy'] },
+        linter: { ...biome.linter, includes: ['**', '!apps/web/src/old.ts'] },
+      }),
+    })
+    expect(checkStrictConfigs(root)).toEqual([
+      'biome.json: files.includes excludes src/legacy from lint; record its reason in this guard',
+      'biome.json: linter.includes excludes apps/web/src/old.ts from lint; record its reason in this guard',
     ])
   })
 

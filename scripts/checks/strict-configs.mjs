@@ -63,6 +63,19 @@ const RUFF_ALLOWED_EXCLUDES = new Set(['src/pron_worker/contracts'])
 // requires `env['KEY']`, which useLiteralKeys would rewrite to `env.KEY`.
 const BIOME_ALLOWED_OFF = new Set(['complexity/useLiteralKeys'])
 
+// Paths Biome may leave out of lint, and why.
+/** @type {Record<string, string>} */
+const BIOME_ALLOWED_EXCLUDES = {
+  node_modules: 'installed dependencies',
+  vendors: "the platform's repository, read-only here and linted in its own",
+  '**/contracts/*.schema.json': 'generated from the Zod sources by nr contracts',
+  'pnpm-lock.yaml': 'written by pnpm',
+  '.claude/skills/impeccable': 'an installed third-party skill',
+  '.specify': "Spec Kit's installed scripts and the feature's artifact cache",
+  'scripts/checks/agents-md.mjs': 'installed and tested by the baudrier plugin',
+  '.claude/hooks/agents-md-reminder.mjs': 'installed and tested by the baudrier plugin',
+}
+
 const SKIPPED_DIRECTORIES = new Set(['node_modules', '.git', 'vendors', '.venv', 'dist', '.specify'])
 
 /**
@@ -200,7 +213,21 @@ function checkPyprojects(root, violations) {
 function checkBiome(root, violations) {
   const path = join(root, 'biome.json')
   if (existsSync(path)) {
-    const linter = readJson(path).linter ?? {}
+    const config = readJson(path)
+    const linter = config.linter ?? {}
+    for (const [key, includes] of [
+      ['files.includes', config.files?.includes],
+      ['linter.includes', linter.includes],
+    ]) {
+      for (const pattern of Array.isArray(includes) ? includes : []) {
+        const excluded = typeof pattern === 'string' && pattern.startsWith('!') ? pattern.slice(1) : undefined
+        if (excluded !== undefined && !Object.hasOwn(BIOME_ALLOWED_EXCLUDES, excluded)) {
+          violations.push(
+            `biome.json: ${key} excludes ${excluded} from lint; record its reason in this guard`,
+          )
+        }
+      }
+    }
     if (linter.enabled === false) {
       violations.push('biome.json: linter.enabled must not be false')
     }
