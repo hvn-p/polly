@@ -2,7 +2,7 @@
 
 Each worktree runs its own Polly at its own URL, on its own data: a database, a
 test database and a bucket in the machine's shared Postgres and Garage, and a
-supervisor that runs the worktree's API and front-end dev server.
+supervisor that runs the worktree's API, front-end dev server and worker.
 
 ## Prerequisites
 
@@ -19,6 +19,8 @@ Every command acts on the worktree it runs in.
 | `nr dev:up` | Creates what is missing, migrates, seeds the demo account, starts the processes, prints the URL. Safe to run again: it repairs a stopped or partly set up worktree. |
 | `nr dev:down` | Stops the processes and releases the worktree's databases, bucket and route. |
 | `nr dev:url` | Prints the worktree's URL. |
+| `nr dev:worker real` / `nr dev:worker fake` | Restarts the worktree's worker with the real models, or with the fake analyzer that loads none. One worktree at a time on the machine runs the real one; `nr dev:down` puts the worktree back in fake mode. |
+| `nr dev:e2e <scenario>` | Plays a scenario (`smoke`) in a driven Claude Code session against this worktree, then prints pass or fail and the transcript's path. Needs `claude` signed in, agent-browser and util-linux `script`; never runs in CI. |
 | `nr agent` | Starts Claude Code with this worktree's plugin, pointed at this worktree's server. |
 
 worktrunk runs `dev:up` when it creates a worktree and `dev:down` when it
@@ -32,7 +34,8 @@ with the demo account.
 
 - `.env.local`: the worktree's configuration, generated from
   [`env.template`](env.template). Generated values are never rewritten.
-- `.dev/logs/api.log`, `.dev/logs/web.log`: the output of each process.
+- `.dev/logs/api.log`, `.dev/logs/web.log`, `.dev/logs/worker.log`: the output of each
+  process.
 - `.dev/state.json`: what `dev:down` releases.
 
 ## Demo account
