@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { runCli } from '../src/entry/cli.ts'
 import { DEMO_ACCOUNT, seedDemoAccount } from '../src/flows/seed-demo-account/index.ts'
 import { testConfig } from './support/config.ts'
-import { signIn } from './support/oauth.ts'
+import { mcpAccessToken, signIn } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
 
 const server = await testServer()
@@ -32,6 +32,14 @@ describe('demo account seed', () => {
     expect(await demoUsers()).toBe(1)
     expect(DEMO_ACCOUNT).toMatchObject({ name: 'Demo Learner', email: 'demo@polly.localhost' })
     expect((await signIn(server, DEMO_ACCOUNT.email, DEMO_ACCOUNT.password)).status).toBe(200)
+  })
+
+  it('C21: the seeded demo account signs in, authorizes with PKCE and gets an MCP token', async () => {
+    await seedDemoAccount({ environment: 'local', identity: server.identity })
+    const token = await mcpAccessToken(server, DEMO_ACCOUNT.email, DEMO_ACCOUNT.password)
+    const [, payload = ''] = token.split('.')
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { aud: string | string[] }
+    expect([claims.aud].flat()).toContain(`${server.config.PUBLIC_URL}/mcp`)
   })
 
   it('runs from the command line dev:up calls', async () => {

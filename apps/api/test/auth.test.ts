@@ -6,7 +6,7 @@ import { testServer } from './support/server.ts'
 const server = await testServer()
 
 describe('sign-in and the OAuth flow', () => {
-  it('C21: signs in, then authorizes with PKCE and exchanges the code for an MCP token', async () => {
+  it('a learner signs in, then authorizes with PKCE and exchanges the code for an MCP token', async () => {
     const { email, password } = await createLearner(server)
     const token = await mcpAccessToken(server, email, password)
     const [, payload = ''] = token.split('.')
