@@ -14,6 +14,9 @@ steps 4, 6 and 7.
   directly.
 - **An existing test only changes for a reason of its own**, written in the PR
   description, outside the tasks section, never in a file of the repository.
+- **A deviation from the plan or a contract, once agreed, updates that artifact in the
+  same batch**: the plan, research or contract in the cache changes with the code and is
+  pushed with the batch's commit, so `converge` finds no stale artifact.
 - **Do not create or complete any ignore file** (step 4): this repository maintains
   them itself, and a task that needs one says so.
 - Finished tasks are checked in the cache's `tasks.md`, and each commit is followed by
