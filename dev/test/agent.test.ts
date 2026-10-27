@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { agent, type Launch } from '../src/commands/agent.ts'
 import { up } from '../src/commands/up.ts'
 import { parseEnv } from '../src/config/index.ts'
-import { fakeInfrastructure } from './support/fake-infrastructure.ts'
+import { fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
 import { temporaryRepository } from './support/repository.ts'
 
 function recorder() {
@@ -21,7 +21,7 @@ const codeRoot = join(import.meta.dirname, '..', '..')
 describe('nr agent', () => {
   it("starts Claude Code with the worktree's plugin and its URLs", async () => {
     const root = temporaryRepository()
-    await up({ root, infra: fakeInfrastructure(), out: () => undefined })
+    await up({ root, ...loaded(fakeInfrastructure()), out: () => undefined })
     const env = parseEnv(readFileSync(join(root, '.env.local'), 'utf8'))
     const { launches, launch } = recorder()
     const lines: string[] = []

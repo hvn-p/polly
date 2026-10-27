@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { up } from '../src/commands/up.ts'
 import { probePrerequisites } from '../src/infra/prerequisites.ts'
 import { run } from '../src/main.ts'
-import { fakeInfrastructure } from './support/fake-infrastructure.ts'
+import { fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
 import { git, temporaryRepository } from './support/repository.ts'
 
 function output() {
@@ -18,7 +18,9 @@ describe('command frame', () => {
     const root = temporaryRepository()
     git(root, 'checkout', '--quiet', '--detach')
     const infra = fakeInfrastructure()
-    await expect(up({ root, infra, out: output().write })).rejects.toMatchObject({ code: 'DETACHED_HEAD' })
+    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
+      code: 'DETACHED_HEAD',
+    })
     expect(infra.calls).toEqual([])
   })
 
@@ -26,7 +28,7 @@ describe('command frame', () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
     infra.missingPrerequisite = 'flock'
-    await expect(up({ root, infra, out: output().write })).rejects.toMatchObject({
+    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
       code: 'MISSING_PREREQUISITE',
       message: expect.stringContaining('flock'),
     })
@@ -40,7 +42,7 @@ describe('command frame', () => {
     await new Promise((resolve) => holder.stdout.once('data', resolve))
     const infra = fakeInfrastructure()
     try {
-      await expect(up({ root, infra, out: output().write })).rejects.toMatchObject({
+      await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
         code: 'DEV_UP_IN_PROGRESS',
       })
       expect(infra.calls).toEqual([])

@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { down } from '../src/commands/down.ts'
 import { up } from '../src/commands/up.ts'
 import { groupMembers, processSupervisor } from '../src/supervisor/index.ts'
+import { loaded } from './support/fake-infrastructure.ts'
 import { isolatedInfrastructure } from './support/isolated-infrastructure.ts'
 import {
   envOf,
@@ -51,7 +52,7 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
   it('C15, C16: with processes running and a connection open, releases everything; again changes nothing', async () => {
     const root = temporaryRepository('feature/release')
     const infra = infrastructure()
-    await up({ root, infra, out })
+    await up({ root, ...loaded(infra), out })
     const pid = stateOf(root).supervisor.pid
     await until(() => groupMembers(pid).length === 2)
     const client = new pg.Client({ connectionString: envOf(root)['DATABASE_URL'] })
@@ -68,7 +69,7 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
   it('C17: with the infrastructure stopped, starts it, then releases', async () => {
     const root = temporaryRepository('feature/stopped')
     const infra = infrastructure()
-    await up({ root, infra, out })
+    await up({ root, ...loaded(infra), out })
     execFileSync('docker', ['compose', '-p', shared.project, 'stop'], { stdio: 'ignore' })
     const env = envOf(root)
     await down({ root, infra, out })
@@ -79,8 +80,8 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     const a = temporaryRepository('feature/a')
     const b = temporaryRepository('feature/b')
     const infra = infrastructure()
-    await up({ root: a, infra, out })
-    await up({ root: b, infra, out })
+    await up({ root: a, ...loaded(infra), out })
+    await up({ root: b, ...loaded(infra), out })
     await query(a, 'create table mine (value text)')
     await query(b, `create table mine (value text); insert into mine values ('b')`)
     const bSupervisor = stateOf(b).supervisor.pid
@@ -89,7 +90,7 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     expect(await query(b, 'select value from mine')).toEqual([{ value: 'b' }])
     expect(await garageOf(shared, 'GetBucketInfo', { globalAlias: envOf(b)['S3_BUCKET'] })).toBeDefined()
 
-    await up({ root: a, infra, out })
+    await up({ root: a, ...loaded(infra), out })
     expect(
       await query(
         a,

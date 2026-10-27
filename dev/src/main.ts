@@ -9,7 +9,9 @@ import { Refusal } from './commands/refusal.ts'
 import { up } from './commands/up.ts'
 import { url } from './commands/url.ts'
 import { worker } from './commands/worker.ts'
+import { installDependencies } from './infra/dependencies.ts'
 import type { Infrastructure } from './infra/ports.ts'
+import { prerequisites } from './infra/prerequisites.ts'
 
 export interface Io {
   cwd: string
@@ -31,7 +33,17 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
   try {
     switch (command) {
       case 'up':
-        await up({ root: io.cwd, infra: await infrastructure(io), out: io.stdout })
+        await up({
+          root: io.cwd,
+          prerequisites: io.infra?.prerequisites ?? prerequisites,
+          infrastructure: async () => {
+            if (io.infra === undefined) {
+              installDependencies(io.cwd)
+            }
+            return infrastructure(io)
+          },
+          out: io.stdout,
+        })
         return 0
       case 'down':
         await down({ root: io.cwd, infra: await infrastructure(io), out: io.stdout })

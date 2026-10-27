@@ -8,7 +8,7 @@ import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { completeEnv } from '../config/index.ts'
 import { tryLock } from '../infra/flock.ts'
-import type { Infrastructure } from '../infra/ports.ts'
+import type { Infrastructure, Prerequisites } from '../infra/ports.ts'
 import { Refusal } from './refusal.ts'
 import { bucketAccessOf, readEnv, readState, required, resourcesOf, writeState } from './state.ts'
 import { currentBranch, worktreeAt } from './worktree.ts'
@@ -20,7 +20,10 @@ const EXTENSIONS: readonly string[] = []
 
 export interface UpOptions {
   root: string
-  infra: Infrastructure
+  prerequisites: Prerequisites
+  // Called once the checks pass and the worktree lock is held: installs the
+  // dependencies the infrastructure adapters need, then loads them.
+  infrastructure: () => Promise<Infrastructure>
   out: (line: string) => void
 }
 
@@ -48,8 +51,8 @@ function initialiseInfraSubmodule(root: string): void {
   }
 }
 
-export async function up({ root, infra, out }: UpOptions): Promise<void> {
-  const missing = await infra.prerequisites.missing()
+export async function up({ root, prerequisites, infrastructure, out }: UpOptions): Promise<void> {
+  const missing = await prerequisites.missing()
   if (missing !== undefined) {
     throw new Refusal('MISSING_PREREQUISITE', `${missing} is missing; install it, then run nr dev:up again`)
   }
@@ -60,6 +63,7 @@ export async function up({ root, infra, out }: UpOptions): Promise<void> {
     throw new Refusal('DEV_UP_IN_PROGRESS', 'another dev:up runs in this worktree; let it finish')
   }
   try {
+    const infra = await infrastructure()
     initialiseInfraSubmodule(root)
     await infra.shared.ensureRunning()
 

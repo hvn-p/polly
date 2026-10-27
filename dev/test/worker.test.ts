@@ -9,7 +9,7 @@ import { parseEnv } from '../src/config/index.ts'
 import { tryLock } from '../src/infra/flock.ts'
 import type { Infrastructure } from '../src/infra/ports.ts'
 import { groupMembers, processSupervisor } from '../src/supervisor/index.ts'
-import { fakeInfrastructure } from './support/fake-infrastructure.ts'
+import { fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
 import { temporaryRepository } from './support/repository.ts'
 import { until } from './support/until.ts'
 
@@ -56,7 +56,7 @@ const out = () => undefined
 async function worktree(branch: string) {
   const root = temporaryRepository(branch)
   const infra = infrastructure()
-  await up({ root, infra, out })
+  await up({ root, ...loaded(infra), out })
   const identity = parseEnv(readFileSync(join(root, '.env.local'), 'utf8')).get('POLLY_WORKTREE_ID') ?? ''
   return { root, infra, identity }
 }
@@ -119,7 +119,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     await until(lockHeld)
     await down({ root: a.root, infra: a.infra, out })
     expect(modeOf(a.root)).toBe('fake')
-    await up({ root: a.root, infra: a.infra, out })
+    await up({ root: a.root, ...loaded(a.infra), out })
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(await lockHeld()).toBe(false)
   })

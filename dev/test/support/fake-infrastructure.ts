@@ -1,6 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { UpOptions } from '../../src/commands/up.ts'
 import type { Infrastructure, SupervisorState } from '../../src/infra/ports.ts'
 
 export interface FakeInfrastructure extends Infrastructure {
@@ -83,4 +84,19 @@ export function fakeInfrastructure(): FakeInfrastructure {
     },
   }
   return fake
+}
+
+// What dev:up takes from an infrastructure already loaded: its prerequisites,
+// and a loader that returns it, recording the load when the infrastructure is
+// a recording fake.
+export function loaded(
+  infra: Infrastructure & { calls?: string[] },
+): Pick<UpOptions, 'prerequisites' | 'infrastructure'> {
+  return {
+    prerequisites: infra.prerequisites,
+    infrastructure: async () => {
+      infra.calls?.push('infrastructure.load')
+      return infra
+    },
+  }
 }

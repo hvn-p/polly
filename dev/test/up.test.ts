@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { up } from '../src/commands/up.ts'
 import { url } from '../src/commands/url.ts'
 import { parseEnv } from '../src/config/index.ts'
-import { fakeInfrastructure } from './support/fake-infrastructure.ts'
+import { fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
 import { git, temporaryRepository } from './support/repository.ts'
 
 function output() {
@@ -23,10 +23,11 @@ describe('dev:up with faked infrastructure', () => {
     const root = temporaryRepository('feature/probe')
     const infra = fakeInfrastructure()
     const out = output()
-    await up({ root, infra, out: out.write })
+    await up({ root, ...loaded(infra), out: out.write })
     const id = env(root).get('POLLY_WORKTREE_ID') ?? ''
     const role = `polly_${id.replaceAll('-', '_')}`
     expect(infra.calls).toEqual([
+      'infrastructure.load',
       'shared.ensureRunning',
       `postgres.ensure ${role}`,
       `garage.ensure polly-${id}`,
@@ -47,10 +48,10 @@ describe('dev:up with faked infrastructure', () => {
   it('C2: on a running worktree, recreates nothing it already has', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, infra, out: output().write })
+    await up({ root, ...loaded(infra), out: output().write })
     const before = readFileSync(join(root, '.env.local'), 'utf8')
     infra.calls.length = 0
-    await up({ root, infra, out: output().write })
+    await up({ root, ...loaded(infra), out: output().write })
     expect(infra.calls).not.toContain('supervisor.start')
     expect(infra.calls.filter((call) => call.startsWith('routes.add'))).toEqual([])
     expect(readFileSync(join(root, '.env.local'), 'utf8')).toBe(before)
@@ -59,22 +60,22 @@ describe('dev:up with faked infrastructure', () => {
   it('C3: restarts the supervisor when it is not running, stopping what it left first', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, infra, out: output().write })
+    await up({ root, ...loaded(infra), out: output().write })
     infra.runningSupervisors.clear()
     infra.calls.length = 0
-    await up({ root, infra, out: output().write })
+    await up({ root, ...loaded(infra), out: output().write })
     expect(infra.calls.slice(-2)).toEqual([expect.stringMatching(/^supervisor\.stop /), 'supervisor.start'])
   })
 
   it('C9: refuses a port held by another process, naming it and its holder, and leaves it alone', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, infra, out: output().write })
+    await up({ root, ...loaded(infra), out: output().write })
     infra.runningSupervisors.clear()
     const port = Number(env(root).get('POLLY_API_PORT'))
     infra.heldPorts.set(port, 'python3 (pid 4242)')
     infra.calls.length = 0
-    await expect(up({ root, infra, out: output().write })).rejects.toMatchObject({
+    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
       code: 'RESOURCE_CONFLICT',
       message: expect.stringMatching(new RegExp(`port ${port}.*python3 \\(pid 4242\\)`)),
     })
@@ -85,11 +86,11 @@ describe('dev:up with faked infrastructure', () => {
   it('C9: refuses a host name already routed to another port, and leaves the route alone', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, infra, out: output().write })
+    await up({ root, ...loaded(infra), out: output().write })
     const id = env(root).get('POLLY_WORKTREE_ID')
     infra.routeTable.set(`${id}.polly`, 1)
     infra.calls.length = 0
-    await expect(up({ root, infra, out: output().write })).rejects.toMatchObject({
+    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
       code: 'RESOURCE_CONFLICT',
       message: expect.stringContaining(`${id}.polly.localhost is routed to port 1`),
     })
@@ -123,7 +124,7 @@ describe('dev:up with faked infrastructure', () => {
       git(root, 'submodule', '--quiet', 'deinit', '--force', 'vendors/infra')
       expect(existsSync(join(root, 'vendors/infra/CLAUDE.md'))).toBe(false)
       const infra = fakeInfrastructure()
-      await up({ root, infra, out: output().write })
+      await up({ root, ...loaded(infra), out: output().write })
       expect(readFileSync(join(root, 'vendors/infra/CLAUDE.md'), 'utf8')).toBe('infra\n')
       expect(infra.calls).toContain('supervisor.start')
     })
@@ -133,7 +134,7 @@ describe('dev:up with faked infrastructure', () => {
 describe('dev:url', () => {
   it('prints the URL from .env.local', async () => {
     const root = temporaryRepository()
-    await up({ root, infra: fakeInfrastructure(), out: output().write })
+    await up({ root, ...loaded(fakeInfrastructure()), out: output().write })
     const out = output()
     url({ root, out: out.write })
     expect(out.lines).toEqual([env(root).get('PUBLIC_URL')])
