@@ -8,6 +8,7 @@ import { type ChildProcess, spawn } from 'node:child_process'
 import { mkdirSync, openSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { SupervisedProcess } from '../infra/ports.ts'
+import { SUPERVISOR_MARK } from './mark.ts'
 
 interface Spec {
   root: string
@@ -27,6 +28,7 @@ function launch(definition: SupervisedProcess): void {
   const log = openSync(join(logs, `${definition.name}.log`), 'a')
   const child = spawn(definition.command, definition.args, {
     cwd: definition.cwd,
+    env: { ...process.env, [SUPERVISOR_MARK]: String(process.pid) },
     stdio: ['ignore', log, log],
   })
   children.set(definition.name, child)

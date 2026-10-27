@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -86,5 +88,33 @@ describe('process supervisor', { timeout: 30_000 }, () => {
 
   it('does not take a reused PID for its supervisor', () => {
     expect(supervisor.isRunning({ pid: process.pid })).toBe(false)
+  })
+
+  it('C18: leaves alone a foreign group whose leader reused the recorded PID', async () => {
+    const foreign = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' })
+    const pid = foreign.pid ?? 0
+    try {
+      await supervisor.stop({ pid })
+      expect(groupMembers(pid)).toEqual([pid])
+    } finally {
+      process.kill(-pid, 'SIGKILL')
+    }
+  })
+
+  it('C18: leaves alone a foreign group orphaned by its leader under the recorded PID', async () => {
+    const leader = spawn('sh', ['-c', 'sleep 30 & echo $!'], {
+      detached: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+    const pid = leader.pid ?? 0
+    const [member] = (await once(leader.stdout, 'data')) as [Buffer]
+    await once(leader, 'exit')
+    await until(() => groupMembers(pid).length === 1)
+    try {
+      await supervisor.stop({ pid })
+      expect(groupMembers(pid)).toEqual([Number(member.toString())])
+    } finally {
+      process.kill(-pid, 'SIGKILL')
+    }
   })
 })
