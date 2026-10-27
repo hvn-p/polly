@@ -10,10 +10,10 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
+import { DEMO_ACCOUNT } from '../../../apps/api/src/flows/seed-demo-account/demo-account.ts'
 import type { Scenario } from './scenario.ts'
+import { drivenSession } from './session.ts'
 
-const pluginDirectory = join(import.meta.dirname, '..', '..', '..', 'plugin')
-const DEMO = { email: 'demo@polly.localhost', password: 'polly-demo-learner' }
 const ALLOWED_TOOLS = ['Skill', 'mcp__plugin_polly_polly__whoami', 'mcp__plugin_polly_polly__start_lesson']
 const SCENARIO_TIMEOUT_MS = 240_000
 
@@ -81,34 +81,17 @@ export async function probeClaude(): Promise<ClientStatus> {
   return { installed: true, signedIn: /"loggedIn":\s*true/.test(status) }
 }
 
-// The worktree's URLs, without the markers of a Claude Code session this run
-// was started from: inherited, they make the driven session a child that
-// keeps no transcript.
-function sessionEnv(env: Record<string, string>): NodeJS.ProcessEnv {
-  const inherited = Object.entries(process.env).filter(
-    ([key]) => !(key === 'CLAUDECODE' || key === 'CLAUDE_PID' || /^CLAUDE_CODE_(?!ENABLE_)/.test(key)),
-  )
-  return {
-    ...Object.fromEntries(inherited),
-    POLLY_MCP_URL: env['POLLY_MCP_URL'],
-    POLLY_EVENTS_URL: env['POLLY_EVENTS_URL'],
-  }
-}
-
 // Signs the polly MCP server in, unless it already is: Claude Code prints the
 // authorization URL, agent-browser signs the demo learner in and consents.
 async function signIn(root: string, env: Record<string, string>, out: (line: string) => void): Promise<void> {
-  const claudeEnv = sessionEnv(env)
-  const servers = await capture('claude', ['--plugin-dir', pluginDirectory, 'mcp', 'list'], claudeEnv)
+  const list = drivenSession(root, ['mcp', 'list'])
+  const servers = await capture(list.command, list.args, list.env)
   if (/plugin:polly:polly: .*Connected/.test(servers)) {
     return
   }
   out('signing the polly MCP server in with the demo account')
-  const login = inTerminal(
-    ['claude', '--plugin-dir', pluginDirectory, 'mcp', 'login', 'plugin:polly:polly', '--no-browser'],
-    claudeEnv,
-    root,
-  )
+  const loginSession = drivenSession(root, ['mcp', 'login', 'plugin:polly:polly', '--no-browser'])
+  const login = inTerminal([loginSession.command, ...loginSession.args], loginSession.env, root)
   try {
     await until(
       () => /https:\/\/\S+oauth2\/authorize\S+/.test(login.output()),
@@ -125,8 +108,8 @@ async function signIn(root: string, env: Record<string, string>, out: (line: str
     const run = (...args: string[]) => capture('agent-browser', [...browser, ...args], process.env)
     await run('open', url)
     await run('wait', 'input[name=email]')
-    await run('fill', 'input[name=email]', DEMO.email)
-    await run('fill', 'input[name=password]', DEMO.password)
+    await run('fill', 'input[name=email]', DEMO_ACCOUNT.email)
+    await run('fill', 'input[name=password]', DEMO_ACCOUNT.password)
     await run('click', 'button[type=submit]')
     await run('wait', 'button')
     await run('find', 'role', 'button', 'click', '--name', 'Allow')
@@ -163,25 +146,19 @@ export async function runScenario({
   await signIn(root, env, out)
   const sessionId = randomUUID()
   out(`session ${sessionId}: ${scenario.prompt}`)
-  const session = inTerminal(
-    [
-      'claude',
-      '--plugin-dir',
-      pluginDirectory,
-      '--session-id',
-      sessionId,
-      '--allowedTools',
-      ALLOWED_TOOLS.join(','),
-      // Fixed for every run: no permission mode or hook of the person's own
-      // settings changes what the session does.
-      '--permission-mode',
-      'default',
-      '--setting-sources',
-      'project,local',
-    ],
-    sessionEnv(env),
-    root,
-  )
+  const driven = drivenSession(root, [
+    '--session-id',
+    sessionId,
+    '--allowedTools',
+    ALLOWED_TOOLS.join(','),
+    // Fixed for every run: no permission mode or hook of the person's own
+    // settings changes what the session does.
+    '--permission-mode',
+    'default',
+    '--setting-sources',
+    'project,local',
+  ])
+  const session = inTerminal([driven.command, ...driven.args], driven.env, root)
   const read = () => {
     const file = transcriptOf(sessionId)
     return file === undefined ? '' : readFileSync(file, 'utf8')

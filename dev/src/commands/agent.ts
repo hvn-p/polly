@@ -19,6 +19,37 @@ export const launchInteractive: Launch = (command, args, env) =>
     child.once('exit', (code) => resolve(code ?? 1))
   })
 
+export interface Session {
+  command: string
+  args: string[]
+  env: NodeJS.ProcessEnv
+  // Whether the worktree has a configuration: without one, the plugin keeps
+  // its invalid default address.
+  configured: boolean
+}
+
+// The Claude Code session of this worktree: its plugin, and its URLs from its
+// configuration, never ones inherited from the parent environment.
+export function agentSession(root: string, args: readonly string[], baseEnv: NodeJS.ProcessEnv): Session {
+  const env = { ...baseEnv }
+  for (const key of URL_KEYS) {
+    delete env[key]
+  }
+  const configuration = readEnv(worktreeAt(root))
+  for (const key of URL_KEYS) {
+    const value = configuration?.[key]
+    if (value !== undefined) {
+      env[key] = value
+    }
+  }
+  return {
+    command: 'claude',
+    args: ['--plugin-dir', pluginDirectory, ...args],
+    env,
+    configured: configuration !== undefined,
+  }
+}
+
 export async function agent({
   root,
   args,
@@ -32,20 +63,9 @@ export async function agent({
   launch?: Launch
   baseEnv?: NodeJS.ProcessEnv
 }): Promise<number> {
-  const env = { ...baseEnv }
-  for (const key of URL_KEYS) {
-    delete env[key]
-  }
-  const configuration = readEnv(worktreeAt(root))
-  if (configuration === undefined) {
+  const session = agentSession(root, args, baseEnv)
+  if (!session.configured) {
     out('WORKTREE_NOT_CONFIGURED: this worktree has no .env.local; run nr dev:up, then nr agent again')
-  } else {
-    for (const key of URL_KEYS) {
-      const value = configuration[key]
-      if (value !== undefined) {
-        env[key] = value
-      }
-    }
   }
-  return launch('claude', ['--plugin-dir', pluginDirectory, ...args], env)
+  return launch(session.command, session.args, session.env)
 }

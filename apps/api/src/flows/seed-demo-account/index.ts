@@ -5,12 +5,9 @@
 
 import { Refusal } from '../../kernel/refusal/index.ts'
 import { createLearnerAccount, type Identity } from '../../reference/identity/index.ts'
+import { DEMO_ACCOUNT } from './demo-account.ts'
 
-export const DEMO_ACCOUNT = {
-  name: 'Demo Learner',
-  email: 'demo@polly.localhost',
-  password: 'polly-demo-learner',
-}
+export { DEMO_ACCOUNT }
 
 // Returns the demo learner's id; an existing account is kept as it is.
 export async function seedDemoAccount({
