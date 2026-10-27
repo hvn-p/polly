@@ -69,6 +69,29 @@ describe('contract guard', () => {
     ])
   })
 
+  it('fails naming each string or number field that has no bound', async () => {
+    const unbounded: Contract = {
+      ...contract,
+      load: async () => ({
+        Event: z.object({
+          note: z.string(),
+          items: z.array(z.object({ count: z.number().min(0) })),
+          either: z.union([z.string().max(8), z.number().max(3)]),
+          kind: z.enum(['a', 'b']),
+          ratio: z.number().min(0).max(1),
+          code: z.string().length(43),
+        }),
+      }),
+    }
+    const root = freshRoot()
+    await generate(root, [unbounded])
+    expect(await checkContracts(root, [unbounded])).toEqual([
+      'events: Event.note is an unbounded string; give it a maximum length in api/events.ts',
+      'events: Event.items[].count is an unbounded number; give it a minimum and a maximum in api/events.ts',
+      'events: Event.either is an unbounded number; give it a minimum and a maximum in api/events.ts',
+    ])
+  })
+
   it('fails when the source changed without regeneration, or a copy is missing', async () => {
     const root = freshRoot()
     await generate(root, [contract])

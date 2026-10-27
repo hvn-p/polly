@@ -6,7 +6,10 @@
 import { z } from 'zod'
 
 // 32 random bytes, base64url: exactly 43 characters.
-export const eventCode = z.string().regex(/^[A-Za-z0-9_-]{43}$/)
+export const eventCode = z
+  .string()
+  .length(43)
+  .regex(/^[A-Za-z0-9_-]{43}$/)
 
 export const testEvent = z.object({ type: z.literal('test') })
 
