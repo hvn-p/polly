@@ -85,6 +85,11 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
 
     const running = state.supervisor !== undefined && infra.supervisor.isRunning(state.supervisor)
     if (!running) {
+      if (state.supervisor !== undefined) {
+        // Processes a killed supervisor left behind hold the worktree's own
+        // ports: they are stopped before a port counts as held by another.
+        await infra.supervisor.stop(state.supervisor)
+      }
       for (const key of ['POLLY_API_PORT', 'POLLY_WEB_PORT']) {
         const port = Number(required(env, key))
         const holder = await infra.ports.holderOf(port)
@@ -114,10 +119,6 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
     }
     let supervisor = state.supervisor
     if (supervisor === undefined || !running) {
-      if (supervisor !== undefined) {
-        // Processes a killed supervisor left behind would hold the ports.
-        await infra.supervisor.stop(supervisor)
-      }
       supervisor = await infra.supervisor.start({ root, processes: infra.application.processes(env), env })
     }
     writeState(worktree, {

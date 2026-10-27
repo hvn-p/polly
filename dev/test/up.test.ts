@@ -57,14 +57,24 @@ describe('dev:up with faked infrastructure', () => {
     expect(readFileSync(join(root, '.env.local'), 'utf8')).toBe(before)
   })
 
-  it('C3: restarts the supervisor when it is not running, stopping what it left first', async () => {
+  it('C3: restarts a dead supervisor, stopping the group it left behind before checking the ports it holds', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out: output().write })
     infra.runningSupervisors.clear()
+    const port = Number(env(root).get('POLLY_API_PORT'))
+    infra.heldPorts.set(port, 'node (pid 90001)')
+    const stop = infra.supervisor.stop
+    infra.supervisor.stop = async (state) => {
+      await stop(state)
+      infra.heldPorts.delete(port)
+    }
     infra.calls.length = 0
     await up({ root, ...loaded(infra), out: output().write })
-    expect(infra.calls.slice(-2)).toEqual([expect.stringMatching(/^supervisor\.stop /), 'supervisor.start'])
+    expect(infra.calls.filter((call) => call.startsWith('supervisor.'))).toEqual([
+      expect.stringMatching(/^supervisor\.stop /),
+      'supervisor.start',
+    ])
   })
 
   it('C9: refuses a port held by another process, naming it and its holder, and leaves it alone', async () => {
@@ -80,7 +90,6 @@ describe('dev:up with faked infrastructure', () => {
       message: expect.stringMatching(new RegExp(`port ${port}.*python3 \\(pid 4242\\)`)),
     })
     expect(infra.calls).not.toContain('supervisor.start')
-    expect(infra.calls.filter((call) => call.startsWith('supervisor.stop'))).toEqual([])
   })
 
   it('C9: refuses a host name already routed to another port, and leaves the route alone', async () => {
