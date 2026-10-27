@@ -38,6 +38,13 @@ export const CONTRACTS: Contract[] = [
     load: fromSource('apps/api/src/entry/contracts/agent-events.ts'),
     jsonSchema: ['plugin/contracts/agent-events.schema.json'],
   },
+  {
+    name: 'placeholder-analysis',
+    source: 'apps/api/src/entry/contracts/placeholder-analysis.ts',
+    load: fromSource('apps/api/src/entry/contracts/placeholder-analysis.ts'),
+    jsonSchema: ['services/pron-worker/contracts/placeholder-analysis.schema.json'],
+    python: 'services/pron-worker/src/pron_worker/contracts/placeholder_analysis.py',
+  },
 ]
 
 const workerProject = join(repositoryRoot, 'services/pron-worker')

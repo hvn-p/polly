@@ -16,6 +16,10 @@ dist/
 # process logs (dev/README.md).
 .dev/
 
+# What Python leaves next to the worker's code: bytecode and coverage data.
+__pycache__/
+.coverage
+
 # Local noise
 *.log
 .DS_Store

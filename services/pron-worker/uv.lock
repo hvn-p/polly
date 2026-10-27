@@ -483,6 +483,7 @@ version = "0.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "dbos" },
+    { name = "typing-extensions" },
 ]
 
 [package.dev-dependencies]
@@ -495,7 +496,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "dbos", specifier = "==3.3.0" }]
+requires-dist = [
+    { name = "dbos", specifier = "==3.3.0" },
+    { name = "typing-extensions", specifier = "==4.16.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [

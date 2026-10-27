@@ -7,6 +7,7 @@ import { down } from './commands/down.ts'
 import { Refusal } from './commands/refusal.ts'
 import { up } from './commands/up.ts'
 import { url } from './commands/url.ts'
+import { worker } from './commands/worker.ts'
 import type { Infrastructure } from './infra/ports.ts'
 
 export interface Io {
@@ -36,6 +37,9 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
         return 0
       case 'agent':
         return await agent({ root: io.cwd, args: argv.slice(1), out: io.stderr })
+      case 'worker':
+        await worker({ root: io.cwd, infra: await infrastructure(io), mode: argv[1] ?? '', out: io.stdout })
+        return 0
       case 'url':
         url({ root: io.cwd, out: io.stdout })
         return 0

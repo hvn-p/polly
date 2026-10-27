@@ -91,6 +91,9 @@ export interface Supervisor {
 }
 
 export interface Infrastructure {
+  // The machine-wide lock the real worker holds while it runs; its content
+  // names the worktree holding it.
+  realWorkerLock: string
   prerequisites: Prerequisites
   shared: SharedInfrastructure
   postgres: PostgresAdmin

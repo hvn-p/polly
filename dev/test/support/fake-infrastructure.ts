@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Infrastructure, SupervisorState } from '../../src/infra/ports.ts'
 
 export interface FakeInfrastructure extends Infrastructure {
@@ -19,6 +22,7 @@ export function fakeInfrastructure(): FakeInfrastructure {
     routeTable: new Map(),
     heldPorts: new Map(),
     runningSupervisors: new Set(),
+    realWorkerLock: join(mkdtempSync(join(tmpdir(), 'real-worker-')), 'real-worker.lock'),
     prerequisites: { missing: async () => fake.missingPrerequisite },
     shared: {
       postgresPort: 55432,
