@@ -46,10 +46,9 @@ describe('dev:up against an isolated infrastructure', { timeout: 240_000 }, () =
     await up({ root, ...loaded(infrastructure()), out })
     const env = envOf(root)
     const database = env['DATABASE_URL']?.split('/').pop() ?? ''
+    const testDatabase = env['TEST_DATABASE_URL']?.split('/').pop() ?? ''
     expect(
-      await superuser(
-        `select count(*) from pg_database where datname in ('${database}', '${database}_test')`,
-      ),
+      await superuser(`select count(*) from pg_database where datname in ('${database}', '${testDatabase}')`),
     ).toBe('2')
     expect(await garage('GetBucketInfo', { globalAlias: env['S3_BUCKET'] })).toMatchObject({
       globalAliases: [env['S3_BUCKET']],

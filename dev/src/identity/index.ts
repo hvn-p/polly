@@ -33,13 +33,21 @@ export function deriveIdentity(branch: string): string {
   return base === '' ? hash : `${base}-${hash}`
 }
 
+// An identity never holds two dashes in a row, so a suffix after a double
+// separator (`__test`, `--release`) never turns one identity's name into
+// another's: `x`'s test database is not the database of `x-test`.
 export function resourceNames(identity: string): ResourceNames {
   const underscored = identity.replaceAll('-', '_')
   return {
     database: `polly_${underscored}`,
-    testDatabase: `polly_${underscored}_test`,
+    testDatabase: `polly_${underscored}__test`,
     role: `polly_${underscored}`,
     bucket: `polly-${identity}`,
     host: `${identity}.polly.localhost`,
   }
+}
+
+// The Garage key dev:down creates to empty a bucket before deleting it.
+export function releaseKeyOf(bucket: string): string {
+  return `${bucket}--release`
 }

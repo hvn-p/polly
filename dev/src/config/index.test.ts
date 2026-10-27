@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { resourceNames } from '../identity/index.ts'
 import { completeEnv, parseEnv } from './index.ts'
 
 const template = readFileSync(join(import.meta.dirname, '..', '..', 'env.template'), 'utf8')
@@ -26,7 +27,9 @@ describe('worktree configuration', () => {
     expect(env.get('DATABASE_URL')).toBe(
       `postgresql://polly_${underscored}:${'ab'.repeat(24)}@127.0.0.1:55432/polly_${underscored}`,
     )
-    expect(env.get('TEST_DATABASE_URL')).toBe(`${env.get('DATABASE_URL')}_test`)
+    expect(env.get('TEST_DATABASE_URL')).toBe(
+      `${env.get('DATABASE_URL')?.replace(/[^/]+$/, '')}${resourceNames(identity).testDatabase}`,
+    )
     expect(env.get('S3_ENDPOINT')).toBe('http://127.0.0.1:53900')
     expect(env.get('S3_BUCKET')).toBe(`polly-${identity}`)
     expect(env.get('S3_ACCESS_KEY_ID')).toBe(`GK${'ab'.repeat(12)}`)

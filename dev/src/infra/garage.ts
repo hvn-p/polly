@@ -10,6 +10,7 @@ import {
   type ListObjectsV2CommandOutput,
   S3Client,
 } from '@aws-sdk/client-s3'
+import { releaseKeyOf } from '../identity/index.ts'
 import type { ComposeInfrastructure } from './compose.ts'
 import type { BucketAccess, GarageAdmin } from './ports.ts'
 
@@ -109,7 +110,7 @@ export function garageAdmin(compose: Pick<ComposeInfrastructure, 'exec' | 'garag
         // A bucket must be empty to be deleted: a key of the release's own
         // empties it, since the worktree's may already be gone.
         const releaseKey = await api<{ accessKeyId: string; secretAccessKey: string }>('CreateKey', {
-          name: `${bucketName}-release`,
+          name: releaseKeyOf(bucketName),
         })
         await api('AllowBucketKey', {
           bucketId: bucket.id,
@@ -121,7 +122,7 @@ export function garageAdmin(compose: Pick<ComposeInfrastructure, 'exec' | 'garag
         await api('DeleteBucket', { id: bucket.id })
       }
       const keys = await api<{ id: string; name: string }[]>('ListKeys', {})
-      for (const key of keys.filter(({ name }) => name === bucketName || name === `${bucketName}-release`)) {
+      for (const key of keys.filter(({ name }) => name === bucketName || name === releaseKeyOf(bucketName))) {
         await api('DeleteKey', { id: key.id })
       }
     },

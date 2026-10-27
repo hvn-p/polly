@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveIdentity, resourceNames } from './index.ts'
+import { deriveIdentity, releaseKeyOf, resourceNames } from './index.ts'
 
 const POSTGRES_IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/
 const DNS_LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
@@ -21,7 +21,7 @@ describe('worktree identity', () => {
     expect(deriveIdentity('4-worktree-dev-env')).toBe('4-worktree-dev-env')
     expect(resourceNames('4-worktree-dev-env')).toEqual({
       database: 'polly_4_worktree_dev_env',
-      testDatabase: 'polly_4_worktree_dev_env_test',
+      testDatabase: 'polly_4_worktree_dev_env__test',
       role: 'polly_4_worktree_dev_env',
       bucket: 'polly-4-worktree-dev-env',
       host: '4-worktree-dev-env.polly.localhost',
@@ -53,6 +53,22 @@ describe('worktree identity', () => {
     expect(deriveIdentity('feature/auth')).not.toBe(deriveIdentity('fix/auth'))
     expect(deriveIdentity('a_b')).not.toBe(deriveIdentity('a-b'))
     expect(deriveIdentity('A-B')).not.toBe(deriveIdentity('a-b'))
+  })
+
+  it('C12: no name of one identity is a name of another, the test database and the release key included', () => {
+    const allNames = (identity: string) => {
+      const names = resourceNames(identity)
+      return [...Object.values(names), releaseKeyOf(names.bucket)]
+    }
+    for (const [a, b] of [
+      ['x', 'x-test'],
+      ['x', 'x-release'],
+      ['a-b', 'a-b-test'],
+    ] as const) {
+      const theirs = new Set(allNames(b))
+      expect(allNames(a).filter((name) => theirs.has(name))).toEqual([])
+    }
+    expect(deriveIdentity('x--test')).not.toContain('--')
   })
 
   it('collapses dashes, trims them, and falls back on the hash when nothing is left', () => {
