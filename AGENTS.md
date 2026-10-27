@@ -69,7 +69,8 @@ consent covers only those two and that channel: any other issue or PR is asked f
   client through which the front end and the MCP go. A refusal that depends on state
   comes back as a named error code.
 - **Postgres**: the shared instance of the pikmine platform, reached only through
-  `DATABASE_URL`.
+  `DATABASE_URL`, queried with Kysely and changed by versioned Kysely migrations.
+- **MCP server**: the official SDK v2 (`@modelcontextprotocol/server`), stateless.
 - **Audio analysis** is a separate Python service, on CPU. No analysis runs inside an
   HTTP request: the API answers at once and the result arrives through the event
   stream.
@@ -82,14 +83,17 @@ consent covers only those two and that channel: any other issue or PR is asked f
   `kernel` (ids, language code, score, clock; no domain rule).
 - The domains are `learner-memory`, `session-log`, `catalogue`, `evaluation` and
   `audio`. No domain imports another, no flow imports another, and a module is imported
-  through its index file only. Review enforces this until a dependency check exists.
+  through its index file only. `scripts/checks/dependencies.mjs` enforces this in CI.
 - A domain that needs another domain's data declares a port it owns, and a flow feeds
   it. Domains share events only through the session log: no in-process event bus.
 - The front end (`apps/web`) follows the Feature-Sliced Design layers.
 - Outside the apps: `services/pron-worker` (Python audio analysis), `languages/<code>/`
   (language packs as neutral data, read by the API and the worker),
   `packages/api-client` (client generated from the OpenAPI, for the front end and the
-  plugin), `plugin/` (the Claude Code plugin).
+  plugin), `plugin/` (the Claude Code plugin), `dev/` (each worktree's local Polly: read
+  `dev/README.md` before running or validating anything locally).
+- A contract between two processes is changed in its Zod source under
+  `apps/api/src/entry/contracts/`, then regenerated with `nr contracts`.
 - A unit test (no process, database or network) sits next to its file as
   `<name>.test.ts`. An integration test, and its support, goes in its package's
   `test/`. End-to-end scenarios run through `nr dev:e2e`, never Vitest.
