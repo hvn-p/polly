@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { completeEnv, parseEnv } from '../src/config/index.ts'
+import { completeEnv, parseEnv } from './index.ts'
 
-const template = readFileSync(join(import.meta.dirname, '..', 'env.template'), 'utf8')
+const template = readFileSync(join(import.meta.dirname, '..', '..', 'env.template'), 'utf8')
 
 let nextPort = 41000
 const generators = {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { catalogues, translator } from '../src/shared/i18n/index.ts'
+import { catalogues, translator } from './index.ts'
 
 function keysOf(catalogue: object): string[] {
   return Object.keys(catalogue).sort()

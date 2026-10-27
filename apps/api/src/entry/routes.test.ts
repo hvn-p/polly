@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createApp } from '../src/entry/app.ts'
-import { type Guards, type Route, RouteRegistry } from '../src/entry/routes.ts'
+import { createApp } from './app.ts'
+import { type Guards, type Route, RouteRegistry } from './routes.ts'
 
 const guards: Guards = {
   public: async () => ({}),

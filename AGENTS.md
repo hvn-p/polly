@@ -90,6 +90,9 @@ consent covers only those two and that channel: any other issue or PR is asked f
   (language packs as neutral data, read by the API and the worker),
   `packages/api-client` (client generated from the OpenAPI, for the front end and the
   plugin), `plugin/` (the Claude Code plugin).
+- A unit test (no process, database or network) sits next to its file as
+  `<name>.test.ts`. An integration test, and its support, goes in its package's
+  `test/`. End-to-end scenarios run through `nr dev:e2e`, never Vitest.
 
 ## Workflow
 

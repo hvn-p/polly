@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveIdentity, resourceNames } from '../src/identity/index.ts'
+import { deriveIdentity, resourceNames } from './index.ts'
 
 const POSTGRES_IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/
 const DNS_LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/

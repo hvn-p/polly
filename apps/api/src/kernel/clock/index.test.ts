@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { systemClock } from '../src/kernel/clock/index.ts'
+import { systemClock } from './index.ts'
 
 describe('system clock', () => {
   it('reads the time and sleeps for the given time', async () => {

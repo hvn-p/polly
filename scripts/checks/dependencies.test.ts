@@ -74,6 +74,14 @@ describe('dependencies guard', () => {
     expect(checkDependencies(root)).toEqual([expect.stringMatching(/migrations import nothing/)])
   })
 
+  it('ignores a unit test sitting next to its file, which may assemble several tiers', () => {
+    const root = fixture({
+      ...valid,
+      'kernel/ids/index.test.ts': "import '../../flows/seed/seed.ts'\nimport '../clock/index.ts'\n",
+    })
+    expect(checkDependencies(root)).toEqual([])
+  })
+
   it('refuses a directory that is not a tier', () => {
     const root = fixture({ ...valid, 'utils/index.ts': 'export {}\n' })
     expect(checkDependencies(root)).toEqual([expect.stringMatching(/utils.*not a tier/)])

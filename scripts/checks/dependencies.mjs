@@ -21,6 +21,8 @@ const PEER_FIXES = {
     'two domains never import each other: declare a port in the importing domain and feed it from a flow',
 }
 const SOURCE_FILE = /\.(ts|tsx|mts|js|mjs)$/
+// A unit test sits next to its file and is no module of the graph.
+const TEST_FILE = /\.test\.(ts|tsx|mts|js|mjs)$/
 const IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g
 
 /**
@@ -33,7 +35,7 @@ function listSources(directory, found = []) {
     const path = join(directory, entry.name)
     if (entry.isDirectory()) {
       listSources(path, found)
-    } else if (SOURCE_FILE.test(entry.name)) {
+    } else if (SOURCE_FILE.test(entry.name) && !TEST_FILE.test(entry.name)) {
       found.push(path)
     }
   }

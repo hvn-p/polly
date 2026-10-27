@@ -15,7 +15,7 @@ export default defineConfig({
         'scripts/**/*.{ts,mjs}',
       ],
       exclude: [
-        '**/*.test.ts',
+        '**/*.test.{ts,tsx}',
         '**/vitest.config.ts',
         // Process entry points: the tests run them as the processes they are
         // (the monitor against a stub stream, the supervisor and the API by

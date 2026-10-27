@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createS3Client, readConfig } from '../src/entry/config.ts'
+import { createS3Client, readConfig } from './config.ts'
 
 const env = {
   DATABASE_URL: 'postgresql://polly_a:secret@127.0.0.1:55432/polly_a',

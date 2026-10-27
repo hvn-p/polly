@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { signInProblem } from '../src/pages/sign-in/bounds.ts'
+import { signInProblem } from './bounds.ts'
 
 describe('sign-in form bounds', () => {
   it('accepts an email of 3 to 254 characters and a password of 8 to 128', () => {
