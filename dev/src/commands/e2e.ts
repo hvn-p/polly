@@ -1,7 +1,8 @@
 // nr dev:e2e <scenario>: plays a scenario in a driven Claude Code session
 // against this worktree, then prints pass or fail and the transcript's path.
 
-import type { ClientStatus, RunResult } from '../e2e/claude.ts'
+import type { RunResult } from '../e2e/claude.ts'
+import { type ClientStatus, probeClaude } from '../e2e/client.ts'
 import type { Scenario } from '../e2e/scenario.ts'
 import { smoke } from '../e2e/scenarios/smoke.ts'
 import type { Infrastructure } from '../infra/ports.ts'
@@ -18,11 +19,6 @@ export type Driver = (options: {
   out: (line: string) => void
 }) => Promise<RunResult>
 
-async function realClient(): Promise<ClientStatus> {
-  const { probeClaude } = await import('../e2e/claude.ts')
-  return probeClaude()
-}
-
 const realDriver: Driver = async (options) => {
   const { runScenario } = await import('../e2e/claude.ts')
   return runScenario(options)
@@ -33,7 +29,7 @@ export async function e2e({
   infra,
   scenario: name,
   out,
-  client = realClient,
+  client = probeClaude,
   driver = realDriver,
 }: {
   root: string

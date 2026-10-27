@@ -17,11 +17,6 @@ import { drivenSession } from './session.ts'
 const ALLOWED_TOOLS = ['Skill', 'mcp__plugin_polly_polly__whoami', 'mcp__plugin_polly_polly__start_lesson']
 const SCENARIO_TIMEOUT_MS = 240_000
 
-export interface ClientStatus {
-  installed: boolean
-  signedIn: boolean
-}
-
 export interface RunResult {
   failures: string[]
   transcript: string
@@ -71,14 +66,6 @@ async function until(condition: () => boolean, timeout: number, what: string): P
     }
     await sleep(500)
   }
-}
-
-export async function probeClaude(): Promise<ClientStatus> {
-  const status = await capture('claude', ['auth', 'status'], process.env)
-  if (status.includes('ENOENT') || status.trim() === '') {
-    return { installed: false, signedIn: false }
-  }
-  return { installed: true, signedIn: /"loggedIn":\s*true/.test(status) }
 }
 
 // Signs the polly MCP server in, unless it already is: Claude Code prints the
