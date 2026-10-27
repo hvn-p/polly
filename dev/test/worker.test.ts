@@ -113,6 +113,17 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     expect(await lockHeld()).toBe(false)
   })
 
+  it('C19: dev:down puts the worker back in fake mode, so the next dev:up runs the fake worker', async () => {
+    const a = await worktree('feature/real-reset')
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out })
+    await until(lockHeld)
+    await down({ root: a.root, infra: a.infra, out })
+    expect(modeOf(a.root)).toBe('fake')
+    await up({ root: a.root, infra: a.infra, out })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(await lockHeld()).toBe(false)
+  })
+
   it('refuses a mode other than real or fake', async () => {
     const a = await worktree('feature/mode')
     await expect(worker({ root: a.root, infra: a.infra, mode: 'turbo', out })).rejects.toMatchObject({

@@ -15,11 +15,13 @@ export interface DownOptions {
 }
 
 // Garage never lets a deleted key id exist again: the next dev:up generates a
-// new key instead of reusing this one.
-function forgetBucketKey(worktree: Worktree): void {
+// new key instead of reusing this one. The worker goes back to fake mode, so
+// the next dev:up never starts the real worker without dev:worker's check.
+function resetConfiguration(worktree: Worktree): void {
   const kept = readFileSync(worktree.envFile, 'utf8')
     .split('\n')
     .filter((line) => !/^S3_(ACCESS_KEY_ID|SECRET_ACCESS_KEY)=/.test(line))
+    .map((line) => line.replace(/^POLLY_WORKER_MODE=.*$/, 'POLLY_WORKER_MODE=fake'))
   writeFileSync(worktree.envFile, kept.join('\n'))
 }
 
@@ -43,7 +45,7 @@ export async function down({ root, infra, out }: DownOptions): Promise<void> {
     const resources = resourcesOf(env)
     await infra.postgres.release(resources.database.names)
     await infra.garage.release(resources.bucket)
-    forgetBucketKey(worktree)
+    resetConfiguration(worktree)
     await infra.routes.remove(state.route ?? resources.route)
     deleteState(worktree)
     out(`released ${resources.host}`)
