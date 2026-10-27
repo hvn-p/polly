@@ -1,6 +1,9 @@
+import { type ChildProcess, spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { Readable } from 'node:stream'
 import { afterAll, describe, expect, it } from 'vitest'
 import { down } from '../src/commands/down.ts'
 import { up } from '../src/commands/up.ts'
@@ -122,6 +125,66 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     await up({ root: a.root, ...loaded(a.infra), out })
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(await lockHeld()).toBe(false)
+  })
+
+  it('C31: refuses when another worktree takes the real worker between the check and the restart', async () => {
+    const a = await worktree('feature/real-race')
+    let holder: ChildProcess | undefined
+    const start = a.infra.supervisor.start
+    a.infra.supervisor.start = async (options) => {
+      if (holder === undefined) {
+        holder = spawn('flock', [
+          realWorkerLock,
+          'sh',
+          '-c',
+          `printf other > ${realWorkerLock}; echo held; sleep 30`,
+        ])
+        await once(holder.stdout as Readable, 'data')
+      }
+      return start(options)
+    }
+    try {
+      await expect(worker({ root: a.root, infra: a.infra, mode: 'real', out })).rejects.toMatchObject({
+        code: 'REAL_WORKER_BUSY',
+        message: expect.stringContaining('other'),
+      })
+      expect(modeOf(a.root)).toBe('fake')
+    } finally {
+      holder?.kill()
+    }
+  })
+
+  it('refuses on a worktree whose Polly is not running, and starts nothing', async () => {
+    const a = await worktree('feature/worker-down')
+    const { supervisor } = JSON.parse(readFileSync(join(a.root, '.dev/state.json'), 'utf8')) as {
+      supervisor: { pid: number }
+    }
+    await a.infra.supervisor.stop(supervisor)
+    let started = false
+    a.infra.supervisor.start = async () => {
+      started = true
+      return supervisor
+    }
+    await expect(worker({ root: a.root, infra: a.infra, mode: 'fake', out })).rejects.toMatchObject({
+      code: 'WORKTREE_NOT_RUNNING',
+      message: expect.stringContaining('nr dev:up'),
+    })
+    expect(started).toBe(false)
+  })
+
+  it('waits for a dev:up running in the worktree before it restarts the worker', async () => {
+    const a = await worktree('feature/worker-wait')
+    const holder = spawn('flock', [join(a.root, '.dev/up.lock'), 'sh', '-c', 'echo held; sleep 1'])
+    await once(holder.stdout, 'data')
+    const released = once(holder, 'exit').then(() => Date.now())
+    let startedAt = 0
+    const start = a.infra.supervisor.start
+    a.infra.supervisor.start = async (options) => {
+      startedAt = Date.now()
+      return start(options)
+    }
+    await worker({ root: a.root, infra: a.infra, mode: 'fake', out })
+    expect(startedAt).toBeGreaterThanOrEqual(await released)
   })
 
   it('refuses a mode other than real or fake', async () => {
