@@ -4,6 +4,7 @@
 
 import { cimd } from '@better-auth/cimd'
 import { mcp } from '@better-auth/mcp'
+import type { LearnerAccount, LearnerAccounts } from '@polly/back'
 import { BASE_ERROR_CODES, type BetterAuthOptions, betterAuth } from 'better-auth'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { jwt } from 'better-auth/plugins'
@@ -74,12 +75,6 @@ export function createIdentity(settings: IdentitySettings) {
 
 export type Identity = ReturnType<typeof createIdentity>
 
-export interface LearnerAccount {
-  name: string
-  email: string
-  password: string
-}
-
 // Creates a learner's account on the server side, since public sign-up is
 // closed. An existing account is kept as it is. Returns the learner's id.
 export async function createLearnerAccount(identity: Identity, account: LearnerAccount): Promise<string> {
@@ -99,4 +94,9 @@ export async function createLearnerAccount(identity: Identity, account: LearnerA
     password: await context.password.hash(account.password),
   })
   return user.id
+}
+
+// The back's accounts port, over this identity.
+export function learnerAccounts(identity: Identity): LearnerAccounts {
+  return { create: (account) => createLearnerAccount(identity, account) }
 }

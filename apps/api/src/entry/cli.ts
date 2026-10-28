@@ -2,9 +2,9 @@
 // migrated: `node apps/api/src/entry/cli.ts seed-demo`.
 
 import { fetchClientMetadataResource } from '@better-auth/cimd/node'
+import { DEMO_ACCOUNT, seedDemoAccount } from '@polly/back'
 import { Refusal, readConfig } from '@polly/platform'
-import { DEMO_ACCOUNT, seedDemoAccount } from '../flows/seed-demo-account/index.ts'
-import { createIdentity } from '../reference/identity/index.ts'
+import { createIdentity, learnerAccounts } from '../reference/identity/index.ts'
 import { createDatabase } from './database.ts'
 import { configureLogging, logger } from './logger.ts'
 
@@ -42,7 +42,7 @@ export async function runCli(argv: readonly string[], { env, out }: CliIo): Prom
       db,
       fetchClientMetadataResource,
     })
-    await seedDemoAccount({ environment: config.POLLY_ENV, identity })
+    await seedDemoAccount({ accounts: learnerAccounts(identity), environment: config.POLLY_ENV })
     out(`demo account: ${DEMO_ACCOUNT.email}`)
     return 0
   } catch (error) {

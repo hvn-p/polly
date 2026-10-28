@@ -1,8 +1,9 @@
+import { DEMO_ACCOUNT, seedDemoAccount } from '@polly/back'
 import { sql } from 'kysely'
 import { afterEach, describe, expect, it } from 'vitest'
 import { runCli } from '../src/entry/cli.ts'
 import { resetLogging } from '../src/entry/logger.ts'
-import { DEMO_ACCOUNT, seedDemoAccount } from '../src/flows/seed-demo-account/index.ts'
+import { learnerAccounts } from '../src/reference/identity/index.ts'
 import { testConfig } from './support/config.ts'
 import { captureLog } from './support/log.ts'
 import { mcpAccessToken, signIn } from './support/oauth.ts'
@@ -24,7 +25,7 @@ async function demoUsers(): Promise<number> {
 describe('demo account seed', () => {
   it('C26: refuses to run outside the local environment, and creates no account', async () => {
     await expect(
-      seedDemoAccount({ environment: 'production', identity: server.identity }),
+      seedDemoAccount({ environment: 'production', accounts: learnerAccounts(server.identity) }),
     ).rejects.toMatchObject({
       code: 'NOT_LOCAL_ENVIRONMENT',
     })
@@ -32,8 +33,8 @@ describe('demo account seed', () => {
   })
 
   it('creates the demo account on the server side, which then signs in; an existing one is kept', async () => {
-    const first = await seedDemoAccount({ environment: 'local', identity: server.identity })
-    const second = await seedDemoAccount({ environment: 'local', identity: server.identity })
+    const first = await seedDemoAccount({ environment: 'local', accounts: learnerAccounts(server.identity) })
+    const second = await seedDemoAccount({ environment: 'local', accounts: learnerAccounts(server.identity) })
     expect(second).toBe(first)
     expect(await demoUsers()).toBe(1)
     expect(DEMO_ACCOUNT).toMatchObject({ name: 'Demo Learner', email: 'demo@polly.localhost' })
@@ -41,7 +42,7 @@ describe('demo account seed', () => {
   })
 
   it('C21: the seeded demo account signs in, authorizes with PKCE and gets an MCP token', async () => {
-    await seedDemoAccount({ environment: 'local', identity: server.identity })
+    await seedDemoAccount({ environment: 'local', accounts: learnerAccounts(server.identity) })
     const token = await mcpAccessToken(server, DEMO_ACCOUNT.email, DEMO_ACCOUNT.password)
     const [, payload = ''] = token.split('.')
     const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { aud: string | string[] }

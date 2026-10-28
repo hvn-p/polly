@@ -5,13 +5,12 @@
 // after 120 s. It carries no learner data and touches no session log; the
 // session log's stream replaces it.
 
-import { hash } from '@polly/kernel'
+import { bindingOf, connectEventStream, type EventCodeStore } from '@polly/back'
 import type { Clock } from '@polly/platform'
 import { Refusal } from '@polly/platform'
 import type { z } from 'zod'
-import { eventCode, type refusalCode } from '../contracts/agent-events.ts'
+import type { refusalCode } from '../contracts/agent-events.ts'
 import type { Guard, RouteRegistry } from '../routes.ts'
-import type { EventCodes } from './codes.ts'
 
 const BINDING_CHECK_MS = 1_000
 const UNBOUND_LIMIT_MS = 120_000
@@ -22,21 +21,13 @@ function refused(code: z.infer<typeof refusalCode>, message: string): Refusal {
   return new Refusal(code, message)
 }
 
-export function eventCodeGuard(codes: EventCodes): Guard<'event-code'> {
+export function eventCodeGuard(codes: EventCodeStore): Guard<'event-code'> {
   return async (request) => {
     const header = request.headers.get('authorization') ?? ''
     if (!header.startsWith('Bearer ')) {
       throw refused('UNAUTHORIZED', 'the event code goes in Authorization: Bearer <code>')
     }
-    const code = header.slice('Bearer '.length)
-    if (!eventCode.safeParse(code).success) {
-      throw refused('INVALID_EVENT_CODE', 'an event code is 43 base64url characters')
-    }
-    const codeHash = hash(code)
-    if ((await codes.stateOf(codeHash)).state === 'revoked') {
-      throw refused('EVENT_CODE_REVOKED', 'this event code was revoked; draw a new one')
-    }
-    return { codeHash }
+    return { codeHash: await connectEventStream({ codes }, header.slice('Bearer '.length)) }
   }
 }
 
@@ -44,7 +35,7 @@ function frame(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
 }
 
-export function registerAgentEventRoute(registry: RouteRegistry, codes: EventCodes, clock: Clock): void {
+export function registerAgentEventRoute(registry: RouteRegistry, codes: EventCodeStore, clock: Clock): void {
   registry.add({
     method: 'GET',
     path: '/api/agent-events',
@@ -56,7 +47,7 @@ export function registerAgentEventRoute(registry: RouteRegistry, codes: EventCod
           const open = () => !request.signal.aborted
           const send = (text: string) => controller.enqueue(encoder.encode(text))
           const startedAt = clock.now()
-          while (open() && (await codes.stateOf(codeHash)).state !== 'bound') {
+          while (open() && (await bindingOf({ codes }, codeHash)).state !== 'bound') {
             if (clock.now() - startedAt >= UNBOUND_LIMIT_MS) {
               send(frame('error', { code: 'EVENT_CODE_NOT_BOUND' }))
               controller.close()

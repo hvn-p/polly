@@ -2,8 +2,8 @@
 // workflow the Python worker runs, and its result is read through its handle.
 
 import type { DBOSClient } from '@dbos-inc/dbos-sdk'
+import type { AnalysisQueue } from '@polly/back'
 import type { z } from 'zod'
-import type { AnalysisQueue } from '../../flows/submit-placeholder-analysis/index.ts'
 import {
   placeholderAnalysisInput,
   placeholderAnalysisResult,

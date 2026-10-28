@@ -217,6 +217,9 @@ importers:
       '@modelcontextprotocol/server':
         specifier: 2.4.0
         version: 2.4.0
+      '@polly/back':
+        specifier: workspace:*
+        version: link:../../packages/back
       '@polly/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -291,9 +294,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 3.1157.0
         version: 3.1157.0
-      '@polly/api':
+      '@polly/back':
         specifier: workspace:*
-        version: link:../apps/api
+        version: link:../packages/back
       '@polly/database':
         specifier: workspace:*
         version: link:../packages/database
@@ -306,6 +309,15 @@ importers:
       pg:
         specifier: 8.23.1
         version: 8.23.1
+
+  packages/back:
+    dependencies:
+      '@polly/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@polly/platform':
+        specifier: workspace:*
+        version: link:../platform
 
   packages/database:
     dependencies:

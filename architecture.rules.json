@@ -40,7 +40,7 @@
       "group": "back",
       "name": "Flows",
       "criterion": "One use case each: chain domain calls through their ports, compute nothing, no technology.",
-      "paths": ["packages/back/src/flows/*", "apps/api/src/flows/*"],
+      "paths": ["packages/back/src/flows/*"],
       "mayImport": [
         "domains",
         {
@@ -60,7 +60,7 @@
       "group": "back",
       "name": "Domains",
       "criterion": "Product rules. A domain declares a port (an exported interface, in its own words) for what it needs; no technology, no Node built-in.",
-      "paths": ["packages/back/src/domains/*", "apps/api/src/domains/*"],
+      "paths": ["packages/back/src/domains/*"],
       "mayImport": ["kernel", "socle"],
       "isolated": "Two domains never import each other: declare a port in the importing domain and feed it from a flow.",
       "technologies": [],

@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { DEMO_ACCOUNT } from '@polly/api/demo-account'
+import { DEMO_ACCOUNT } from '@polly/back'
 import { redactEventCodes } from './redact.ts'
 import type { Scenario } from './scenario.ts'
 import { drivenSession } from './session.ts'

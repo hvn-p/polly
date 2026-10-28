@@ -11,7 +11,7 @@ import { type Clock, systemClock } from '@polly/platform'
 import type { Migration } from 'kysely/migration'
 import { createIdentity, type IdentitySettings } from '../reference/identity/index.ts'
 import { learnerGuard } from './access.ts'
-import { eventCodes } from './agent-events/codes.ts'
+import { eventCodeStore } from './agent-events/codes.ts'
 import { eventCodeGuard, registerAgentEventRoute } from './agent-events/index.ts'
 import { createApp } from './app.ts'
 import { registerAuthRoutes } from './auth.ts'
@@ -65,7 +65,7 @@ export async function startServer({
     fetchClientMetadataResource,
   })
   let listeningPort = port
-  const codes = eventCodes(db)
+  const codes = eventCodeStore(db)
   const guards: Guards = {
     public: async () => ({}),
     learner: learnerGuard(
