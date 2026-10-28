@@ -99,7 +99,7 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
         // ports: they are stopped before a port counts as held by another.
         await infra.supervisor.stop(state.supervisor)
       }
-      for (const key of ['POLLY_API_PORT', 'POLLY_WEB_PORT']) {
+      for (const key of ['POLLY_API_PORT', 'POLLY_MCP_PORT', 'POLLY_WEB_PORT']) {
         const port = Number(required(env, key))
         const holder = await infra.ports.holderOf(port)
         if (holder !== undefined) {

@@ -23,6 +23,7 @@ export const refusalCode = z.enum([
   'EVENT_CODE_ALREADY_BOUND',
 ])
 
-export const refusal = z.object({ code: refusalCode })
+// A refusal's code, which the caller acts on, and its reason, for a person.
+export const refusal = z.object({ code: refusalCode, reason: z.string().max(512).optional() })
 
 export const schemas = { eventCode, agentEvent, refusal }

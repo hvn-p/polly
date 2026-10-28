@@ -9,18 +9,16 @@ import { type Authenticate, learnerGuard } from './access.ts'
 import { eventCodeGuard, registerAgentEventRoute } from './agent-events/index.ts'
 import { createApp } from './app.ts'
 import { registerAuthRoutes } from './auth.ts'
+import { registerLearnerRoutes } from './learner/index.ts'
 import { ownOrigin } from './listen.ts'
-import { registerMcpRoute } from './mcp/index.ts'
-import { startLesson } from './mcp/start-lesson.ts'
-import { whoami } from './mcp/whoami.ts'
 import { type Guards, type Route, RouteRegistry } from './routes.ts'
 
 export interface ApiPorts {
   codes: EventCodeStore
   // The identity's routes: sign-in, OAuth, discovery.
   identityHandler: (request: Request) => Promise<Response>
-  // Which learner makes an MCP request, given where the server's keys are read.
-  mcpLearner: (jwksUrl: () => string) => Authenticate
+  // Which learner an API token names, given where the server's keys are read.
+  learner: (jwksUrl: () => string) => Authenticate
   clock: Clock
   log: Logger
 }
@@ -43,12 +41,12 @@ export async function serveApi(
     public: async () => ({}),
     // The keys are read on the address the server listens on, never through
     // the worktree's public URL.
-    learner: learnerGuard(ports.mcpLearner(() => `${ownOrigin(hostname, listeningPort)}/api/auth/jwks`)),
+    learner: learnerGuard(ports.learner(() => `${ownOrigin(hostname, listeningPort)}/api/auth/jwks`)),
     'event-code': eventCodeGuard(ports.codes),
   }
   const registry = new RouteRegistry(guards)
   registerAuthRoutes(registry, ports.identityHandler)
-  registerMcpRoute(registry, [whoami, startLesson(ports.codes)])
+  registerLearnerRoutes(registry, ports.codes)
   registerAgentEventRoute(registry, ports.codes, ports.clock)
   const app = createApp(registry, ports.log)
   const server = await new Promise<ReturnType<typeof serve>>((resolve) => {

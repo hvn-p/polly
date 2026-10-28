@@ -8,10 +8,10 @@
 import { isIP } from 'node:net'
 import { assertSchemaCurrent, connect, PostgresStore, SchemaBehind } from '@polly/database'
 import {
+  apiResource,
   authenticator,
   createIdentity,
   type IdentitySettings,
-  mcpResource,
   registerMcpClient,
 } from '@polly/identity'
 import { createLogger } from '@polly/logging'
@@ -62,7 +62,7 @@ export async function startServer({
     {
       codes: new PostgresStore(db),
       identityHandler: (request) => identity.handler(request),
-      mcpLearner: (jwksUrl) => authenticator(identity, mcpResource(config.PUBLIC_URL), jwksUrl),
+      learner: (jwksUrl) => authenticator(identity, apiResource(config.PUBLIC_URL), jwksUrl),
       clock,
       log,
     },

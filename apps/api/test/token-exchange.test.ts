@@ -18,7 +18,8 @@ describe('token exchange', () => {
     const { access_token: token } = (await response.json()) as { access_token: string }
     const claims = claimsOf(token)
     expect(claims['sub']).toBe(learnerId)
-    expect([claims['aud']].flat()).toEqual([apiResource(server.config.PUBLIC_URL)])
+    expect([claims['aud']].flat()).toContain(apiResource(server.config.PUBLIC_URL))
+    expect([claims['aud']].flat()).not.toContain(`${server.config.PUBLIC_URL}/mcp`)
     expect(Number(claims['exp']) - Number(claims['iat'])).toBeLessThanOrEqual(300)
   })
 

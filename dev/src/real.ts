@@ -39,6 +39,12 @@ export function apiApplication(realWorkerLock: string): Application {
         cwd: codeRoot,
       },
       {
+        name: 'mcp',
+        command: process.execPath,
+        args: ['--watch', join(codeRoot, 'apps/mcp/src/main.ts')],
+        cwd: codeRoot,
+      },
+      {
         name: 'web',
         command: process.execPath,
         args: [join(codeRoot, 'apps/web/node_modules/vite/bin/vite.js')],

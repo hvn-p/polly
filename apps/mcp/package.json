@@ -1,0 +1,19 @@
+{
+  "name": "@polly/mcp",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/main.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "@modelcontextprotocol/server": "2.4.0",
+    "@polly/contract": "workspace:*",
+    "@polly/logging": "workspace:*",
+    "@polly/platform": "workspace:*",
+    "zod": "4.6.7"
+  }
+}

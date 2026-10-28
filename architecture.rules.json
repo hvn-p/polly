@@ -345,7 +345,7 @@
     },
     "@polly/mcp": {
       "provides": "MCP server",
-      "technologies": ["node:*", "hono", "@hono/node-server", "zod", "@modelcontextprotocol/server"]
+      "technologies": ["node:*", "@hono/node-server", "zod", "@modelcontextprotocol/server"]
     },
     "@polly/worker": {
       "provides": "durable workflows",

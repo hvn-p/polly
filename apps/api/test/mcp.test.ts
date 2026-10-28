@@ -7,7 +7,7 @@ const server = await testServer()
 
 describe('MCP endpoint and whoami', () => {
   it('C45: whoami without a token is refused with 401 and the protected resource metadata', async () => {
-    const response = await fetch(`${server.url}/mcp`, {
+    const response = await fetch(server.mcpUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
       body: JSON.stringify({
@@ -61,7 +61,7 @@ describe('tokens of another worktree', async () => {
   it('C24: a token issued by worktree A is refused by worktree B', async () => {
     const { email, password } = await createLearner(server)
     const token = await mcpAccessToken(server, email, password)
-    const response = await fetch(`${other.url}/mcp`, {
+    const response = await fetch(other.mcpUrl, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${token}`,

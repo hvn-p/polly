@@ -49,7 +49,7 @@ describe('route registry', () => {
     expect(await (await app.request('/api/open')).text()).toBe('open')
     const refused = await app.request('/api/mine')
     expect(refused.status).toBe(401)
-    expect(await refused.json()).toEqual({ code: 'UNAUTHORIZED' })
+    expect(await refused.json()).toMatchObject({ code: 'UNAUTHORIZED' })
     expect(await (await app.request('/api/mine', { headers: { authorization: 'Bearer ok' } })).text()).toBe(
       'learner-1',
     )
@@ -76,7 +76,7 @@ describe('route registry', () => {
     const app = createApp(registry, quiet)
     const refused = await app.request('/api/revoked')
     expect(refused.status).toBe(403)
-    expect(await refused.json()).toEqual({ code: 'EVENT_CODE_REVOKED' })
+    expect(await refused.json()).toMatchObject({ code: 'EVENT_CODE_REVOKED' })
     expect((await app.request('/api/broken')).status).toBe(500)
   })
 
@@ -84,7 +84,7 @@ describe('route registry', () => {
     const app = createApp(new RouteRegistry(guards), quiet)
     const response = await app.request('/api/anything')
     expect(response.status).toBe(404)
-    expect(await response.json()).toEqual({ code: 'NOT_FOUND' })
+    expect(await response.json()).toMatchObject({ code: 'NOT_FOUND' })
   })
 
   it('lists the registered routes with their access rule, for the route walk', () => {

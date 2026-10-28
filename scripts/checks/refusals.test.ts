@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { checkRefusals } from './refusals.mjs'
+import { checkRefusals, checkRepository, PROCESSES } from './refusals.mjs'
 
 const repositoryRoot = join(import.meta.dirname, '..', '..')
 
@@ -17,16 +17,15 @@ function fixture(files: Record<string, string>): string {
 
 const valid = {
   'entry/refusals.ts':
-    'export const refusalResponse = (r) => Response.json({ code: r.code }, { status: 403 })\nexport const toolRefusal = (r) => ({ isError: true })\n',
-  'entry/mcp/index.ts': 'server.registerTool(definition.name, config, handle)\n',
+    'export const refusalResponse = (r) => Response.json({ code: r.code }, { status: 403 })\n',
   'entry/access.ts': 'return new Response(null, { status: 204 })\n',
   'entry/agent-events/index.ts': "throw new Refusal('EVENT_CODE_REVOKED', 'revoked')\n",
   'entry/routes.test.ts': "Response.json({ code: 'UNAUTHORIZED' }, { status: 401 })\n",
 }
 
 describe('refusals guard', () => {
-  it('accepts the API as it is', () => {
-    expect(checkRefusals(join(repositoryRoot, 'apps/api/src'))).toEqual([])
+  it('accepts the repository as it is', () => {
+    expect(checkRepository(repositoryRoot)).toEqual([])
   })
 
   it('accepts refusals thrown, translated in entry/refusals.ts only', () => {
@@ -44,15 +43,15 @@ describe('refusals guard', () => {
     ])
   })
 
-  it('refuses a tool that builds its own error result, or registers itself', () => {
+  it('refuses an MCP tool that builds its own error result, or registers itself', () => {
     const root = fixture({
-      ...valid,
-      'entry/mcp/start-lesson.ts':
-        "return { isError: true, content: [] }\nserver.registerTool('x', {}, cb)\n",
+      'refusals.ts': 'export const toolResult = () => ({ isError: true })\n',
+      'tools.ts': 'server.registerTool(tool.name, config, handle)\n',
+      'main.ts': "return { isError: true, content: [] }\nserver.registerTool('x', {}, cb)\n",
     })
-    expect(checkRefusals(root)).toEqual([
-      expect.stringMatching(/^entry\/mcp\/start-lesson\.ts:1: /),
-      expect.stringMatching(/^entry\/mcp\/start-lesson\.ts:2: .*defineTool/),
+    expect(checkRefusals(root, PROCESSES['apps/mcp/src'])).toEqual([
+      expect.stringMatching(/^main\.ts:1: .*refusals\.ts/),
+      expect.stringMatching(/^main\.ts:2: .*defineTool from tools\.ts/),
     ])
   })
 })

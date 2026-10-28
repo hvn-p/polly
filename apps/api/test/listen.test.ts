@@ -22,7 +22,7 @@ describe('the listen address', () => {
     await whoamiAnswers(everyInterface)
   })
 
-  it('reads its own key set on the address it listens on to verify MCP tokens', async () => {
+  it('reads its own key set on the address it listens on to verify API tokens', async () => {
     expect(new URL(otherAddress.url).hostname).toBe('127.0.0.2')
     await whoamiAnswers(otherAddress)
   })

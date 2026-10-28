@@ -9,7 +9,6 @@ import { APIError } from 'better-auth/api'
 
 export const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange'
 const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
-const OPENID_SCOPES = new Set(['openid', 'profile', 'email', 'offline_access'])
 
 function invalid(error: string, description: string): APIError {
   return new APIError('BAD_REQUEST', { error, error_description: description })
@@ -38,11 +37,10 @@ function exchange({ mcp, api }: { mcp: string; api: string }): OAuthExtensionGra
     if (user === null) {
       throw invalid('invalid_grant', 'the subject token names no learner')
     }
-    // The API token carries the learner's grants, not the OpenID ones: it names
-    // the API alone as its audience.
+    // The API token carries the subject token's scopes, never more.
     const scopes = String(subject['scope'] ?? '')
       .split(' ')
-      .filter((scope) => scope !== '' && !OPENID_SCOPES.has(scope))
+      .filter((scope) => scope !== '')
     return provider.issueTokens({ client, user, scopes, resources: [api] })
   }
 }

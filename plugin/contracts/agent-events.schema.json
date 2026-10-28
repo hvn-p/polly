@@ -37,6 +37,10 @@
             "EVENT_CODE_NOT_BOUND",
             "EVENT_CODE_ALREADY_BOUND"
           ]
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 512
         }
       },
       "required": [

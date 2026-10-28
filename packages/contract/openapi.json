@@ -1,0 +1,212 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "api", "version": "0" },
+  "paths": {
+    "/api/me": {
+      "get": {
+        "operationId": "getMe",
+        "x-access": "learner",
+        "x-refusals": ["UNAUTHORIZED"],
+        "responses": {
+          "200": {
+            "description": "done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "learnerId": { "type": "string", "minLength": 1, "maxLength": 64 } },
+                  "required": ["learnerId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "code": { "type": "string", "enum": ["UNAUTHORIZED"] } },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/event-codes": {
+      "post": {
+        "operationId": "bindEventCode",
+        "x-access": "learner",
+        "x-refusals": [
+          "UNAUTHORIZED",
+          "INVALID_EVENT_CODE",
+          "EVENT_CODE_ALREADY_BOUND",
+          "EVENT_CODE_REVOKED"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 43,
+                    "maxLength": 43,
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  }
+                },
+                "required": ["code"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "bound": { "type": "boolean", "const": true } },
+                  "required": ["bound"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "UNAUTHORIZED",
+                        "INVALID_EVENT_CODE",
+                        "EVENT_CODE_ALREADY_BOUND",
+                        "EVENT_CODE_REVOKED"
+                      ]
+                    }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent-events": {
+      "get": {
+        "operationId": "agentEvents",
+        "x-access": "event-code",
+        "x-refusals": ["UNAUTHORIZED", "INVALID_EVENT_CODE", "EVENT_CODE_REVOKED", "EVENT_CODE_NOT_BOUND"],
+        "responses": {
+          "200": {
+            "description": "a stream of events",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": { "type": { "type": "string", "const": "test" } },
+                      "required": ["type"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "UNAUTHORIZED",
+                        "INVALID_EVENT_CODE",
+                        "EVENT_CODE_REVOKED",
+                        "EVENT_CODE_NOT_BOUND"
+                      ]
+                    }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Learner": {
+        "type": "object",
+        "properties": { "learnerId": { "type": "string", "minLength": 1, "maxLength": 64 } },
+        "required": ["learnerId"],
+        "additionalProperties": false
+      },
+      "EventCodeBinding": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string", "minLength": 43, "maxLength": 43, "pattern": "^[A-Za-z0-9_-]{43}$" }
+        },
+        "required": ["code"],
+        "additionalProperties": false
+      },
+      "Bound": {
+        "type": "object",
+        "properties": { "bound": { "type": "boolean", "const": true } },
+        "required": ["bound"],
+        "additionalProperties": false
+      },
+      "AgentEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": { "type": { "type": "string", "const": "test" } },
+            "required": ["type"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Refusal": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "UNAUTHORIZED",
+              "INVALID_EVENT_CODE",
+              "EVENT_CODE_REVOKED",
+              "EVENT_CODE_NOT_BOUND",
+              "EVENT_CODE_ALREADY_BOUND"
+            ]
+          },
+          "reason": { "type": "string", "maxLength": 512 }
+        },
+        "required": ["code"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
