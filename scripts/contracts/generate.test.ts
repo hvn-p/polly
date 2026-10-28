@@ -57,7 +57,7 @@ describe('contract guard', () => {
     expect(await checkContracts(root, [contract])).toEqual([])
   })
 
-  it('fails naming the contract when a generated copy was edited by hand', async () => {
+  it('C65: fails naming the contract when a generated copy was edited by hand', async () => {
     const root = freshRoot()
     await generate(root, [contract])
     const path = join(root, 'web/events.schema.json')
@@ -92,7 +92,7 @@ describe('contract guard', () => {
     ])
   })
 
-  it('fails when the source changed without regeneration, or a copy is missing', async () => {
+  it('C65: fails when the source changed without regeneration, or a copy is missing', async () => {
     const root = freshRoot()
     await generate(root, [contract])
     const changed: Contract = {
