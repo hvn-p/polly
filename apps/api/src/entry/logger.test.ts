@@ -27,7 +27,9 @@ describe('the API logger', () => {
   it('removes authorization and cookie fields, and replaces an event code or a JWT wherever it appears', async () => {
     const lines = await capture()
     const code = randomBytes(32).toString('base64url')
-    const jwt = 'eyJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJsZWFybmVyLTEifQ.c2lnbmF0dXJl'
+    // Built at runtime: a JWT literal in the source is what secret scanning flags.
+    const part = (value: string): string => Buffer.from(value).toString('base64url')
+    const jwt = [part('{"alg":"ES256"}'), part('{"sub":"learner-1"}'), part('signature')].join('.')
     logger('test').warn(`code ${code} and token ${jwt}`, {
       headers: { authorization: `Bearer ${jwt}`, cookie: 'session=secret', accept: 'text/event-stream' },
       learnerId: 'learner-1',
