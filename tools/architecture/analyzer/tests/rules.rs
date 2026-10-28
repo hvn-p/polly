@@ -54,6 +54,26 @@ fn the_valid_tree_has_no_violation() {
 }
 
 #[test]
+fn c69_types_only_is_judged_name_by_name_through_a_barrel() {
+    let tree = Tree::valid();
+    tree.write(
+        "packages/back/src/index.ts",
+        "export { startLesson } from './flows/start-lesson/index.ts'\nexport * from './flows/seed/index.ts'\nexport type { EventCodes } from './domains/event-codes/index.ts'\n",
+    )
+    .write(
+        "apps/api/src/routes.ts",
+        "import { seed, type EventCodes } from '@t/back'\nexport function serve(x: EventCodes): void { seed() }\n",
+    );
+    assert_eq!(violations(&tree), vec![]);
+    tree.write(
+        "packages/back/src/index.ts",
+        "export { startLesson } from './flows/start-lesson/index.ts'\nexport * from './flows/seed/index.ts'\nexport { bind } from './domains/event-codes/index.ts'\n",
+    )
+    .write("apps/api/src/routes.ts", "import { seed, bind } from '@t/back'\nexport function serve(): void { seed(); void bind }\n");
+    assert_eq!(only(&tree, "types-only").file, "apps/api/src/routes.ts");
+}
+
+#[test]
 fn c69_a_tier_imports_only_the_tiers_it_may() {
     let tree = Tree::valid();
     tree.write(

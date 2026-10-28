@@ -99,6 +99,13 @@ enum Target {
     Unresolved,
 }
 
+/// The names an import takes, and those among them taken as types only.
+#[derive(Debug, Clone)]
+struct Taken {
+    names: BTreeSet<String>,
+    types: BTreeSet<String>,
+}
+
 /// Each file's imports with what they resolved to.
 type Resolved<'a> = BTreeMap<&'a str, Vec<(&'a Request, Target)>>;
 
@@ -352,14 +359,17 @@ pub fn build(input: &Input) -> Graph {
                         continue;
                     };
                     let mut reached = vec![];
-                    follow(
-                        &mut cx,
-                        to_file,
-                        &request.names,
-                        &mut BTreeSet::new(),
-                        &mut reached,
-                    );
-                    for (to_file, names) in reached {
+                    let types = if request.type_only {
+                        request.names.clone()
+                    } else {
+                        request.type_names.clone()
+                    };
+                    let taken = Taken {
+                        names: request.names.clone(),
+                        types,
+                    };
+                    follow(&mut cx, to_file, &taken, &mut BTreeSet::new(), &mut reached);
+                    for (to_file, Taken { names, types }) in reached {
                         let Some((_, to_module)) = cx.locate(&to_file) else {
                             continue;
                         };
@@ -374,7 +384,7 @@ pub fn build(input: &Input) -> Graph {
                                 file: (*file).to_string(),
                                 line: request.line,
                                 spec: request.spec.clone(),
-                                type_only: request.type_only,
+                                type_only: !names.is_empty() && names.is_subset(&types),
                                 names: names.into_iter().collect(),
                             },
                             to_file,
@@ -452,12 +462,13 @@ fn locate_all<'a>(
 fn follow(
     cx: &mut Context,
     file: &str,
-    names: &BTreeSet<String>,
+    taken: &Taken,
     seen: &mut BTreeSet<String>,
-    out: &mut Vec<(String, BTreeSet<String>)>,
+    out: &mut Vec<(String, Taken)>,
 ) {
+    let Taken { names, types } = taken;
     if cx.locate(file).is_some() || !seen.insert(file.to_string()) {
-        out.push((file.to_string(), names.clone()));
+        out.push((file.to_string(), taken.clone()));
         return;
     }
     let Some(parsed) = cx.input.parsed.get(file) else {
@@ -466,16 +477,20 @@ fn follow(
     let all = names.contains("*");
     for request in parsed.requests.clone() {
         let mut taken = BTreeSet::new();
+        let mut as_types = BTreeSet::new();
         for (imported, exported) in &request.reexports {
             if exported == "*" {
-                taken.extend(
-                    names
-                        .iter()
-                        .filter(|n| all || n.as_str() != "default")
-                        .cloned(),
-                );
+                for name in names.iter().filter(|n| all || n.as_str() != "default") {
+                    taken.insert(name.clone());
+                    if types.contains(name) || request.type_names.contains(imported) {
+                        as_types.insert(name.clone());
+                    }
+                }
             } else if all || names.contains(exported) {
                 taken.insert(imported.clone());
+                if types.contains(exported) || request.type_names.contains(imported) {
+                    as_types.insert(imported.clone());
+                }
             }
         }
         if taken.is_empty() {
@@ -489,7 +504,17 @@ fn follow(
                     continue;
                 }
             }
-            follow(cx, &target, &taken, seen, out);
+            as_types.retain(|name| taken.contains(name));
+            follow(
+                cx,
+                &target,
+                &Taken {
+                    names: taken,
+                    types: as_types,
+                },
+                seen,
+                out,
+            );
         }
     }
 }

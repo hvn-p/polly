@@ -6,6 +6,9 @@ use std::path::Path;
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
 use oxc_span::{SourceType, Span};
+use oxc_syntax::module_record::{
+    ExportExportName, ExportImportName, ImportImportName, ModuleRecord, RequestedModule,
+};
 
 /// One import or re-export statement, or a dynamic import of a literal.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,6 +21,8 @@ pub struct Request {
     pub names: BTreeSet<String>,
     /// Whether it carries types only.
     pub type_only: bool,
+    /// The names among `names` taken as types only.
+    pub type_names: BTreeSet<String>,
     /// For a re-export: (name in the target, name exported here); `*` for all.
     pub reexports: Vec<(String, String)>,
 }
@@ -36,6 +41,71 @@ fn line_of(source: &str, span: Span) -> u32 {
     u32::try_from(before.matches('\n').count() + 1).unwrap_or(u32::MAX)
 }
 
+/// One import or re-export statement.
+fn static_request(
+    module: &ModuleRecord,
+    source: &str,
+    spec: &str,
+    statement: &RequestedModule,
+) -> Request {
+    let span = statement.statement_span;
+    let mut request = Request {
+        spec: spec.to_string(),
+        line: line_of(source, span),
+        names: BTreeSet::new(),
+        type_only: statement.is_type,
+        type_names: BTreeSet::new(),
+        reexports: vec![],
+    };
+    if statement.is_import {
+        let entries: Vec<_> = module
+            .import_entries
+            .iter()
+            .filter(|e| e.statement_span == span)
+            .collect();
+        for entry in &entries {
+            let name = match &entry.import_name {
+                ImportImportName::Name(name) => name.name.to_string(),
+                ImportImportName::NamespaceObject => "*".to_string(),
+                ImportImportName::Default(_) => "default".to_string(),
+            };
+            if entry.is_type || statement.is_type {
+                request.type_names.insert(name.clone());
+            }
+            request.names.insert(name);
+        }
+        request.type_only |= !entries.is_empty() && entries.iter().all(|e| e.is_type);
+    } else {
+        let entries: Vec<_> = module
+            .indirect_export_entries
+            .iter()
+            .chain(module.star_export_entries.iter())
+            .filter(|e| e.statement_span == span)
+            .collect();
+        for entry in &entries {
+            let imported = match &entry.import_name {
+                ExportImportName::Name(name) => name.name.to_string(),
+                _ => "*".to_string(),
+            };
+            let exported = match &entry.export_name {
+                ExportExportName::Name(name) => name.name.to_string(),
+                ExportExportName::Default(_) => "default".to_string(),
+                ExportExportName::Null => "*".to_string(),
+            };
+            if entry.is_type || statement.is_type {
+                request.type_names.insert(imported.clone());
+            }
+            request.names.insert(imported.clone());
+            request.reexports.push((imported, exported));
+        }
+        request.type_only |= !entries.is_empty() && entries.iter().all(|e| e.is_type);
+    }
+    if request.names.is_empty() {
+        request.names.insert("*".to_string());
+    }
+    request
+}
+
 /// Reads one file's imports and exports.
 #[must_use]
 pub fn parse(path: &Path, source: &str) -> Parsed {
@@ -47,66 +117,7 @@ pub fn parse(path: &Path, source: &str) -> Parsed {
     let mut requests = vec![];
     for (spec, statements) in &module.requested_modules {
         for statement in statements {
-            let span = statement.statement_span;
-            let mut request = Request {
-                spec: spec.to_string(),
-                line: line_of(source, span),
-                names: BTreeSet::new(),
-                type_only: statement.is_type,
-                reexports: vec![],
-            };
-            if statement.is_import {
-                let entries: Vec<_> = module
-                    .import_entries
-                    .iter()
-                    .filter(|e| e.statement_span == span)
-                    .collect();
-                for entry in &entries {
-                    request.names.insert(match &entry.import_name {
-                        oxc_syntax::module_record::ImportImportName::Name(name) => {
-                            name.name.to_string()
-                        }
-                        oxc_syntax::module_record::ImportImportName::NamespaceObject => {
-                            "*".to_string()
-                        }
-                        oxc_syntax::module_record::ImportImportName::Default(_) => {
-                            "default".to_string()
-                        }
-                    });
-                }
-                request.type_only |= !entries.is_empty() && entries.iter().all(|e| e.is_type);
-            } else {
-                let entries: Vec<_> = module
-                    .indirect_export_entries
-                    .iter()
-                    .chain(module.star_export_entries.iter())
-                    .filter(|e| e.statement_span == span)
-                    .collect();
-                for entry in &entries {
-                    let imported = match &entry.import_name {
-                        oxc_syntax::module_record::ExportImportName::Name(name) => {
-                            name.name.to_string()
-                        }
-                        _ => "*".to_string(),
-                    };
-                    let exported = match &entry.export_name {
-                        oxc_syntax::module_record::ExportExportName::Name(name) => {
-                            name.name.to_string()
-                        }
-                        oxc_syntax::module_record::ExportExportName::Default(_) => {
-                            "default".to_string()
-                        }
-                        oxc_syntax::module_record::ExportExportName::Null => "*".to_string(),
-                    };
-                    request.names.insert(imported.clone());
-                    request.reexports.push((imported, exported));
-                }
-                request.type_only |= !entries.is_empty() && entries.iter().all(|e| e.is_type);
-            }
-            if request.names.is_empty() {
-                request.names.insert("*".to_string());
-            }
-            requests.push(request);
+            requests.push(static_request(&module, source, spec, statement));
         }
     }
     for dynamic in &module.dynamic_imports {
@@ -120,6 +131,7 @@ pub fn parse(path: &Path, source: &str) -> Parsed {
                 line: line_of(source, dynamic.span),
                 names: BTreeSet::from(["*".to_string()]),
                 type_only: false,
+                type_names: BTreeSet::new(),
                 reexports: vec![],
             });
         }
@@ -129,7 +141,7 @@ pub fn parse(path: &Path, source: &str) -> Parsed {
         .local_export_entries
         .iter()
         .map(|e| match &e.export_name {
-            oxc_syntax::module_record::ExportExportName::Name(name) => name.name.to_string(),
+            ExportExportName::Name(name) => name.name.to_string(),
             _ => "default".to_string(),
         })
         .collect();
