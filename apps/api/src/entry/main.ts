@@ -8,8 +8,8 @@
 import { isIP } from 'node:net'
 import { assertSchemaCurrent, connect, PostgresStore, SchemaBehind } from '@polly/database'
 import { authenticator, createIdentity, type IdentitySettings, mcpResource } from '@polly/identity'
-import { type Clock, type Config, readConfig, systemClock } from '@polly/platform'
-import { configureLogging, logger } from './logger.ts'
+import { createLogger } from '@polly/logging'
+import { type Clock, type Config, type Logger, readConfig, systemClock } from '@polly/platform'
 import { type RunningServer, serveApi } from './server.ts'
 
 export type { RunningServer } from './server.ts'
@@ -25,6 +25,7 @@ export interface ServerOptions {
   // reaches the network.
   fetchClientMetadataResource?: IdentitySettings['fetchClientMetadataResource']
   clock?: Clock
+  log: Logger
 }
 
 export async function startServer({
@@ -34,6 +35,7 @@ export async function startServer({
   lastMigration,
   fetchClientMetadataResource,
   clock = systemClock,
+  log,
 }: ServerOptions): Promise<RunningServer> {
   const db = connect(config.DATABASE_URL)
   try {
@@ -55,6 +57,7 @@ export async function startServer({
       identityHandler: (request) => identity.handler(request),
       mcpLearner: (jwksUrl) => authenticator(identity, mcpResource(config.PUBLIC_URL), jwksUrl),
       clock,
+      log,
     },
   )
   return {
@@ -90,8 +93,7 @@ export async function startWhenSchemaCurrent(
 }
 
 if (process.argv[1] === import.meta.filename) {
-  await configureLogging()
-  const log = logger('main')
+  const log = createLogger({ name: 'polly-api' })
   const hostname = process.env['POLLY_API_HOST'] ?? ''
   const port = Number(process.env['POLLY_API_PORT'])
   const invalid = [
@@ -99,7 +101,7 @@ if (process.argv[1] === import.meta.filename) {
     ...(Number.isInteger(port) && port > 0 ? [] : ['POLLY_API_PORT']),
   ]
   if (invalid.length > 0) {
-    log.error('INVALID_CONFIGURATION: {keys}', { keys: invalid })
+    log.error('INVALID_CONFIGURATION', { keys: invalid })
     process.exit(1)
   }
   try {
@@ -108,11 +110,12 @@ if (process.argv[1] === import.meta.filename) {
       hostname,
       port,
       retryMs: 2000,
-      onBehind: (message) => log.warn('{message}', { message }),
+      log,
+      onBehind: (message) => log.warn(message),
     })
-    log.info('API listening on {url}', { url: server.url })
+    log.info('API listening', { url: server.url })
   } catch (error) {
-    log.fatal('the API stopped: {error}', { error })
+    log.error('the API stopped', { error })
     process.exit(1)
   }
 }

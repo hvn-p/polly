@@ -4,7 +4,7 @@
 import type { AddressInfo } from 'node:net'
 import { serve } from '@hono/node-server'
 import type { EventCodeStore } from '@polly/back'
-import type { Clock } from '@polly/platform'
+import type { Clock, Logger } from '@polly/platform'
 import { type Authenticate, learnerGuard } from './access.ts'
 import { eventCodeGuard, registerAgentEventRoute } from './agent-events/index.ts'
 import { createApp } from './app.ts'
@@ -22,6 +22,7 @@ export interface ApiPorts {
   // Which learner makes an MCP request, given where the server's keys are read.
   mcpLearner: (jwksUrl: () => string) => Authenticate
   clock: Clock
+  log: Logger
 }
 
 export interface RunningServer {
@@ -49,7 +50,7 @@ export async function serveApi(
   registerAuthRoutes(registry, ports.identityHandler)
   registerMcpRoute(registry, [whoami, startLesson(ports.codes)])
   registerAgentEventRoute(registry, ports.codes, ports.clock)
-  const app = createApp(registry)
+  const app = createApp(registry, ports.log)
   const server = await new Promise<ReturnType<typeof serve>>((resolve) => {
     const listening = serve({ fetch: app.fetch, hostname, port }, () => resolve(listening))
   })

@@ -1,7 +1,11 @@
+import { createLogger } from '@polly/logging'
 import { Refusal } from '@polly/platform'
 import { describe, expect, it } from 'vitest'
 import { createApp } from './app.ts'
 import { type Guards, type Route, RouteRegistry } from './routes.ts'
+
+// The request log of these tests is read by none of them.
+const quiet = createLogger({ name: 'test', write: () => undefined })
 
 const guards: Guards = {
   public: async () => ({}),
@@ -41,7 +45,7 @@ describe('route registry', () => {
         access: 'learner',
         handle: (_request, { learnerId }) => new Response(learnerId),
       })
-    const app = createApp(registry)
+    const app = createApp(registry, quiet)
     expect(await (await app.request('/api/open')).text()).toBe('open')
     const refused = await app.request('/api/mine')
     expect(refused.status).toBe(401)
@@ -69,7 +73,7 @@ describe('route registry', () => {
           throw new Error('broken')
         },
       })
-    const app = createApp(registry)
+    const app = createApp(registry, quiet)
     const refused = await app.request('/api/revoked')
     expect(refused.status).toBe(403)
     expect(await refused.json()).toEqual({ code: 'EVENT_CODE_REVOKED' })
@@ -77,7 +81,7 @@ describe('route registry', () => {
   })
 
   it('denies by default: an unregistered path answers 404', async () => {
-    const app = createApp(new RouteRegistry(guards))
+    const app = createApp(new RouteRegistry(guards), quiet)
     const response = await app.request('/api/anything')
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({ code: 'NOT_FOUND' })

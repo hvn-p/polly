@@ -2,7 +2,6 @@ import { createHash, randomBytes } from 'node:crypto'
 import { connect as connectDatabase } from '@polly/database'
 import { sql } from 'kysely'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { resetLogging } from '../src/entry/logger.ts'
 import { openStream, type StreamReader } from './support/event-stream.ts'
 import { fakeClock } from './support/fake-clock.ts'
 import { captureLog } from './support/log.ts'
@@ -11,7 +10,8 @@ import { createLearner, mcpAccessToken } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
 
 const clock = fakeClock()
-const server = await testServer({}, { clock })
+const log = captureLog()
+const server = await testServer({}, { clock, log: log.log })
 const db = connectDatabase(server.config.DATABASE_URL)
 const streams: StreamReader[] = []
 
@@ -116,7 +116,6 @@ describe('agent-event stream: events', () => {
   })
 
   it('C57: through a full binding and stream cycle, the code reaches no log line', async () => {
-    const log = await captureLog()
     const logged: string[] = []
     const capture = (...args: unknown[]) => {
       logged.push(args.map(String).join(' '))
@@ -136,14 +135,10 @@ describe('agent-event stream: events', () => {
       for (const spy of spies) {
         spy.mockRestore()
       }
-      await resetLogging()
     }
     // The request log saw the stream's requests, the refused one included.
     expect(log.records()).toContainEqual(
-      expect.objectContaining({
-        logger: 'polly.http',
-        properties: expect.objectContaining({ url: '/api/agent-events', status: 400 }),
-      }),
+      expect.objectContaining({ module: 'http', path: '/api/agent-events', status: 400 }),
     )
     const lines = [...log.lines, ...logged]
     expect(lines.filter((line) => line.includes(code) || line.includes(code.slice(1)))).toEqual([])

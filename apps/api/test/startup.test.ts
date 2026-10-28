@@ -4,6 +4,7 @@ import { getMigrations as getAuthMigrations } from 'better-auth/db/migration'
 import { afterAll, describe, expect, inject, it } from 'vitest'
 import { startServer, startWhenSchemaCurrent } from '../src/entry/main.ts'
 import { testConfig } from './support/config.ts'
+import { captureLog } from './support/log.ts'
 
 const db: Database = connect(inject('testDatabaseUrl'))
 
@@ -33,7 +34,13 @@ describe('migrations and schema check', () => {
   it('C20: the server does not start, and serves no route, against a database behind the code', async () => {
     const config = testConfig()
     await expect(
-      startServer({ config, hostname: '127.0.0.1', port: 0, lastMigration: '9999_fixture_not_applied' }),
+      startServer({
+        config,
+        hostname: '127.0.0.1',
+        port: 0,
+        lastMigration: '9999_fixture_not_applied',
+        log: captureLog().log,
+      }),
     ).rejects.toThrow(/SCHEMA_BEHIND/)
   })
 })
@@ -48,6 +55,7 @@ describe('waiting for the schema', () => {
       hostname: '127.0.0.1',
       port: 0,
       lastMigration: '9998_fixture_migrated_later',
+      log: captureLog().log,
       retryMs: 20,
       onBehind: (message) => behind.push(message),
     }

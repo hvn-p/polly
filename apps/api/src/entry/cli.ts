@@ -4,8 +4,8 @@
 import { DEMO_ACCOUNT, seedDemoAccount } from '@polly/back'
 import { connect } from '@polly/database'
 import { createIdentity, learnerAccounts } from '@polly/identity'
-import { Refusal, readConfig } from '@polly/platform'
-import { configureLogging, logger } from './logger.ts'
+import { createLogger } from '@polly/logging'
+import { type Logger, Refusal, readConfig } from '@polly/platform'
 
 const COMMANDS = ['seed-demo']
 
@@ -13,16 +13,14 @@ const COMMANDS = ['seed-demo']
 export interface CliIo {
   env: Record<string, string | undefined>
   out: (line: string) => void
+  log: Logger
 }
 
-const log = logger('cli')
-
-function refuse(code: string, reason: string): number {
-  log.error('{code}: {reason}', { code, reason })
-  return 1
-}
-
-export async function runCli(argv: readonly string[], { env, out }: CliIo): Promise<number> {
+export async function runCli(argv: readonly string[], { env, out, log }: CliIo): Promise<number> {
+  const refuse = (code: string, reason: string): number => {
+    log.error(`${code}: ${reason}`, { code })
+    return 1
+  }
   const [command = ''] = argv
   if (!COMMANDS.includes(command)) {
     return refuse('UNKNOWN_COMMAND', `${command}; the commands are ${COMMANDS.join(', ')}`)
@@ -45,7 +43,7 @@ export async function runCli(argv: readonly string[], { env, out }: CliIo): Prom
     return 0
   } catch (error) {
     if (error instanceof Refusal) {
-      log.error('{message}', { code: error.code, message: error.message })
+      log.error(error.text, { code: error.code })
       return 1
     }
     throw error
@@ -55,9 +53,9 @@ export async function runCli(argv: readonly string[], { env, out }: CliIo): Prom
 }
 
 if (process.argv[1] === import.meta.filename) {
-  await configureLogging()
   process.exitCode = await runCli(process.argv.slice(2), {
     env: process.env,
     out: (line) => console.log(line),
+    log: createLogger({ name: 'polly-api-cli' }),
   })
 }

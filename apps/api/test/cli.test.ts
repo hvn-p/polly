@@ -1,34 +1,33 @@
-import { afterEach, describe, expect, inject, it } from 'vitest'
+import { describe, expect, inject, it } from 'vitest'
 import { runCli } from '../src/entry/cli.ts'
-import { resetLogging } from '../src/entry/logger.ts'
 import { testConfig } from './support/config.ts'
 import { captureLog } from './support/log.ts'
-
-afterEach(resetLogging)
 
 const out = () => undefined
 
 describe('API command line', () => {
   it('refuses an invalid configuration, naming the key', async () => {
-    const log = await captureLog()
+    const capture = captureLog()
     const { DATABASE_URL: _, ...env } = testConfig()
-    expect(await runCli(['seed-demo'], { env, out })).toBe(1)
-    expect(log.records()).toEqual([
+    expect(await runCli(['seed-demo'], { env, out, log: capture.log })).toBe(1)
+    expect(capture.records()).toEqual([
       expect.objectContaining({
-        level: 'ERROR',
-        properties: { code: 'INVALID_CONFIGURATION', reason: expect.stringContaining('DATABASE_URL') },
+        level: 'error',
+        code: 'INVALID_CONFIGURATION',
+        message: expect.stringContaining('DATABASE_URL'),
       }),
     ])
   })
 
   it('refuses an unknown command', async () => {
-    const log = await captureLog()
-    expect(await runCli(['nope'], { env: { ...testConfig() }, out })).toBe(1)
-    expect(log.records()).toEqual([
+    const capture = captureLog()
+    expect(await runCli(['nope'], { env: { ...testConfig() }, out, log: capture.log })).toBe(1)
+    expect(capture.records()).toEqual([
       expect.objectContaining({
-        properties: { code: 'UNKNOWN_COMMAND', reason: expect.stringMatching(/^nope/) },
+        code: 'UNKNOWN_COMMAND',
+        message: expect.stringMatching(/^UNKNOWN_COMMAND: nope/),
       }),
     ])
-    expect(inject('testDatabaseUrl')).toMatch(/_test$/)
+    expect(inject('testDatabaseUrl')).toMatch(/__test$/)
   })
 })

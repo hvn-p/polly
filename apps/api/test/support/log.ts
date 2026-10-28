@@ -1,15 +1,11 @@
-import { configureLogging } from '../../src/entry/logger.ts'
+import { createLogger } from '@polly/logging'
+import type { Logger } from '@polly/platform'
 
-export interface LogRecord {
-  level: string
-  logger: string
-  message: string
-  properties: Record<string, unknown>
-}
+export type LogRecord = Record<string, unknown> & { level: string; message: string }
 
-// The lines the API's logger writes from now on, as written and parsed.
-export async function captureLog(): Promise<{ lines: string[]; records: () => LogRecord[] }> {
+// A logger whose lines are kept, as written and parsed.
+export function captureLog(): { log: Logger; lines: string[]; records: () => LogRecord[] } {
   const lines: string[] = []
-  await configureLogging((line) => lines.push(line))
-  return { lines, records: () => lines.map((line) => JSON.parse(line) as LogRecord) }
+  const log = createLogger({ name: 'polly-api', write: (line) => lines.push(line) })
+  return { log, lines, records: () => lines.map((line) => JSON.parse(line) as LogRecord) }
 }
