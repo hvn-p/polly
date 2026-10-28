@@ -17,7 +17,7 @@ import { processSupervisor } from './supervisor/index.ts'
 
 const codeRoot = join(import.meta.dirname, '..', '..')
 const apiCli = join(codeRoot, 'apps/api/src/entry/cli.ts')
-const databaseCli = join(codeRoot, 'packages/database/src/cli.ts')
+const migrationsCli = join(codeRoot, 'packages/migrations/src/cli.ts')
 
 // The database's and the API's command lines, and the processes of a worktree
 // (the API, the front-end dev server and the worker), run on its configuration.
@@ -26,7 +26,7 @@ export function apiApplication(realWorkerLock: string): Application {
     run(process.execPath, [path, command], { env: { ...process.env, ...env } })
   return {
     migrate: async (env) => {
-      await cli(databaseCli, 'migrate', env)
+      await cli(migrationsCli, 'migrate', env)
     },
     seed: async (env) => {
       await cli(apiCli, 'seed-demo', env)

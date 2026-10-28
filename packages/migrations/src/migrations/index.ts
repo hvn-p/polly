@@ -1,4 +1,4 @@
-// Every migration of the API's database, in order. A migration is never
+// Every migration of Polly's database, in order. A migration is never
 // edited once merged: a change adds the next one.
 
 import type { Migration } from 'kysely/migration'

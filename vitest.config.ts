@@ -28,7 +28,7 @@ export default defineConfig({
         'dev/src/e2e/claude.ts',
         // Applied by the tests' global setups, in their own process; the
         // startup tests check the schema they produce.
-        'packages/database/src/migrations/**',
+        'packages/migrations/src/migrations/**',
         // Installed and tested by the baudrier plugin.
         'scripts/checks/agents-md.mjs',
       ],

@@ -3,17 +3,18 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./test-database": "./src/test-database.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@polly/back": "workspace:*",
     "kysely": "0.29.7",
     "pg": "8.23.1"
   },
   "devDependencies": {
+    "@polly/migrations": "workspace:*",
     "@types/pg": "8.23.1"
   }
 }

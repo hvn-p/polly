@@ -5,17 +5,14 @@
 import type { AddressInfo } from 'node:net'
 import { fetchClientMetadataResource as fetchOverNetwork } from '@better-auth/cimd/node'
 import { serve } from '@hono/node-server'
-import { assertSchemaCurrent, SchemaBehind } from '@polly/database'
+import { assertSchemaCurrent, connect, PostgresStore, SchemaBehind } from '@polly/database'
 import type { Config } from '@polly/platform'
 import { type Clock, systemClock } from '@polly/platform'
-import type { Migration } from 'kysely/migration'
 import { createIdentity, type IdentitySettings } from '../reference/identity/index.ts'
 import { learnerGuard } from './access.ts'
-import { eventCodeStore } from './agent-events/codes.ts'
 import { eventCodeGuard, registerAgentEventRoute } from './agent-events/index.ts'
 import { createApp } from './app.ts'
 import { registerAuthRoutes } from './auth.ts'
-import { createDatabase } from './database.ts'
 import { ownOrigin } from './listen.ts'
 import { registerMcpRoute } from './mcp/index.ts'
 import { startLesson } from './mcp/start-lesson.ts'
@@ -27,7 +24,8 @@ export interface ServerOptions {
   // The address to listen on: loopback locally, every interface in a container.
   hostname: string
   port: number
-  migrations?: Record<string, Migration>
+  // The last migration the database must hold; tests name one it lacks.
+  lastMigration?: string
   // How a client's metadata document is fetched; tests inject one that never
   // reaches the network.
   fetchClientMetadataResource?: IdentitySettings['fetchClientMetadataResource']
@@ -47,13 +45,13 @@ export async function startServer({
   config,
   hostname,
   port,
-  migrations,
+  lastMigration,
   fetchClientMetadataResource = fetchOverNetwork,
   clock = systemClock,
 }: ServerOptions): Promise<RunningServer> {
-  const db = createDatabase(config.DATABASE_URL)
+  const db = connect(config.DATABASE_URL)
   try {
-    await assertSchemaCurrent(db, migrations)
+    await assertSchemaCurrent(db, lastMigration)
   } catch (error) {
     await db.destroy()
     throw error
@@ -65,7 +63,7 @@ export async function startServer({
     fetchClientMetadataResource,
   })
   let listeningPort = port
-  const codes = eventCodeStore(db)
+  const codes = new PostgresStore(db)
   const guards: Guards = {
     public: async () => ({}),
     learner: learnerGuard(

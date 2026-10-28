@@ -77,6 +77,6 @@ export async function garage(
 
 // The shipped migrations, as a migrated database lists them.
 export async function shippedMigrations(): Promise<{ name: string }[]> {
-  const { migrations } = await import('@polly/database')
+  const { migrations } = await import('@polly/migrations')
   return Object.keys(migrations).map((name) => ({ name }))
 }

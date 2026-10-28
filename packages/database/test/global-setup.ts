@@ -2,9 +2,8 @@
 // test database, then brings it to the shipped schema. It empties nothing: the
 // API tests' setup does, and both run against the same test database.
 
+import { connect, migrate, testDatabaseUrl } from '@polly/migrations'
 import type { TestProject } from 'vitest/node'
-import { connect, migrate } from '../src/index.ts'
-import { testDatabaseUrl } from '../src/test-database.ts'
 
 export default async function setup(project: TestProject): Promise<void> {
   const url = testDatabaseUrl()

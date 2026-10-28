@@ -6,7 +6,7 @@ function io() {
   return { lines, write: (line: string) => lines.push(line) }
 }
 
-describe('database command line', () => {
+describe('migrations command line', () => {
   it('migrates the database of DATABASE_URL; nothing is pending afterwards', async () => {
     const out = io()
     const env = { DATABASE_URL: inject('testDatabaseUrl') }

@@ -92,6 +92,9 @@ jobs:
           psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 \
             -c "CREATE ROLE polly_ci LOGIN PASSWORD 'ci-only'" \
             -c "CREATE DATABASE polly_ci__test OWNER polly_ci"
+      # The table types are generated from the migrated test database: a
+      # migration without its regenerated types fails here.
+      - run: pnpm run generate && git diff --exit-code packages/database/src/generated
       - run: pnpm exec vitest run --coverage
       - run: pnpm run test:repo
 

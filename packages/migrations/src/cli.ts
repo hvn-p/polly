@@ -1,8 +1,9 @@
-// The database's command line, run by dev:up on a worktree's database:
-// `node packages/database/src/cli.ts migrate`, with DATABASE_URL set.
+// The migrations' command line, run by dev:up on a worktree's database, by the
+// tests' setups and by the deployment: `node packages/migrations/src/cli.ts
+// migrate`, with DATABASE_URL set.
 
-import { connect } from './index.ts'
-import { migrate } from './migrator.ts'
+import { connect } from './connect.ts'
+import { migrate } from './migrate.ts'
 
 const COMMANDS = ['migrate']
 

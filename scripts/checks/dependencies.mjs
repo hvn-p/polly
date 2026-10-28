@@ -7,7 +7,7 @@
 //
 // The API (apps/api/src): tiers entry > flows > domains > reference > kernel,
 // each holding modules; no import between two flows or two domains; the
-// migrations live in packages/database, never in the API.
+// migrations live in packages/migrations, never in the API.
 // The dev commands (dev/src): each directory is one module and one tier; the
 // files at the root are the composition root, above them all.
 //
@@ -44,7 +44,7 @@ export const API_LAYOUT = {
       'two domains never import each other: declare a port in the importing domain and feed it from a flow',
   },
   misplaced: {
-    migrations: 'the database belongs to Polly, not to the API; move them to packages/database',
+    migrations: 'the database belongs to Polly, not to the API; move them to packages/migrations',
   },
 }
 

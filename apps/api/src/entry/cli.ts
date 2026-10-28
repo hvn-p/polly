@@ -3,9 +3,9 @@
 
 import { fetchClientMetadataResource } from '@better-auth/cimd/node'
 import { DEMO_ACCOUNT, seedDemoAccount } from '@polly/back'
+import { connect } from '@polly/database'
 import { Refusal, readConfig } from '@polly/platform'
 import { createIdentity, learnerAccounts } from '../reference/identity/index.ts'
-import { createDatabase } from './database.ts'
 import { configureLogging, logger } from './logger.ts'
 
 const COMMANDS = ['seed-demo']
@@ -34,7 +34,7 @@ export async function runCli(argv: readonly string[], { env, out }: CliIo): Prom
   } catch (error) {
     return refuse('INVALID_CONFIGURATION', error instanceof Error ? error.message : String(error))
   }
-  const db = createDatabase(config.DATABASE_URL)
+  const db = connect(config.DATABASE_URL)
   try {
     const identity = createIdentity({
       publicUrl: config.PUBLIC_URL,

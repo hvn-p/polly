@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { connect as connectDatabase } from '@polly/database'
 import { sql } from 'kysely'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createDatabase } from '../src/entry/database.ts'
 import { resetLogging } from '../src/entry/logger.ts'
 import { openStream, type StreamReader } from './support/event-stream.ts'
 import { fakeClock } from './support/fake-clock.ts'
@@ -12,7 +12,7 @@ import { testServer } from './support/server.ts'
 
 const clock = fakeClock()
 const server = await testServer({}, { clock })
-const db = createDatabase(server.config.DATABASE_URL)
+const db = connectDatabase(server.config.DATABASE_URL)
 const streams: StreamReader[] = []
 
 afterEach(() => {

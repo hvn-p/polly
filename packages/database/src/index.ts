@@ -1,15 +1,8 @@
-// Polly's database: its migrations, and what brings a database to them. The
-// database belongs to Polly, not to one of its processes; the API and the
-// worker are two of its consumers.
+// Polly's database capacity: the connection, the tables' types generated from
+// the migrations, the schema check, and every SQL query, behind the domains'
+// ports. The migrations themselves are @polly/migrations, which no process
+// imports.
 
-import { Kysely, PostgresDialect } from 'kysely'
-import pg from 'pg'
-
-export { migrations } from './migrations/index.ts'
-export { assertSchemaCurrent, migrate, SchemaBehind } from './migrator.ts'
-
-export function connect<DB>(url: string): Kysely<DB> {
-  return new Kysely<DB>({
-    dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString: url, max: 5 }) }),
-  })
-}
+export { connect, type Database } from './connection.ts'
+export { PostgresStore } from './postgres-store.ts'
+export { assertSchemaCurrent, SchemaBehind } from './schema.ts'

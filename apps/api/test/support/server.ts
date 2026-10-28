@@ -1,6 +1,6 @@
+import { connect } from '@polly/database'
 import type { Config } from '@polly/platform'
 import { afterAll } from 'vitest'
-import { createDatabase } from '../../src/entry/database.ts'
 import { type RunningServer, type ServerOptions, startServer } from '../../src/entry/server.ts'
 import { createIdentity, type Identity } from '../../src/reference/identity/index.ts'
 import { testConfig } from './config.ts'
@@ -30,7 +30,7 @@ export async function testServer(
     fetchClientMetadataResource: noClientMetadataFetch,
     ...options,
   })
-  const db = createDatabase(config.DATABASE_URL)
+  const db = connect(config.DATABASE_URL)
   const identity = createIdentity({
     publicUrl: config.PUBLIC_URL,
     secret: config.BETTER_AUTH_SECRET,

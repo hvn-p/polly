@@ -70,7 +70,7 @@ describe('dependencies guard', () => {
 
   it('refuses migrations inside the API, naming the package they belong to', () => {
     const root = fixture({ ...valid, 'migrations/index.ts': "import { Kysely } from 'kysely'\n" })
-    expect(checkDependencies(root)).toEqual([expect.stringMatching(/^migrations: .*packages\/database/)])
+    expect(checkDependencies(root)).toEqual([expect.stringMatching(/^migrations: .*packages\/migrations/)])
   })
 
   it('ignores a unit test sitting next to its file, which may assemble several tiers', () => {

@@ -1,13 +1,13 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { connect } from '@polly/database'
 import { sql } from 'kysely'
 import { describe, expect, it } from 'vitest'
-import { createDatabase } from '../src/entry/database.ts'
 import { mcpClient, resultOf } from './support/mcp.ts'
 import { createLearner, mcpAccessToken } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
 
 const server = await testServer()
-const db = createDatabase(server.config.DATABASE_URL)
+const db = connect(server.config.DATABASE_URL)
 
 function newCode(): string {
   return randomBytes(32).toString('base64url')

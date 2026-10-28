@@ -2,8 +2,7 @@
 // database, then brings the worktree's test database to the shipped schema and
 // empties it.
 
-import { connect, migrate } from '@polly/database'
-import { testDatabaseUrl } from '@polly/database/test-database'
+import { connect, migrate, testDatabaseUrl } from '@polly/migrations'
 import { type Kysely, sql } from 'kysely'
 import type { TestProject } from 'vitest/node'
 
