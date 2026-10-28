@@ -56,7 +56,7 @@ describe('dev:down with faked infrastructure', () => {
     await up({ root, ...loaded(infra), out })
     const holder = spawn('flock', [join(root, '.dev/up.lock'), 'sh', '-c', 'echo held; sleep 1'])
     await new Promise((resolve) => holder.stdout.once('data', resolve))
-    const released = new Promise<number>((resolve) => holder.once('exit', () => resolve(Date.now())))
+    const heldAt = Date.now()
     infra.calls.length = 0
     let firstCall = 0
     const ensureRunning = infra.shared.ensureRunning
@@ -65,7 +65,8 @@ describe('dev:down with faked infrastructure', () => {
       await ensureRunning()
     }
     await down({ root, infra, out })
-    expect(firstCall).toBeGreaterThanOrEqual(await released)
+    // The lock is released when the holder's sleep ends, which Node may notice after dev:down does.
+    expect(firstCall - heldAt).toBeGreaterThan(900)
     expect(infra.calls.at(-1)).toMatch(/^routes\.remove /)
   })
 })
