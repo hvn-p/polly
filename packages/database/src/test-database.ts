@@ -12,8 +12,10 @@ export function assertTestDatabase(url: string | undefined): string {
     )
   }
   const name = decodeURIComponent(new URL(url).pathname.slice(1))
-  if (!/^[a-z0-9_]+_test$/.test(name)) {
-    throw new Error(`NOT_A_TEST_DATABASE: ${name || '(none)'} does not end in _test; tests never touch it`)
+  // An identity never holds a doubled separator, so only a test database ends in `__test`:
+  // `polly_x_test` is identity x-test's development database.
+  if (!/^polly_[a-z0-9]+(_[a-z0-9]+)*__test$/.test(name)) {
+    throw new Error(`NOT_A_TEST_DATABASE: ${name || '(none)'} does not end in __test; tests never touch it`)
   }
   return url
 }
