@@ -1,11 +1,10 @@
 // The API's command line, run by dev:up on a worktree's database once it is
 // migrated: `node apps/api/src/entry/cli.ts seed-demo`.
 
-import { fetchClientMetadataResource } from '@better-auth/cimd/node'
 import { DEMO_ACCOUNT, seedDemoAccount } from '@polly/back'
 import { connect } from '@polly/database'
+import { createIdentity, learnerAccounts } from '@polly/identity'
 import { Refusal, readConfig } from '@polly/platform'
-import { createIdentity, learnerAccounts } from '../reference/identity/index.ts'
 import { configureLogging, logger } from './logger.ts'
 
 const COMMANDS = ['seed-demo']
@@ -40,7 +39,6 @@ export async function runCli(argv: readonly string[], { env, out }: CliIo): Prom
       publicUrl: config.PUBLIC_URL,
       secret: config.BETTER_AUTH_SECRET,
       db,
-      fetchClientMetadataResource,
     })
     await seedDemoAccount({ accounts: learnerAccounts(identity), environment: config.POLLY_ENV })
     out(`demo account: ${DEMO_ACCOUNT.email}`)

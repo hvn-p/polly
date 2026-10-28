@@ -1,8 +1,8 @@
 import { connect } from '@polly/database'
+import { createIdentity, type Identity } from '@polly/identity'
 import type { Config } from '@polly/platform'
 import { afterAll } from 'vitest'
-import { type RunningServer, type ServerOptions, startServer } from '../../src/entry/server.ts'
-import { createIdentity, type Identity } from '../../src/reference/identity/index.ts'
+import { type RunningServer, type ServerOptions, startServer } from '../../src/entry/main.ts'
 import { testConfig } from './config.ts'
 
 // Tests never reach the network: a client metadata document is never fetched.

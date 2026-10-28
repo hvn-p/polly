@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { apiResource, createLearnerAccount, mcpResource, TOKEN_EXCHANGE_GRANT } from '@polly/identity'
 import { expect } from 'vitest'
-import { createLearnerAccount, mcpResource } from '../../src/reference/identity/index.ts'
 import type { TestServer } from './server.ts'
 
 const REDIRECT_URI = 'http://127.0.0.1:9/callback'
@@ -103,4 +103,54 @@ export async function mcpAccessToken(server: TestServer, email: string, password
   const body = (await token.json()) as { access_token?: string }
   expect(body.access_token).toBeTypeOf('string')
   return body.access_token ?? ''
+}
+
+// The MCP server's confidential client, created on the server side by the
+// signed-in learner whose session cookie is given: it may exchange tokens for
+// the API.
+export async function createConfidentialClient(
+  server: TestServer,
+  cookie: string,
+): Promise<{ clientId: string; clientSecret: string }> {
+  const client = (await server.identity.api.adminCreateOAuthClient({
+    headers: new Headers({ cookie }),
+    body: {
+      // It never redirects: it only exchanges tokens.
+      redirect_uris: [`${server.config.PUBLIC_URL}/mcp/unused`],
+      token_endpoint_auth_method: 'client_secret_post',
+      grant_types: [TOKEN_EXCHANGE_GRANT],
+      resources: [apiResource(server.config.PUBLIC_URL)],
+      skip_consent: true,
+    },
+  })) as { client_id: string; client_secret: string }
+  return { clientId: client.client_id, clientSecret: client.client_secret }
+}
+
+export async function signedInCookie(server: TestServer, email: string, password: string): Promise<string> {
+  return cookiesOf(await signIn(server, email, password))
+}
+
+// RFC 8693 at the standard token endpoint: the subject token for a token
+// naming the API as its audience.
+export function exchangeToken(
+  server: TestServer,
+  { clientId, clientSecret, subjectToken }: { clientId: string; clientSecret: string; subjectToken: string },
+): Promise<Response> {
+  return fetch(`${server.url}/api/auth/oauth2/token`, {
+    method: 'POST',
+    headers: headers(server, { 'content-type': 'application/x-www-form-urlencoded' }),
+    body: new URLSearchParams({
+      grant_type: TOKEN_EXCHANGE_GRANT,
+      client_id: clientId,
+      client_secret: clientSecret,
+      subject_token: subjectToken,
+      subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+      resource: apiResource(server.config.PUBLIC_URL),
+    }),
+  })
+}
+
+// A JWT's claims, unverified: what the test reads of a token it was issued.
+export function claimsOf(token: string): Record<string, unknown> {
+  return JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString()) as Record<string, unknown>
 }

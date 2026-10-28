@@ -1,14 +1,16 @@
 // The identity of a learner: Better Auth, which is also the OAuth 2.1
-// authorization server of the MCP. Polly's code reaches it only through the
-// options built here and the instance they create.
+// authorization server of the MCP and of the API. Polly's code reaches it only
+// through the ports of index.ts.
 
 import { cimd } from '@better-auth/cimd'
+import { fetchClientMetadataResource as fetchOverNetwork } from '@better-auth/cimd/node'
 import { mcp } from '@better-auth/mcp'
 import type { LearnerAccount, LearnerAccounts } from '@polly/back'
 import { BASE_ERROR_CODES, type BetterAuthOptions, betterAuth } from 'better-auth'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { jwt } from 'better-auth/plugins'
 import type { Kysely } from 'kysely'
+import { tokenExchange } from './token-exchange.ts'
 
 type ClientMetadataResourceFetch = Parameters<typeof cimd>[0]['fetchClientMetadataResource']
 
@@ -17,12 +19,23 @@ export interface IdentitySettings {
   secret: string
   // biome-ignore lint/suspicious/noExplicitAny: Better Auth owns the shape of its tables.
   db: Kysely<any>
-  fetchClientMetadataResource: ClientMetadataResourceFetch
+  // How a client's metadata document is fetched: over the network unless a test
+  // injects a fetch that never reaches it.
+  fetchClientMetadataResource?: ClientMetadataResourceFetch
 }
 
 export function mcpResource(publicUrl: string): string {
   return `${publicUrl}/mcp`
 }
+
+// The API as a protected resource: what an exchanged token names as audience.
+export function apiResource(publicUrl: string): string {
+  return `${publicUrl}/api`
+}
+
+// An exchanged token lives 5 minutes: the MCP server exchanges again for each
+// call, and a JWT cannot be revoked before it expires.
+const API_TOKEN_SECONDS = 300
 
 // The longest address SMTP carries (RFC 5321).
 const MAX_EMAIL_LENGTH = 254
@@ -60,9 +73,13 @@ export function identityOptions(settings: IdentitySettings) {
         loginPage: '/sign-in',
         consentPage: '/consent',
         resource: mcpResource(settings.publicUrl),
+        resources: [{ identifier: apiResource(settings.publicUrl), accessTokenTtl: API_TOKEN_SECONDS }],
+        extensions: [
+          tokenExchange({ mcp: mcpResource(settings.publicUrl), api: apiResource(settings.publicUrl) }),
+        ],
       }),
       cimd({
-        fetchClientMetadataResource: settings.fetchClientMetadataResource,
+        fetchClientMetadataResource: settings.fetchClientMetadataResource ?? fetchOverNetwork,
         metadataProfile: 'mcp-2026-07-28',
       }),
     ],

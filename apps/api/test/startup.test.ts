@@ -1,8 +1,8 @@
 import { assertSchemaCurrent, connect, type Database } from '@polly/database'
+import { identityOptions } from '@polly/identity'
 import { getMigrations as getAuthMigrations } from 'better-auth/db/migration'
 import { afterAll, describe, expect, inject, it } from 'vitest'
-import { startServer, startWhenSchemaCurrent } from '../src/entry/server.ts'
-import { identityOptions } from '../src/reference/identity/index.ts'
+import { startServer, startWhenSchemaCurrent } from '../src/entry/main.ts'
 import { testConfig } from './support/config.ts'
 
 const db: Database = connect(inject('testDatabaseUrl'))

@@ -16,7 +16,12 @@
         },
         {
           "tier": "adapters",
-          "onlyFrom": ["apps/*/src/main.ts"]
+          "onlyFrom": [
+            "apps/*/src/main.ts",
+            "apps/*/src/cli.ts",
+            "apps/api/src/entry/main.ts",
+            "apps/api/src/entry/cli.ts"
+          ]
         },
         "kernel",
         "socle",
@@ -31,7 +36,7 @@
         "@modelcontextprotocol/server",
         "@dbos-inc/dbos-sdk"
       ],
-      "fix": "A route calls one flow; only a composition root (main.ts) imports an adapter package, and hands what it builds to the flows through their ports.",
+      "fix": "A route calls one flow; only a composition root (main.ts, or cli.ts for a command) imports an adapter package, and hands what it builds to the flows through their ports.",
       "typesFix": "A route uses a domain's types only: what it needs done goes through a flow.",
       "technologyFix": "A route speaks HTTP or MCP and validates with Zod; any other technology sits in a capacity package, behind a port."
     },
@@ -79,8 +84,7 @@
         "packages/storage",
         "packages/logging",
         "packages/analysis",
-        "packages/migrations",
-        "apps/api/src/reference/*"
+        "packages/migrations"
       ],
       "mayImport": [
         "adapters",
@@ -362,7 +366,8 @@
       "runOnly": "@polly/migrations is run (its command), never imported: check the schema through @polly/database."
     },
     "@polly/identity": {
-      "provides": "who makes a request: Better Auth and the token exchange"
+      "provides": "who makes a request: Better Auth and the token exchange",
+      "technologies": ["node:*", "better-auth", "@better-auth/*", "kysely"]
     },
     "@polly/queue": {
       "provides": "durable task client",
