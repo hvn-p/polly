@@ -1,0 +1,209 @@
+//! Checks a TypeScript repository's imports against the rules of its
+//! `architecture.rules.json`, once (`check`) or live (`watch`), and describes the graph
+//! as JSON for the architecture view. It knows nothing of the repository it reads.
+
+mod glob;
+mod graph;
+mod parse;
+mod rules;
+mod serve;
+mod watch;
+mod workspace;
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
+
+use serde::Serialize;
+
+pub use graph::{Edge, Module, Technology, Violation};
+pub use rules::Rules;
+pub use serve::serve;
+pub use watch::watch;
+
+/// The rules file, at the root.
+pub const RULES_FILE: &str = "architecture.rules.json";
+
+/// The analysis of the repository, as the view reads it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Report {
+    /// The rules' tiers, top first.
+    pub tiers: Vec<rules::Tier>,
+    /// The modules.
+    pub modules: Vec<Module>,
+    /// The imports between modules.
+    pub edges: Vec<Edge>,
+    /// The imports of technologies.
+    pub technologies: Vec<Technology>,
+    /// Every rule broken.
+    pub violations: Vec<Violation>,
+    /// What the tree adds and removes against its base, when one is given.
+    pub base: Option<BaseDiff>,
+}
+
+/// The module imports a tree adds and removes against its base.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BaseDiff {
+    /// The base's git reference.
+    #[serde(rename = "ref")]
+    pub reference: String,
+    /// Module pairs imported here and not in the base.
+    pub added: Vec<(String, String)>,
+    /// Module pairs imported in the base and not here.
+    pub removed: Vec<(String, String)>,
+}
+
+/// One tree's state: its rules, packages and parsed files.
+pub(crate) struct Tree {
+    pub root: PathBuf,
+    pub rules: Rules,
+    pub packages: Vec<workspace::Package>,
+    pub parsed: BTreeMap<String, parse::Parsed>,
+    pub root_manifest: Option<String>,
+}
+
+impl Tree {
+    /// Reads the rules, the packages and every source.
+    pub fn load(root: &Path) -> Result<Self, String> {
+        let text = std::fs::read_to_string(root.join(RULES_FILE))
+            .map_err(|e| format!("{RULES_FILE}: {e}"))?;
+        let rules = Rules::parse(&text)?;
+        let root = &root
+            .canonicalize()
+            .map_err(|e| format!("{}: {e}", root.display()))?;
+        let packages = workspace::packages(root)?;
+        let mut parsed = BTreeMap::new();
+        for file in workspace::sources(root, &packages, &rules.ignore) {
+            if let Some(p) = read(root, &file) {
+                parsed.insert(file, p);
+            }
+        }
+        let root_manifest = std::fs::read_to_string(root.join("package.json")).ok();
+        Ok(Self {
+            root: root.clone(),
+            rules,
+            packages,
+            parsed,
+            root_manifest,
+        })
+    }
+
+    /// Whether a path relative to the root is a source of a package.
+    pub fn is_source(&self, file: &str) -> bool {
+        let name = file.rsplit('/').next().unwrap_or(file);
+        workspace::is_source(name)
+            && !workspace::ignored(file, &self.rules.ignore)
+            && !file.split('/').any(workspace::is_skipped)
+            && self
+                .packages
+                .iter()
+                .any(|p| p.dir.is_empty() || file.starts_with(&format!("{}/", p.dir)))
+    }
+
+    pub fn graph(&self, resolver: Option<&oxc_resolver::Resolver>) -> graph::Graph {
+        graph::build(&graph::Input {
+            root: &self.root,
+            rules: &self.rules,
+            packages: &self.packages,
+            parsed: &self.parsed,
+            resolver,
+            root_manifest: self.root_manifest.as_deref(),
+        })
+    }
+
+    pub fn report(
+        &self,
+        resolver: &oxc_resolver::Resolver,
+        base: Option<&(String, BTreeSet<(String, String)>)>,
+    ) -> Report {
+        let graph = self.graph(Some(resolver));
+        let base = base.map(|(reference, before)| {
+            let now = pairs(&graph.edges);
+            BaseDiff {
+                reference: reference.clone(),
+                added: now.difference(before).cloned().collect(),
+                removed: before.difference(&now).cloned().collect(),
+            }
+        });
+        Report {
+            tiers: self.rules.tiers.clone(),
+            modules: graph.modules,
+            edges: graph.edges,
+            technologies: graph.technologies,
+            violations: graph.violations,
+            base,
+        }
+    }
+}
+
+/// Reads and parses one source.
+pub(crate) fn read(root: &Path, file: &str) -> Option<parse::Parsed> {
+    let path = root.join(file);
+    std::fs::read_to_string(&path)
+        .ok()
+        .map(|source| parse::parse(&path, &source))
+}
+
+fn pairs(edges: &[Edge]) -> BTreeSet<(String, String)> {
+    edges
+        .iter()
+        .map(|e| (e.from.clone(), e.to.clone()))
+        .collect()
+}
+
+/// The module imports of a git reference, read from a copy of its tree.
+pub(crate) fn base_pairs(
+    root: &Path,
+    reference: &str,
+) -> Result<(String, BTreeSet<(String, String)>), String> {
+    let copy = std::env::temp_dir().join(format!("architecture-base-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&copy);
+    std::fs::create_dir_all(&copy).map_err(|e| e.to_string())?;
+    let archive = std::process::Command::new("sh")
+        .arg("-c")
+        .arg("git -C \"$1\" archive \"$2\" | tar -x -C \"$3\"")
+        .args([
+            "sh",
+            &root.to_string_lossy(),
+            reference,
+            &copy.to_string_lossy(),
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+    let result = if archive.status.success() {
+        Tree::load(&copy).map(|tree| pairs(&tree.graph(None).edges))
+    } else {
+        Err(format!(
+            "cannot read {reference}: {}",
+            String::from_utf8_lossy(&archive.stderr).trim()
+        ))
+    };
+    let _ = std::fs::remove_dir_all(&copy);
+    result.map(|p| (reference.to_string(), p))
+}
+
+/// Analyzes the tree at `root`, and its difference with `base` when given.
+///
+/// # Errors
+/// When the rules or the workspace cannot be read, or the base is no git reference.
+pub fn analyze(root: &Path, base: Option<&str>) -> Result<Report, String> {
+    let tree = Tree::load(root)?;
+    let base = base
+        .map(|reference| base_pairs(root, reference))
+        .transpose()?;
+    Ok(tree.report(&graph::resolver(), base.as_ref()))
+}
+
+/// The violations as the check prints them: one per line, then its fix.
+#[must_use]
+pub fn render(violations: &[Violation]) -> String {
+    use std::fmt::Write;
+    violations.iter().fold(String::new(), |mut out, v| {
+        let _ = write!(
+            out,
+            "{}:{}: {}: {}\n  fix: {}\n",
+            v.file, v.line, v.rule, v.message, v.fix
+        );
+        out
+    })
+}

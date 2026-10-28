@@ -1,5 +1,5 @@
 # Checks every pull request: lint, types, the repository guards, the tests with
-# their coverage gate, the worker, and secret scanning. vendors/infra is
+# their coverage gate, the worker, the architecture analyzer, and secret scanning. vendors/infra is
 # private and nothing here reads it, so submodules are not fetched.
 name: CI
 
@@ -108,6 +108,21 @@ jobs:
       - run: uv run ruff format --check
       - run: uv run mypy src tests
       - run: uv run pytest
+
+  analyzer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/architecture/analyzer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # rust-toolchain.toml pins the toolchain, which rustup installs on first use.
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-llvm-cov@0.9.1
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo llvm-cov --locked --fail-under-lines 90
 
   secrets:
     runs-on: ubuntu-latest

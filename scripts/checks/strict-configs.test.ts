@@ -12,6 +12,7 @@ const biome = JSON.parse(readFileSync(join(repositoryRoot, 'biome.json'), 'utf8'
   linter: { rules: Record<string, unknown> }
 }
 const manifest = readFileSync(join(repositoryRoot, 'package.json'), 'utf8')
+const cargo = readFileSync(join(repositoryRoot, 'tools/architecture/analyzer/Cargo.toml'), 'utf8')
 
 function biomeWith(rules: Record<string, unknown>): string {
   return JSON.stringify({ ...biome, linter: { ...biome.linter, rules: { ...biome.linter.rules, ...rules } } })
@@ -151,6 +152,27 @@ describe('strict-configs guard', () => {
     for (const relaxed of [everywhere, inSource]) {
       const root = fixture({ 'tsconfig.base.json': base, 'svc/pyproject.toml': relaxed })
       expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('S101')])
+    }
+  })
+
+  it('refuses a Cargo.toml that allows a lint, or leaves unsafe code or the clippy groups', () => {
+    const relaxations: [string, string[]][] = [
+      [cargo.replace('unsafe_code = "forbid"', 'unsafe_code = "warn"'), ['unsafe_code']],
+      [
+        cargo.replace(
+          'pedantic = { level = "warn", priority = -1 }',
+          'pedantic = { level = "allow", priority = -1 }',
+        ),
+        ['clippy.pedantic'],
+      ],
+      [cargo.replace('[lints.clippy]', '[lints.clippy]\nunwrap_used = "allow"'), ['clippy.unwrap_used']],
+      [cargo.replace(/\[lints\.clippy\][^[]*/, ''), ['clippy.all', 'clippy.pedantic']],
+    ]
+    for (const [relaxed, named] of relaxations) {
+      const root = fixture({ 'tsconfig.base.json': base, 'tool/Cargo.toml': relaxed })
+      expect(checkStrictConfigs(root)).toEqual(
+        named.map((lint) => expect.stringMatching(new RegExp(`^tool/Cargo\\.toml: lints\\.\\w*\\.?${lint}`))),
+      )
     }
   })
 })

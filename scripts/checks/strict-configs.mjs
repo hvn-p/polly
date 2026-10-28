@@ -76,7 +76,15 @@ const BIOME_ALLOWED_EXCLUDES = {
   '.claude/hooks/agents-md-reminder.mjs': 'installed and tested by the baudrier plugin',
 }
 
-const SKIPPED_DIRECTORIES = new Set(['node_modules', '.git', 'vendors', '.venv', 'dist', '.specify'])
+const SKIPPED_DIRECTORIES = new Set([
+  'node_modules',
+  '.git',
+  'vendors',
+  '.venv',
+  'dist',
+  '.specify',
+  'target',
+])
 
 /**
  * @param {string} root
@@ -255,6 +263,40 @@ function checkBiome(root, violations) {
   }
 }
 
+// Every Rust crate forbids unsafe code and turns on clippy's default and pedantic
+// groups, which CI runs with warnings as errors; no lint is allowed in a manifest.
+const CLIPPY_GROUPS = ['all', 'pedantic']
+
+/**
+ * @param {string} root
+ * @param {string[]} violations
+ */
+function checkCargo(root, violations) {
+  for (const path of findFiles(root, 'Cargo.toml')) {
+    const label = relative(root, path)
+    /** @type {Record<string, Record<string, unknown>>} */
+    const lints = readToml(path).lints ?? {}
+    /** @param {unknown} setting */
+    const level = (setting) =>
+      typeof setting === 'object' && setting !== null ? Reflect.get(setting, 'level') : setting
+    if (level(lints['rust']?.['unsafe_code']) !== 'forbid') {
+      violations.push(`${label}: lints.rust.unsafe_code must be "forbid"`)
+    }
+    for (const group of CLIPPY_GROUPS) {
+      if (!['warn', 'deny', 'forbid'].includes(String(level(lints['clippy']?.[group])))) {
+        violations.push(`${label}: lints.clippy.${group} must be on (warn, which CI denies)`)
+      }
+    }
+    for (const [tool, table] of Object.entries(lints)) {
+      for (const [lint, setting] of Object.entries(table)) {
+        if (level(setting) === 'allow' && !(tool === 'clippy' && CLIPPY_GROUPS.includes(lint))) {
+          violations.push(`${label}: lints.${tool}.${lint} is allowed; fix the code instead`)
+        }
+      }
+    }
+  }
+}
+
 /**
  * @param {string} root
  * @returns {string[]} one line per violation, empty when every configuration is strict
@@ -265,6 +307,7 @@ export function checkStrictConfigs(root) {
   checkTsconfigs(root, violations)
   checkBiome(root, violations)
   checkPyprojects(root, violations)
+  checkCargo(root, violations)
   return violations
 }
 

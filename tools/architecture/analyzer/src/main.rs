@@ -1,0 +1,92 @@
+//! The analyzer's command line.
+//!
+//! - `check`: prints every violation with its fix; exit 1 when any.
+//! - `json [--base <ref>]`: prints the report.
+//! - `watch [--port <n>] [--ui <dir>] [--base <ref>]`: serves the view and pushes each
+//!   change to the architecture; prints its address on its first line.
+//!
+//! Run from the repository root, or give it with `--root <dir>`.
+
+use std::path::PathBuf;
+use std::process::ExitCode;
+use std::sync::mpsc;
+
+use architecture_analyzer::{analyze, render, serve, watch};
+
+struct Options {
+    command: String,
+    root: PathBuf,
+    base: Option<String>,
+    port: u16,
+    ui: Option<PathBuf>,
+}
+
+fn options(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
+    let command = args
+        .next()
+        .ok_or("usage: architecture-analyzer check|json|watch [options]")?;
+    let mut options = Options {
+        command,
+        root: PathBuf::from("."),
+        base: None,
+        port: 0,
+        ui: None,
+    };
+    while let Some(flag) = args.next() {
+        let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
+        match flag.as_str() {
+            "--root" => options.root = PathBuf::from(value),
+            "--base" => options.base = Some(value),
+            "--port" => {
+                options.port = value
+                    .parse()
+                    .map_err(|_| format!("--port {value}: not a port"))?;
+            }
+            "--ui" => options.ui = Some(PathBuf::from(value)),
+            other => return Err(format!("unknown option {other}")),
+        }
+    }
+    Ok(options)
+}
+
+fn run(options: Options) -> Result<ExitCode, String> {
+    match options.command.as_str() {
+        "check" => {
+            let report = analyze(&options.root, None)?;
+            print!("{}", render(&report.violations));
+            Ok(if report.violations.is_empty() {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            })
+        }
+        "json" => {
+            let report = analyze(&options.root, options.base.as_deref())?;
+            println!(
+                "{}",
+                serde_json::to_string(&report).map_err(|e| e.to_string())?
+            );
+            Ok(ExitCode::SUCCESS)
+        }
+        "watch" => {
+            let (tx, rx) = mpsc::channel();
+            watch(&options.root, options.base.as_deref(), tx)?;
+            let address = serve(options.port, options.ui, rx)?;
+            println!("{address}");
+            loop {
+                std::thread::park();
+            }
+        }
+        other => Err(format!("unknown command {other}; use check, json or watch")),
+    }
+}
+
+fn main() -> ExitCode {
+    match options(std::env::args().skip(1)).and_then(run) {
+        Ok(code) => code,
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::from(2)
+        }
+    }
+}
