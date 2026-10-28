@@ -1,5 +1,5 @@
-import { type Generated, Kysely, PostgresDialect } from 'kysely'
-import pg from 'pg'
+import { connect } from '@polly/database'
+import type { Generated, Kysely } from 'kysely'
 
 // The tables the API's own code queries; Better Auth's are its own.
 export interface Database {
@@ -12,7 +12,5 @@ export interface Database {
 }
 
 export function createDatabase(url: string): Kysely<Database> {
-  return new Kysely<Database>({
-    dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString: url, max: 5 }) }),
-  })
+  return connect<Database>(url)
 }
