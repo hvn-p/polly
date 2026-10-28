@@ -3,8 +3,13 @@ import { once } from 'node:events'
 import { join } from 'node:path'
 import { DBOSClient } from '@dbos-inc/dbos-sdk'
 import { submitPlaceholderAnalysis } from '@polly/back'
+import { dbosAnalysisQueue } from '@polly/queue'
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it } from 'vitest'
-import { dbosAnalysisQueue } from '../src/entry/analysis/index.ts'
+import {
+  placeholderAnalysisInput,
+  placeholderAnalysisResult,
+  placeholderAnalysisTask,
+} from '../src/entry/contracts/placeholder-analysis.ts'
 
 const workerProject = join(import.meta.dirname, '..', '..', '..', 'services', 'pron-worker')
 // The interpreter of the worker's synced environment, run directly: killing it
@@ -62,6 +67,15 @@ async function until(condition: () => boolean, timeoutMs: number): Promise<void>
   }
 }
 
+const { queueName, workflowName, applicationVersion } = placeholderAnalysisTask.shape
+const task = {
+  queueName: queueName.value,
+  workflowName: workflowName.value,
+  applicationVersion: applicationVersion.value,
+  input: placeholderAnalysisInput,
+  result: placeholderAnalysisResult,
+}
+
 beforeAll(async () => {
   client = await DBOSClient.create({ systemDatabaseUrl: inject('testDatabaseUrl'), applicationName: 'polly' })
 })
@@ -82,14 +96,14 @@ afterAll(async () => {
 describe('placeholder analysis, across the API and the worker', { timeout: 120_000 }, () => {
   it('C29, C46: the fake worker returns its predefined result through the workflow handle, loading no model', async () => {
     await startWorker()
-    const result = await submitPlaceholderAnalysis({ queue: dbosAnalysisQueue(client) }, 'recording-1')
+    const result = await submitPlaceholderAnalysis({ queue: dbosAnalysisQueue(client, task) }, 'recording-1')
     expect(result).toEqual({ recordingId: 'recording-1', score: 0.75, analyzer: 'fake', modelLoaded: false })
   })
 
   it('a worker killed in the middle of a task leaves exactly one result once a worker restarts', async () => {
     const startTime = new Date().toISOString()
     const slow = await startWorker({ slow: true })
-    const result = submitPlaceholderAnalysis({ queue: dbosAnalysisQueue(client) }, 'recording-killed')
+    const result = submitPlaceholderAnalysis({ queue: dbosAnalysisQueue(client, task) }, 'recording-killed')
     await until(() => slow.output().includes('analyzing recording-killed'), 60_000)
     slow.worker.kill('SIGKILL')
     await once(slow.worker, 'exit')

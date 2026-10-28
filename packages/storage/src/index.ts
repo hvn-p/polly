@@ -1,5 +1,5 @@
-// The S3 client the API builds from its configuration: path-style, as Garage
-// serves buckets.
+// The storage capacity: the S3 client a process builds from its
+// configuration, path-style, as Garage serves buckets.
 
 import { S3Client } from '@aws-sdk/client-s3'
 import type { Config } from '@polly/platform'
