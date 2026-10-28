@@ -68,28 +68,48 @@ event arrives once and in order; a test that rebuilds a session from its log alo
 
 ### VI. Hexagonal architecture
 
-Polly follows hexagonal architecture (ports and adapters). The domain defines its ports;
-the database, file storage, AI clients, background workers and the clock are adapters. The
-domain never imports an adapter, and an adapter can be replaced without touching the
-domain.
+Polly's code never talks to a technology directly. Every external component
+(database, file storage, identity, logging, durable tasks, AI clients, the compute
+service, the clock) sits behind a port: an interface declared by the code that
+needs it, in that code's words, holding only the functions it calls. An adapter
+implements one or more ports with one technology.
 
-Why: every external piece can change, and the domain must stay testable without any of
-them.
+Adapters are grouped in one package per capacity, named by what it provides
+(`database`, never `postgres`). Only a process's composition root imports them. An
+adapter package may depend on a lower one, never in a cycle. An interface (web
+front end, MCP server, monitor) reaches the back only through the API's generated
+contract.
 
-*Verified by*: domain tests that run on in-memory adapters; the dependency check of the
-next principle; code review.
+Why: every external piece can change, and the business code must stay testable
+and readable without any of them.
 
-### VII. Ordered tiers, no imports between peers
+*Verified by*: the dependency check (no technology library and no adapter package
+outside the adapters and the composition roots, no cycle between adapter
+packages); domain tests on in-memory adapters; code review.
 
-Modules are arranged in ordered tiers, and dependencies only point down. Modules on the same
-tier never import each other: whatever needs two modules is composed in the tier above. A
-module is entered only through its public entry point. The graph has no cycle.
+### VII. Ordered tiers, each defined by a criterion
 
-Why: a graph between peers grows one reasonable-looking edge at a time until everything
-calls everything; a ban between peers leaves no such edge to add.
+Code is arranged in ordered tiers, and dependencies only point down. A tier is
+defined by what it may import and what it may do, never by a folder name: a module
+belongs to the tier whose criterion its content meets. Modules on the same tier
+never import each other: whatever needs two modules is composed in the tier above.
+A module is entered only through its public entry point. The graph has no cycle.
 
-*Verified by*: a dependency-graph check in CI that fails on any violation and whose message
-names the fix.
+Before building, the author names the tier an addition belongs to. When none fits,
+the work stops: a trivial case is decided and written in the pull request with its
+reason; any other case goes to a human with the options. Code is never forced into
+a tier whose criterion it does not meet, and a dependency rule never gets an
+exception to let it through.
+
+Why: a graph between peers grows one reasonable-looking edge at a time until
+everything calls everything; a tier defined by a folder rather than a criterion
+fills with whatever was nearest.
+
+*Verified by*: a dependency check in CI that reads its rules from one file at the
+repository root, fails on any violation, names the fix in its message, and has a
+test per rule that feeds it a deliberate violation; the same analysis drawn live as
+the architecture view; a reason in the pull request for any change to that file;
+code review, which refuses a module that does not meet its tier's criterion.
 
 ### VIII. DRY, with value objects
 
@@ -123,9 +143,16 @@ What the market already does well (authentication, durable tasks, storage, speec
 adopted, not rewritten. Choosing a component is recorded as an ADR, and an in-house
 solution needs a written reason there.
 
+A dependency lives in the project whenever it can, so that cloning the repository
+is enough to work: the machine provides only what the project cannot carry (Node,
+Docker). The root manifest declares only the tools of the whole project and the
+dependencies common to every package; every other package declares what it
+imports.
+
 Why: Polly's value is in learning, not in solving problems that are already solved.
 
-*Verified by*: an ADR for every component choice; code review.
+*Verified by*: an ADR for every component choice; the dependency check, which refuses an
+import its package does not declare; code review.
 
 ## Fabrication
 
@@ -233,4 +260,4 @@ or redefined, MINOR when one is added or materially expanded, PATCH for wording.
 checks the feature against each principle; code review judges the principles that no
 program checks. Day-to-day guidance for agents lives in `AGENTS.md`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-10-26
+**Version**: 2.0.0 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-10-28
