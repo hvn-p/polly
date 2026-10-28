@@ -14,8 +14,9 @@ export {
   identityOptions,
   learnerAccounts,
   mcpResource,
+  registerMcpClient,
 } from './better-auth.ts'
-export { TOKEN_EXCHANGE_GRANT } from './token-exchange.ts'
+export { MCP_CLIENT_ID, TOKEN_EXCHANGE_GRANT } from './token-exchange.ts'
 
 // Which learner makes a request for this resource: the learner its bearer
 // token was issued to, or the 401 whose WWW-Authenticate header starts the

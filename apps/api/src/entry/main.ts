@@ -7,7 +7,13 @@
 
 import { isIP } from 'node:net'
 import { assertSchemaCurrent, connect, PostgresStore, SchemaBehind } from '@polly/database'
-import { authenticator, createIdentity, type IdentitySettings, mcpResource } from '@polly/identity'
+import {
+  authenticator,
+  createIdentity,
+  type IdentitySettings,
+  mcpResource,
+  registerMcpClient,
+} from '@polly/identity'
 import { createLogger } from '@polly/logging'
 import { type Clock, type Config, type Logger, readConfig, systemClock } from '@polly/platform'
 import { type RunningServer, serveApi } from './server.ts'
@@ -50,6 +56,7 @@ export async function startServer({
     db,
     ...(fetchClientMetadataResource === undefined ? {} : { fetchClientMetadataResource }),
   })
+  await registerMcpClient(identity, config.PUBLIC_URL, config.MCP_CLIENT_SECRET)
   const server = await serveApi(
     { hostname, port },
     {

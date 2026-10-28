@@ -3,6 +3,7 @@
 // (the API resource's lifetime). The client authenticates as the confidential
 // client it is; the subject token must be an active token issued for the MCP.
 
+import { createHash } from 'node:crypto'
 import type { OAuthExtensionGrantHandler, OAuthProviderExtension } from '@better-auth/oauth-provider'
 import { APIError } from 'better-auth/api'
 
@@ -45,6 +46,16 @@ function exchange({ mcp, api }: { mcp: string; api: string }): OAuthExtensionGra
     return provider.issueTokens({ client, user, scopes, resources: [api] })
   }
 }
+
+// How a client secret is kept: its SHA-256, the same for the clients Better Auth
+// registers and the one registerMcpClient records.
+export async function hashSecret(secret: string): Promise<string> {
+  return createHash('sha256').update(secret).digest('base64url')
+}
+
+// The MCP server's client id. Its secret is the worktree's, or the vault's in
+// production; registerMcpClient records both at the API's start.
+export const MCP_CLIENT_ID = 'polly-mcp'
 
 export function tokenExchange(resources: { mcp: string; api: string }): OAuthProviderExtension {
   return { grants: { [TOKEN_EXCHANGE_GRANT]: exchange(resources) } }

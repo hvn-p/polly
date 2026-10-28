@@ -13,6 +13,7 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     S3_ACCESS_KEY_ID: 'GK000000000000000000000000',
     S3_SECRET_ACCESS_KEY: '0'.repeat(64),
     BETTER_AUTH_SECRET: 'test-secret-'.padEnd(43, 'x'),
+    MCP_CLIENT_SECRET: 'mcp-secret-'.padEnd(43, 'y'),
     POLLY_ENV: 'local',
     ...overrides,
   }

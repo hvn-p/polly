@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readConfig } from './index.ts'
+import { readConfig, readConfigOf } from './index.ts'
 
 const env = {
   DATABASE_URL: 'postgresql://polly_a:secret@127.0.0.1:55432/polly_a',
@@ -10,6 +10,7 @@ const env = {
   S3_ACCESS_KEY_ID: 'GKabababababababababababab',
   S3_SECRET_ACCESS_KEY: 'cd'.repeat(32),
   BETTER_AUTH_SECRET: 'q6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6s',
+  MCP_CLIENT_SECRET: 'm'.repeat(43),
   POLLY_ENV: 'local',
 }
 
@@ -30,5 +31,11 @@ describe('configuration', () => {
 
   it('refuses a short auth secret', () => {
     expect(() => readConfig({ ...env, BETTER_AUTH_SECRET: 'short' })).toThrow(/BETTER_AUTH_SECRET/)
+  })
+
+  it('reads only the keys a process names', () => {
+    const config = readConfigOf({ ...env, DATABASE_URL: 'not a url' }, ['PUBLIC_URL', 'MCP_CLIENT_SECRET'])
+    expect(config).toEqual({ PUBLIC_URL: env.PUBLIC_URL, MCP_CLIENT_SECRET: env.MCP_CLIENT_SECRET })
+    expect(() => readConfigOf({}, ['PUBLIC_URL'])).toThrow(/PUBLIC_URL/)
   })
 })

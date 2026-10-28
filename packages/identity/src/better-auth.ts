@@ -10,7 +10,7 @@ import { BASE_ERROR_CODES, type BetterAuthOptions, betterAuth } from 'better-aut
 import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { jwt } from 'better-auth/plugins'
 import type { Kysely } from 'kysely'
-import { tokenExchange } from './token-exchange.ts'
+import { hashSecret, MCP_CLIENT_ID, TOKEN_EXCHANGE_GRANT, tokenExchange } from './token-exchange.ts'
 
 type ClientMetadataResourceFetch = Parameters<typeof cimd>[0]['fetchClientMetadataResource']
 
@@ -77,6 +77,7 @@ export function identityOptions(settings: IdentitySettings) {
         extensions: [
           tokenExchange({ mcp: mcpResource(settings.publicUrl), api: apiResource(settings.publicUrl) }),
         ],
+        storeClientSecret: { hash: hashSecret },
       }),
       cimd({
         fetchClientMetadataResource: settings.fetchClientMetadataResource ?? fetchOverNetwork,
@@ -116,4 +117,59 @@ export async function createLearnerAccount(identity: Identity, account: LearnerA
 // The back's accounts port, over this identity.
 export function learnerAccounts(identity: Identity): LearnerAccounts {
   return { create: (account) => createLearnerAccount(identity, account) }
+}
+
+// Records the MCP server as a confidential client allowed the token exchange
+// only, linked to the API resource, with the configured secret. Run at each
+// start of the API, so a new secret replaces the old one; several processes
+// starting at once each find the rows another created.
+export async function registerMcpClient(
+  identity: Identity,
+  publicUrl: string,
+  secret: string,
+): Promise<void> {
+  const { adapter } = await identity.$context
+  const now = new Date()
+  const identifier = apiResource(publicUrl)
+  // Creates a row unless one exists, whoever created it first.
+  const ensure = async (
+    model: string,
+    where: { field: string; value: string }[],
+    data: Record<string, unknown>,
+  ) => {
+    if ((await adapter.findOne({ model, where })) === null) {
+      await adapter.create({ model, data }).catch(async (error: unknown) => {
+        if ((await adapter.findOne({ model, where })) === null) {
+          throw error
+        }
+      })
+    }
+  }
+  await ensure('oauthResource', [{ field: 'identifier', value: identifier }], {
+    identifier,
+    name: 'Polly API',
+    accessTokenTtl: API_TOKEN_SECONDS,
+    policyVersion: 1,
+    disabled: false,
+    createdAt: now,
+    updatedAt: now,
+  })
+  const byId = [{ field: 'clientId', value: MCP_CLIENT_ID }]
+  const client = {
+    clientSecret: await hashSecret(secret),
+    name: 'Polly MCP server',
+    tokenEndpointAuthMethod: 'client_secret_post',
+    grantTypes: [TOKEN_EXCHANGE_GRANT],
+    redirectUris: [],
+    skipConsent: true,
+    disabled: false,
+    updatedAt: now,
+  }
+  await ensure('oauthClient', byId, { clientId: MCP_CLIENT_ID, createdAt: now, ...client })
+  await adapter.update({ model: 'oauthClient', where: byId, update: client })
+  await ensure('oauthClientResource', [...byId, { field: 'resourceId', value: identifier }], {
+    clientId: MCP_CLIENT_ID,
+    resourceId: identifier,
+    createdAt: now,
+  })
 }

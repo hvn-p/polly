@@ -11,6 +11,7 @@ const env = {
   S3_ACCESS_KEY_ID: 'GKabababababababababababab',
   S3_SECRET_ACCESS_KEY: 'cd'.repeat(32),
   BETTER_AUTH_SECRET: 'q6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6s',
+  MCP_CLIENT_SECRET: 'm'.repeat(43),
   POLLY_ENV: 'local',
 }
 
