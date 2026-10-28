@@ -3,7 +3,7 @@
 // It exists only locally. Each feature that adds a domain extends this flow
 // with that domain's data, through its flows.
 
-import { Refusal } from '../../kernel/refusal/index.ts'
+import { Refusal } from '@polly/platform'
 import { createLearnerAccount, type Identity } from '../../reference/identity/index.ts'
 import { DEMO_ACCOUNT } from './demo-account.ts'
 

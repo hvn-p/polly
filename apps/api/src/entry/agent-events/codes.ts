@@ -2,17 +2,13 @@
 // through start_lesson, active until revoked. Stored as its SHA-256 only, and
 // never logged.
 
-import { createHash } from 'node:crypto'
+import { hash } from '@polly/kernel'
 import type { Kysely } from 'kysely'
 import type { Database } from '../database.ts'
 
 export type CodeState = { state: 'unbound' } | { state: 'bound'; learnerId: string } | { state: 'revoked' }
 
 export type BindOutcome = 'bound' | 'EVENT_CODE_ALREADY_BOUND' | 'EVENT_CODE_REVOKED'
-
-export function hashCode(code: string): string {
-  return createHash('sha256').update(code).digest('hex')
-}
 
 export function eventCodes(db: Kysely<Database>) {
   const stateOf = async (codeHash: string): Promise<CodeState> => {
@@ -32,7 +28,7 @@ export function eventCodes(db: Kysely<Database>) {
     // A code is bound once and never to another learner; binding it again to
     // the same learner changes nothing.
     bind: async (learnerId: string, code: string): Promise<BindOutcome> => {
-      const codeHash = hashCode(code)
+      const codeHash = hash(code)
       await db
         .insertInto('agent_event_code')
         .values({ code_hash: codeHash, learner_id: learnerId })

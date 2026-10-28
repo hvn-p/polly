@@ -10,8 +10,14 @@
       "paths": ["apps/api/src", "apps/api/src/entry", "apps/mcp/src", "apps/worker/src"],
       "mayImport": [
         "flows",
-        { "tier": "domains", "typesOnly": true },
-        { "tier": "adapters", "onlyFrom": ["apps/*/src/main.ts"] },
+        {
+          "tier": "domains",
+          "typesOnly": true
+        },
+        {
+          "tier": "adapters",
+          "onlyFrom": ["apps/*/src/main.ts"]
+        },
         "kernel",
         "socle",
         "contract"
@@ -35,7 +41,14 @@
       "name": "Flows",
       "criterion": "One use case each: chain domain calls through their ports, compute nothing, no technology.",
       "paths": ["packages/back/src/flows/*", "apps/api/src/flows/*"],
-      "mayImport": ["domains", { "tier": "kernel", "typesOnly": true }, "socle"],
+      "mayImport": [
+        "domains",
+        {
+          "tier": "kernel",
+          "typesOnly": true
+        },
+        "socle"
+      ],
       "isolated": "Two flows never import each other: compose them in the process that calls them.",
       "technologies": [],
       "fix": "A flow chains domains and computes nothing: move the computation into a domain, the technology into a capacity package behind a port.",
@@ -69,7 +82,15 @@
         "packages/migrations",
         "apps/api/src/reference/*"
       ],
-      "mayImport": ["adapters", { "tier": "domains", "typesOnly": true }, "kernel", "socle"],
+      "mayImport": [
+        "adapters",
+        {
+          "tier": "domains",
+          "typesOnly": true
+        },
+        "kernel",
+        "socle"
+      ],
       "fix": "An adapter implements ports: it imports the domains' types, the kernel, the socle and lower capacities, nothing above."
     },
     {
@@ -77,7 +98,7 @@
       "group": "back",
       "name": "Kernel",
       "criterion": "Polly's pure values (ids, the event code, scores) and the one hash function. No rule, no other technology.",
-      "paths": ["packages/kernel", "apps/api/src/kernel/*"],
+      "paths": ["packages/kernel"],
       "mayImport": ["socle"],
       "technologies": ["node:crypto"],
       "fix": "The kernel holds values: a rule goes to a domain.",
@@ -190,7 +211,6 @@
         "dev-ports",
         "dev-config",
         "dev-identity",
-        "dev-kernel",
         "socle"
       ],
       "fix": "The dev entry wires the tiers below it."
@@ -210,7 +230,6 @@
         "dev-ports",
         "dev-config",
         "dev-identity",
-        "dev-kernel",
         "socle"
       ],
       "fix": "A dev command imports only the dev tiers below it."
@@ -229,7 +248,6 @@
         "dev-ports",
         "dev-config",
         "dev-identity",
-        "dev-kernel",
         "socle",
         "flows"
       ],
@@ -248,7 +266,6 @@
         "dev-ports",
         "dev-config",
         "dev-identity",
-        "dev-kernel",
         "socle"
       ],
       "fix": "The worktree tier imports only the dev tiers below it."
@@ -259,15 +276,7 @@
       "name": "Dev supervisor",
       "criterion": "The process group holding a worktree's processes.",
       "paths": ["dev/src/supervisor"],
-      "mayImport": [
-        "dev-infra",
-        "dev-machine",
-        "dev-ports",
-        "dev-config",
-        "dev-identity",
-        "dev-kernel",
-        "socle"
-      ],
+      "mayImport": ["dev-infra", "dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"],
       "fix": "The supervisor imports only the dev tiers below it."
     },
     {
@@ -276,7 +285,7 @@
       "name": "Dev infrastructure",
       "criterion": "The adapters of the shared infrastructure: compose, Postgres, Garage, portless.",
       "paths": ["dev/src/infra"],
-      "mayImport": ["dev-machine", "dev-ports", "dev-config", "dev-identity", "dev-kernel", "socle"],
+      "mayImport": ["dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"],
       "fix": "An infrastructure adapter imports only the dev tiers below it."
     },
     {
@@ -285,7 +294,7 @@
       "name": "Dev machine",
       "criterion": "What the machine provides: prerequisites, locks, dependencies.",
       "paths": ["dev/src/machine"],
-      "mayImport": ["dev-ports", "dev-config", "dev-identity", "dev-kernel", "socle"],
+      "mayImport": ["dev-ports", "dev-config", "dev-identity", "socle"],
       "fix": "The machine tier imports only the dev tiers below it."
     },
     {
@@ -294,7 +303,7 @@
       "name": "Dev ports",
       "criterion": "The interfaces the commands use, which the infrastructure and the fakes implement.",
       "paths": ["dev/src/ports"],
-      "mayImport": ["dev-config", "dev-identity", "dev-kernel", "socle"],
+      "mayImport": ["dev-config", "dev-identity", "socle"],
       "fix": "The ports import only the dev tiers below them."
     },
     {
@@ -303,7 +312,7 @@
       "name": "Dev configuration",
       "criterion": "The worktree's .env.local and its template.",
       "paths": ["dev/src/config"],
-      "mayImport": ["dev-identity", "dev-kernel", "socle"],
+      "mayImport": ["dev-identity", "socle"],
       "fix": "The configuration imports only the identity and the kernel."
     },
     {
@@ -312,17 +321,8 @@
       "name": "Dev identity",
       "criterion": "A worktree's identity and the resource names derived from it.",
       "paths": ["dev/src/identity"],
-      "mayImport": ["dev-kernel", "socle"],
-      "fix": "The identity imports only the kernel."
-    },
-    {
-      "id": "dev-kernel",
-      "group": "dev",
-      "name": "Dev kernel",
-      "criterion": "What every dev tier shares, with no rule.",
-      "paths": ["dev/src/kernel"],
       "mayImport": ["socle"],
-      "fix": "The dev kernel imports only the socle."
+      "fix": "The identity imports only the kernel."
     },
     {
       "id": "tools",
@@ -343,9 +343,16 @@
       "provides": "MCP server",
       "technologies": ["node:*", "hono", "@hono/node-server", "zod", "@modelcontextprotocol/server"]
     },
-    "@polly/worker": { "provides": "durable workflows", "technologies": ["node:*", "@dbos-inc/dbos-sdk"] },
-    "@polly/web": { "provides": "React front end" },
-    "@polly/back": { "provides": "flows and domains, no technology" },
+    "@polly/worker": {
+      "provides": "durable workflows",
+      "technologies": ["node:*", "@dbos-inc/dbos-sdk"]
+    },
+    "@polly/web": {
+      "provides": "React front end"
+    },
+    "@polly/back": {
+      "provides": "flows and domains, no technology"
+    },
     "@polly/database": {
       "provides": "connection, table types, all SQL, schema check",
       "technologies": ["node:*", "kysely", "pg"]
@@ -354,15 +361,36 @@
       "provides": "migrations, run as a command",
       "runOnly": "@polly/migrations is run (its command), never imported: check the schema through @polly/database."
     },
-    "@polly/identity": { "provides": "who makes a request: Better Auth and the token exchange" },
-    "@polly/queue": { "provides": "durable task client", "technologies": ["node:*", "@dbos-inc/dbos-sdk"] },
-    "@polly/storage": { "provides": "object storage", "technologies": ["node:*", "@aws-sdk/client-s3"] },
-    "@polly/logging": { "provides": "structured logs with redaction", "technologies": ["node:*", "pino"] },
-    "@polly/analysis": { "provides": "the compute service's client and the fake analyzer" },
-    "@polly/kernel": { "provides": "product values, the hash" },
-    "@polly/platform": { "provides": "Refusal, the Logger and Clock ports, the configuration schema" },
-    "@polly/contract": { "provides": "the API's generated client and refusal codes" },
-    "@polly/plugin": { "provides": "the Claude Code plugin" },
+    "@polly/identity": {
+      "provides": "who makes a request: Better Auth and the token exchange"
+    },
+    "@polly/queue": {
+      "provides": "durable task client",
+      "technologies": ["node:*", "@dbos-inc/dbos-sdk"]
+    },
+    "@polly/storage": {
+      "provides": "object storage",
+      "technologies": ["node:*", "@aws-sdk/client-s3"]
+    },
+    "@polly/logging": {
+      "provides": "structured logs with redaction",
+      "technologies": ["node:*", "pino"]
+    },
+    "@polly/analysis": {
+      "provides": "the compute service's client and the fake analyzer"
+    },
+    "@polly/kernel": {
+      "provides": "product values, the hash"
+    },
+    "@polly/platform": {
+      "provides": "Refusal, the Logger and Clock ports, the configuration schema"
+    },
+    "@polly/contract": {
+      "provides": "the API's generated client and refusal codes"
+    },
+    "@polly/plugin": {
+      "provides": "the Claude Code plugin"
+    },
     "@polly/dev": {
       "provides": "each worktree's local Polly",
       "runOnly": "The dev commands are run, never imported: an app never depends on the development environment."

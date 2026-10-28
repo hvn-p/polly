@@ -220,6 +220,12 @@ importers:
       '@polly/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@polly/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
+      '@polly/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
       better-auth:
         specifier: 1.7.13
         version: 1.7.13(@opentelemetry/api@1.10.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
@@ -291,6 +297,9 @@ importers:
       '@polly/database':
         specifier: workspace:*
         version: link:../packages/database
+      '@polly/platform':
+        specifier: workspace:*
+        version: link:../packages/platform
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
@@ -310,6 +319,14 @@ importers:
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
+
+  packages/kernel: {}
+
+  packages/platform:
+    dependencies:
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
 
   plugin: {}
 

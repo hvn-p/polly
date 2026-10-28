@@ -2,7 +2,7 @@
 // without the markers of a Claude Code session the run was started from
 // (inherited, they make the driven session a child that keeps no transcript).
 
-import { Refusal } from '../kernel/index.ts'
+import { Refusal } from '@polly/platform'
 import { agentSession, type Session } from '../worktree/index.ts'
 
 export function drivenSession(root: string, args: readonly string[], baseEnv = process.env): Session {

@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { Refusal } from '../kernel/index.ts'
+import { Refusal } from '@polly/platform'
 import { lock } from '../machine/index.ts'
 import type { SharedInfrastructure } from '../ports/index.ts'
 

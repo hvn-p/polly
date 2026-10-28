@@ -23,9 +23,11 @@ async function demoUsers(): Promise<number> {
 
 describe('demo account seed', () => {
   it('C26: refuses to run outside the local environment, and creates no account', async () => {
-    await expect(seedDemoAccount({ environment: 'production', identity: server.identity })).rejects.toThrow(
-      /^NOT_LOCAL_ENVIRONMENT/,
-    )
+    await expect(
+      seedDemoAccount({ environment: 'production', identity: server.identity }),
+    ).rejects.toMatchObject({
+      code: 'NOT_LOCAL_ENVIRONMENT',
+    })
     expect(await demoUsers()).toBe(0)
   })
 

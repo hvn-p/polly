@@ -3,7 +3,7 @@
 
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
-import { Refusal } from '../kernel/index.ts'
+import { Refusal } from '@polly/platform'
 
 export interface Worktree {
   root: string

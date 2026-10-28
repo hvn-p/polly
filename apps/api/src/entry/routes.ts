@@ -3,7 +3,7 @@
 // runs once the rule has let the request through. A rule or a route refuses by
 // throwing a Refusal, answered with its HTTP translation.
 
-import { Refusal } from '../kernel/refusal/index.ts'
+import { Refusal } from '@polly/platform'
 import { refusalResponse } from './refusals.ts'
 
 export type Access = 'public' | 'learner' | 'event-code'

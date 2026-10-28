@@ -1,6 +1,6 @@
 import { honoLogger } from '@logtape/hono'
+import { Refusal } from '@polly/platform'
 import { Hono } from 'hono'
-import { Refusal } from '../kernel/refusal/index.ts'
 import { refusalResponse } from './refusals.ts'
 import type { RouteRegistry } from './routes.ts'
 

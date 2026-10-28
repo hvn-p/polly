@@ -1,4 +1,4 @@
-import { Refusal } from '../kernel/index.ts'
+import { Refusal } from '@polly/platform'
 import { readEnv, required, worktreeAt } from '../worktree/index.ts'
 
 // dev:url: the worktree's URL, from its configuration.

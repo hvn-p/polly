@@ -2,8 +2,8 @@
 // A refusal prints `<CODE>: <message>` and exits 1; an unexpected failure
 // exits 2.
 
+import { Refusal } from '@polly/platform'
 import { agent, down, e2e, up, url, worker } from './commands/index.ts'
-import { Refusal } from './kernel/index.ts'
 import { installDependencies, prerequisites } from './machine/index.ts'
 import type { Infrastructure } from './ports/index.ts'
 

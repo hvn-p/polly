@@ -5,12 +5,13 @@
 // after 120 s. It carries no learner data and touches no session log; the
 // session log's stream replaces it.
 
+import { hash } from '@polly/kernel'
+import type { Clock } from '@polly/platform'
+import { Refusal } from '@polly/platform'
 import type { z } from 'zod'
-import type { Clock } from '../../kernel/clock/index.ts'
-import { Refusal } from '../../kernel/refusal/index.ts'
 import { eventCode, type refusalCode } from '../contracts/agent-events.ts'
 import type { Guard, RouteRegistry } from '../routes.ts'
-import { type EventCodes, hashCode } from './codes.ts'
+import type { EventCodes } from './codes.ts'
 
 const BINDING_CHECK_MS = 1_000
 const UNBOUND_LIMIT_MS = 120_000
@@ -31,7 +32,7 @@ export function eventCodeGuard(codes: EventCodes): Guard<'event-code'> {
     if (!eventCode.safeParse(code).success) {
       throw refused('INVALID_EVENT_CODE', 'an event code is 43 base64url characters')
     }
-    const codeHash = hashCode(code)
+    const codeHash = hash(code)
     if ((await codes.stateOf(codeHash)).state === 'revoked') {
       throw refused('EVENT_CODE_REVOKED', 'this event code was revoked; draw a new one')
     }

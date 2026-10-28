@@ -1,5 +1,5 @@
+import { Refusal } from '@polly/platform'
 import { z } from 'zod'
-import { Refusal } from '../../kernel/refusal/index.ts'
 import type { EventCodes } from '../agent-events/codes.ts'
 import { eventCode } from '../contracts/agent-events.ts'
 import { defineTool, type ToolDefinition } from './index.ts'

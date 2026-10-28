@@ -1,5 +1,5 @@
+import type { Config } from '@polly/platform'
 import { inject } from 'vitest'
-import type { Config } from '../../src/entry/config.ts'
 
 // A configuration on the worktree's test database; the S3 and URL values are
 // placeholders no test reaches over the network.

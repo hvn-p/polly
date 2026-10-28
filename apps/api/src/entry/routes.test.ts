@@ -1,5 +1,5 @@
+import { Refusal } from '@polly/platform'
 import { describe, expect, it } from 'vitest'
-import { Refusal } from '../kernel/refusal/index.ts'
 import { createApp } from './app.ts'
 import { type Guards, type Route, RouteRegistry } from './routes.ts'
 

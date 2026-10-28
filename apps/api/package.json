@@ -20,6 +20,8 @@
     "@logtape/redaction": "2.4.2",
     "@modelcontextprotocol/server": "2.4.0",
     "@polly/database": "workspace:*",
+    "@polly/kernel": "workspace:*",
+    "@polly/platform": "workspace:*",
     "better-auth": "1.7.13",
     "hono": "4.13.14",
     "kysely": "0.29.7",

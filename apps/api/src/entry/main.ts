@@ -4,7 +4,7 @@
 // behind the code (SCHEMA_BEHIND), and starts once nr dev:up has migrated it.
 
 import { isIP } from 'node:net'
-import { readConfig } from './config.ts'
+import { readConfig } from '@polly/platform'
 import { configureLogging, logger } from './logger.ts'
 import { startWhenSchemaCurrent } from './server.ts'
 

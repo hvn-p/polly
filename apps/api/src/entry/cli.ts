@@ -2,10 +2,9 @@
 // migrated: `node apps/api/src/entry/cli.ts seed-demo`.
 
 import { fetchClientMetadataResource } from '@better-auth/cimd/node'
+import { Refusal, readConfig } from '@polly/platform'
 import { DEMO_ACCOUNT, seedDemoAccount } from '../flows/seed-demo-account/index.ts'
-import { Refusal } from '../kernel/refusal/index.ts'
 import { createIdentity } from '../reference/identity/index.ts'
-import { readConfig } from './config.ts'
 import { createDatabase } from './database.ts'
 import { configureLogging, logger } from './logger.ts'
 

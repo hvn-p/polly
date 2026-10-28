@@ -1,5 +1,5 @@
+import type { Config } from '@polly/platform'
 import { afterAll } from 'vitest'
-import type { Config } from '../../src/entry/config.ts'
 import { createDatabase } from '../../src/entry/database.ts'
 import { type RunningServer, type ServerOptions, startServer } from '../../src/entry/server.ts'
 import { createIdentity, type Identity } from '../../src/reference/identity/index.ts'

@@ -3,8 +3,8 @@
 // token was issued to. The tools know no particular client.
 
 import { type CallToolResult, createMcpHandler, McpServer } from '@modelcontextprotocol/server'
+import { Refusal } from '@polly/platform'
 import type { z } from 'zod'
-import { Refusal } from '../../kernel/refusal/index.ts'
 import { toolRefusal } from '../refusals.ts'
 import type { RouteRegistry } from '../routes.ts'
 

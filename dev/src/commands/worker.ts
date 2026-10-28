@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { Refusal } from '../kernel/index.ts'
+import { Refusal } from '@polly/platform'
 import { lock, tryLock } from '../machine/index.ts'
 import type { Infrastructure, SupervisedProcess, SupervisorState } from '../ports/index.ts'
 import { readEnv, readState, required, type Worktree, worktreeAt, writeState } from '../worktree/index.ts'

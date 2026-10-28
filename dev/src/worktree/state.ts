@@ -3,9 +3,9 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { Refusal } from '@polly/platform'
 import { parseEnv } from '../config/index.ts'
 import { resourceNames } from '../identity/index.ts'
-import { Refusal } from '../kernel/index.ts'
 import type { BucketAccess, DatabaseAccess, SupervisorState } from '../ports/index.ts'
 import type { Worktree } from './worktree.ts'
 

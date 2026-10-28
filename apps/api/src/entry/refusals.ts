@@ -4,7 +4,7 @@
 // building their own.
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
-import type { Refusal } from '../kernel/refusal/index.ts'
+import type { Refusal } from '@polly/platform'
 
 // A refusal not listed here depends on the state of something: 409.
 const HTTP_STATUS: Record<string, number> = {
@@ -20,5 +20,5 @@ export function refusalResponse(refusal: Refusal): Response {
 
 // Its text starts with the code, which the agent acts on.
 export function toolRefusal(refusal: Refusal): CallToolResult {
-  return { isError: true, content: [{ type: 'text', text: refusal.message }] }
+  return { isError: true, content: [{ type: 'text', text: refusal.text }] }
 }

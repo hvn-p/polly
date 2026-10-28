@@ -1,6 +1,7 @@
 // nr dev:e2e <scenario>: plays a scenario in a driven Claude Code session
 // against this worktree, then prints pass or fail and the transcript's path.
 
+import { Refusal } from '@polly/platform'
 import {
   type ClientStatus,
   probeClaude,
@@ -10,7 +11,6 @@ import {
   type Scenario,
   smoke,
 } from '../e2e/index.ts'
-import { Refusal } from '../kernel/index.ts'
 import type { Infrastructure } from '../ports/index.ts'
 import { readEnv, readState, worktreeAt } from '../worktree/index.ts'
 

@@ -1,4 +1,4 @@
-import type { Clock } from '../../src/kernel/clock/index.ts'
+import type { Clock } from '@polly/platform'
 
 // A clock whose time moves only when the test advances it.
 export function fakeClock() {

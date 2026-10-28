@@ -15,7 +15,7 @@ const TRANSLATIONS = 'entry/refusals.ts'
 const TOOL_REGISTRATION = 'entry/mcp/index.ts'
 const SOURCE_FILE = /\.(ts|tsx|mts|js|mjs)$/
 const TEST_FILE = /\.test\.(ts|tsx|mts|js|mjs)$/
-const THROW = `throw a Refusal (kernel/refusal); ${TRANSLATIONS} translates it`
+const THROW = `throw a Refusal (@polly/platform); ${TRANSLATIONS} translates it`
 
 const RULES = [
   {
