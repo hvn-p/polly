@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rules",
+  "description": "The whole rules file.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Where an editor finds this file's schema.",
+      "type": ["string", "null"],
+      "default": null
+    },
+    "about": {
+      "description": "What the file is, for its reader.",
+      "type": ["string", "null"],
+      "default": null
+    },
+    "ignore": {
+      "description": "Files left out of the analysis, as globs from the root.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "tiers": {
+      "description": "The tiers, top first within each group.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Tier"
+      }
+    },
+    "packages": {
+      "description": "Rules on workspace packages, by package name.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/PackageRule"
+      },
+      "default": {}
+    },
+    "root": {
+      "description": "What the root manifest may declare.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RootRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "additionalProperties": false,
+  "required": ["tiers"],
+  "$defs": {
+    "Tier": {
+      "description": "One tier: where its modules are and what they may import.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Its identifier, used by `mayImport`.",
+          "type": "string"
+        },
+        "group": {
+          "description": "The stack it belongs to (back, web, dev…), for the view.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Its name, for people.",
+          "type": "string"
+        },
+        "criterion": {
+          "description": "What a module must meet to belong here.",
+          "type": "string"
+        },
+        "paths": {
+          "description": "Where its modules are; a `*` segment makes one module per directory.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mayImport": {
+          "description": "The tiers its modules may import, its own included when peers may.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MayImport"
+          }
+        },
+        "isolated": {
+          "description": "Set when two of its modules never import each other: the fix.",
+          "type": ["string", "null"],
+          "default": null
+        },
+        "technologies": {
+          "description": "The technologies it may import; absent, any.",
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          },
+          "default": null
+        },
+        "fix": {
+          "description": "The fix of an import it may not make.",
+          "type": "string"
+        },
+        "typesFix": {
+          "description": "The fix of a value imported where only types may be.",
+          "type": ["string", "null"],
+          "default": null
+        },
+        "technologyFix": {
+          "description": "The fix of a technology it may not use.",
+          "type": ["string", "null"],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": ["id", "group", "name", "criterion", "paths", "mayImport", "fix"]
+    },
+    "MayImport": {
+      "description": "A tier that may be imported, with its conditions.",
+      "anyOf": [
+        {
+          "description": "Any import of that tier.",
+          "type": "string"
+        },
+        {
+          "description": "An import of that tier under conditions.",
+          "$ref": "#/$defs/Condition"
+        }
+      ]
+    },
+    "Condition": {
+      "description": "The conditions on importing a tier.",
+      "type": "object",
+      "properties": {
+        "tier": {
+          "description": "The tier.",
+          "type": "string"
+        },
+        "onlyFrom": {
+          "description": "Only these files (globs) may import it.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "typesOnly": {
+          "description": "Only types may be imported from it.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": ["tier"]
+    },
+    "PackageRule": {
+      "description": "What applies to one workspace package.",
+      "type": "object",
+      "properties": {
+        "provides": {
+          "description": "What it provides, for people.",
+          "type": "string"
+        },
+        "technologies": {
+          "description": "The technologies its files may import; absent, its tiers decide.",
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          },
+          "default": null
+        },
+        "runOnly": {
+          "description": "Set when it is run and never imported: the fix.",
+          "type": ["string", "null"],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": ["provides"]
+    },
+    "RootRule": {
+      "description": "What the root manifest may declare.",
+      "type": "object",
+      "properties": {
+        "dependencies": {
+          "description": "The dependencies it may declare.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fix": {
+          "description": "The fix of any other.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["dependencies", "fix"]
+    }
+  }
+}

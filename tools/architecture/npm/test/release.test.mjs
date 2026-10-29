@@ -47,7 +47,10 @@ describe('release', () => {
     )
     assert.ok(statSync(join(out, name.replace('/', '__'), 'bin', 'architecture.js')).isFile())
     assert.equal(readFileSync(join(out, name.replace('/', '__'), 'view', 'assets', 'app.js'), 'utf8'), '1')
-    assert.deepEqual(launcher.files, ['bin', 'view'])
+    assert.deepEqual(launcher.files, ['bin', 'view', 'architecture.rules.schema.json'])
+    // The rules file's schema, for a project's "$schema" to name in node_modules.
+    const schema = join(out, name.replace('/', '__'), 'architecture.rules.schema.json')
+    assert.equal(JSON.parse(readFileSync(schema, 'utf8')).title, 'Rules')
     assert.equal(launcher.license, 'MIT')
     assert.match(readFileSync(join(out, name.replace('/', '__'), 'LICENSE'), 'utf8'), /^MIT License/)
   })

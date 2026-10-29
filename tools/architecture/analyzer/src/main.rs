@@ -2,6 +2,7 @@
 //!
 //! - `check`: prints every violation with its fix; exit 1 when any.
 //! - `json [--base <ref>]`: prints the report.
+//! - `schema`: prints the rules file's JSON Schema.
 //! - `watch [--port <n>] [--ui <dir>] [--base <ref>] [--allow-host <name>]`: serves the
 //!   view, the analyzed files and the session's history, and pushes each change to the
 //!   architecture; prints its address on its first line. It answers requests addressed
@@ -13,7 +14,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::mpsc;
 
-use architecture_analyzer::{analyze, render, serve, watch};
+use architecture_analyzer::{analyze, render, schema, serve, watch};
 
 struct Options {
     command: String,
@@ -27,7 +28,7 @@ struct Options {
 fn options(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
     let command = args
         .next()
-        .ok_or("usage: architecture-analyzer check|json|watch [options]")?;
+        .ok_or("usage: architecture-analyzer check|json|schema|watch [options]")?;
     let mut options = Options {
         command,
         root: PathBuf::from("."),
@@ -73,6 +74,10 @@ fn run(options: Options) -> Result<ExitCode, String> {
             );
             Ok(ExitCode::SUCCESS)
         }
+        "schema" => {
+            print!("{}", schema());
+            Ok(ExitCode::SUCCESS)
+        }
         "watch" => {
             let (tx, rx) = mpsc::channel();
             watch(&options.root, options.base.as_deref(), tx)?;
@@ -88,7 +93,9 @@ fn run(options: Options) -> Result<ExitCode, String> {
                 std::thread::park();
             }
         }
-        other => Err(format!("unknown command {other}; use check, json or watch")),
+        other => Err(format!(
+            "unknown command {other}; use check, json, schema or watch"
+        )),
     }
 }
 

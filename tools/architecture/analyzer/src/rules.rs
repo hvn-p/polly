@@ -2,12 +2,16 @@
 
 use std::collections::BTreeMap;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The whole rules file.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Rules {
+    /// Where an editor finds this file's schema.
+    #[serde(default, rename = "$schema")]
+    pub schema: Option<String>,
     /// What the file is, for its reader.
     #[serde(default)]
     pub about: Option<String>,
@@ -25,7 +29,7 @@ pub struct Rules {
 }
 
 /// One tier: where its modules are and what they may import.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Tier {
     /// Its identifier, used by `mayImport`.
@@ -57,7 +61,7 @@ pub struct Tier {
 }
 
 /// A tier that may be imported, with its conditions.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(untagged)]
 pub enum MayImport {
     /// Any import of that tier.
@@ -67,7 +71,7 @@ pub enum MayImport {
 }
 
 /// The conditions on importing a tier.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Condition {
     /// The tier.
@@ -92,7 +96,7 @@ impl MayImport {
 }
 
 /// What applies to one workspace package.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PackageRule {
     /// What it provides, for people.
@@ -106,7 +110,7 @@ pub struct PackageRule {
 }
 
 /// What the root manifest may declare.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RootRule {
     /// The dependencies it may declare.

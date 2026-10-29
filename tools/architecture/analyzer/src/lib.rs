@@ -266,6 +266,13 @@ pub fn analyze(root: &Path, base: Option<&str>) -> Result<Report, String> {
     Ok(tree.report(&graph::resolver(), base.as_ref()))
 }
 
+/// The JSON Schema of the rules file, generated from the types that read it.
+#[must_use]
+pub fn schema() -> String {
+    let schema = schemars::schema_for!(Rules);
+    serde_json::to_string_pretty(&schema).unwrap_or_default() + "\n"
+}
+
 /// The violations as the check prints them: one per line, then its fix.
 #[must_use]
 pub fn render(violations: &[Violation]) -> String {

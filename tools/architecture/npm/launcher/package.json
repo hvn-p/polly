@@ -14,7 +14,8 @@
   },
   "files": [
     "bin",
-    "view"
+    "view",
+    "architecture.rules.schema.json"
   ],
   "engines": {
     "node": ">=24"
