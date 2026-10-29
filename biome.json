@@ -11,6 +11,7 @@
       "!node_modules",
       "!vendors",
       "!plugin/monitors",
+      "!tools/architecture/ui/mockup",
       "!pnpm-lock.yaml",
       "!.claude/skills/impeccable",
       "!.specify",

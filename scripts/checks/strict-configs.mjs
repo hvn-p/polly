@@ -69,6 +69,7 @@ const BIOME_ALLOWED_EXCLUDES = {
   node_modules: 'installed dependencies',
   vendors: "the platform's repository, read-only here and linted in its own",
   'plugin/monitors': 'bundled by esbuild from plugin/src (nr bundles)',
+  'tools/architecture/ui/mockup': 'the validated design mockup, a reference for the view, never shipped',
   'pnpm-lock.yaml': 'written by pnpm',
   '.claude/skills/impeccable': 'an installed third-party skill',
   '.specify': "Spec Kit's installed scripts and the feature's artifact cache",
