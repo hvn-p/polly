@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    projects: ['apps/*', 'dev', 'packages/*', 'plugin', 'scripts'],
+    projects: ['apps/*', 'dev', 'packages/*', 'plugin', 'scripts', 'tools/architecture/ui'],
     coverage: {
       provider: 'v8',
       // The gate reads the text report; nothing is written into the repository.
@@ -13,9 +13,11 @@ export default defineConfig({
         'dev/src/**/*.ts',
         'packages/*/src/**/*.ts',
         'scripts/**/*.{ts,mjs}',
+        'tools/architecture/ui/src/**/*.{ts,tsx}',
       ],
       exclude: [
         '**/*.test.{ts,tsx}',
+        '**/test/**',
         '**/vitest.config.ts',
         // Process entry points: the tests run them as the processes they are
         // (the supervisor by dev:up), and V8 coverage does not follow a child

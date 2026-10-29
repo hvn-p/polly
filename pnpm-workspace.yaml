@@ -4,6 +4,7 @@ packages:
   - packages/*
   - plugin
   - scripts
+  - tools/architecture/ui
 # Exempt from pnpm's minimum release age: @hvn-p's packages, which this
 # repository's CI publishes (the architecture analyzer). A third-party version
 # pinned before it is old enough goes here as name@version, and leaves once it

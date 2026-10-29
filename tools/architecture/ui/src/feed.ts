@@ -1,0 +1,108 @@
+// Where the view's data comes from: the analyzer's watch mode (the report and
+// each change pushed as server-sent events, the session's history, the analyzed
+// files), or a snapshot built into the page.
+
+import type { Change, Report } from './types.ts'
+
+export interface FeedState {
+  report: Report | undefined
+  history: Change[]
+  status: 'connecting' | 'live' | 'offline' | 'snapshot'
+  // When the last report arrived, in milliseconds since the epoch.
+  updatedAt: number | undefined
+}
+
+export interface Feed {
+  get: () => FeedState
+  subscribe: (listener: () => void) => () => void
+  // An analyzed file's content, or nothing when it cannot be read.
+  source: (file: string) => Promise<string | undefined>
+  close: () => void
+}
+
+function store(initial: FeedState) {
+  let state = initial
+  const listeners = new Set<() => void>()
+  return {
+    get: () => state,
+    set: (next: Partial<FeedState>) => {
+      state = { ...state, ...next }
+      for (const listener of listeners) {
+        listener()
+      }
+    },
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+  }
+}
+
+export interface LiveOptions {
+  fetch: (url: string) => Promise<Response>
+  EventSource: typeof EventSource
+  now: () => number
+}
+
+export function liveFeed({ fetch, EventSource, now }: LiveOptions): Feed {
+  const state = store({ report: undefined, history: [], status: 'connecting', updatedAt: undefined })
+  const events = new EventSource('/events')
+  // On each connection, the history it may have missed.
+  events.onopen = () => {
+    void fetch('/history.json')
+      .then((response) => (response.ok ? (response.json() as Promise<Change[]>) : undefined))
+      .then((history) => {
+        if (history !== undefined) {
+          state.set({ history })
+        }
+      })
+  }
+  events.onerror = () => state.set({ status: 'offline' })
+  events.addEventListener('graph', (event) => {
+    state.set({ report: JSON.parse(event.data) as Report, status: 'live', updatedAt: now() })
+  })
+  events.addEventListener('change', (event) => {
+    state.set({ history: [...state.get().history, JSON.parse(event.data) as Change] })
+  })
+  return {
+    get: state.get,
+    subscribe: state.subscribe,
+    source: async (file) => {
+      const response = await fetch(`/source/${file.split('/').map(encodeURIComponent).join('/')}`)
+      return response.ok ? response.text() : undefined
+    },
+    close: () => events.close(),
+  }
+}
+
+export function snapshotFeed(report: Report): Feed {
+  const state = store({ report, history: [], status: 'snapshot', updatedAt: undefined })
+  return {
+    get: state.get,
+    subscribe: state.subscribe,
+    source: async () => undefined,
+    close: () => {},
+  }
+}
+
+// The time of the last change the viewer marked as seen, kept in this browser
+// only; 0 when none, or when the browser keeps nothing.
+const SEEN = 'architecture:seen'
+
+export function readSeen(): number {
+  try {
+    return Number(localStorage.getItem(SEEN) ?? 0)
+  } catch {
+    return 0
+  }
+}
+
+export function writeSeen(at: number): void {
+  try {
+    localStorage.setItem(SEEN, String(at))
+  } catch {
+    // Nothing kept: the changes show as new again on the next visit.
+  }
+}

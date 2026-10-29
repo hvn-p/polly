@@ -1,0 +1,129 @@
+// A file opened in the app at a line: each import line tinted with the tier it
+// imports and linked to its module, a breaching line annotated with its rule
+// and fix.
+
+import type { CSSProperties, ReactNode } from 'react'
+import { labelOf, tierName, tierOfModule } from './model.ts'
+import { Cross, moduleHref, plural, useView } from './parts.tsx'
+
+export interface OpenSource {
+  file: string
+  line: number
+  // Undefined while loading, null when it cannot be read.
+  text: string | null | undefined
+}
+
+// A light highlight: single-quoted strings, comments, keywords.
+const TOKEN =
+  /('[^']*')|(\/\/.*$)|\b(?:import|export|from|const|let|async|await|function|return|type|interface|if|else|new|throw)\b/g
+
+function highlight(line: string): ReactNode[] {
+  const out: ReactNode[] = []
+  let last = 0
+  for (const match of line.matchAll(TOKEN)) {
+    out.push(line.slice(last, match.index))
+    const kind = match[1] !== undefined ? 's' : match[2] !== undefined ? 'c' : 'k'
+    out.push(
+      <span className={kind} key={match.index}>
+        {match[0]}
+      </span>,
+    )
+    last = match.index + match[0].length
+  }
+  out.push(line.slice(last))
+  return out
+}
+
+interface SourcePanelProps {
+  // The file last opened, kept while the panel slides out.
+  open: OpenSource | undefined
+  visible: boolean
+  snapshot: boolean
+  onClose: () => void
+}
+
+export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelProps) {
+  const { model } = useView()
+  const file = open?.file ?? ''
+  const edges = model.report.edges.filter((e) => e.file === file)
+  const breaches = model.report.violations.filter((v) => v.file === file)
+  const scrollToTarget = (element: HTMLDivElement | null) => {
+    element?.scrollIntoView?.({ block: 'center' })
+  }
+  let body: ReactNode = null
+  if (open?.text === null) {
+    body = (
+      <p className="empty">
+        {snapshot
+          ? 'A snapshot holds no source.'
+          : 'The analyzer does not serve this file: it reads only the sources it analyzed.'}
+      </p>
+    )
+  } else if (open?.text !== undefined) {
+    body = (
+      <pre>
+        {open.text.split('\n').map((text, i) => {
+          const n = i + 1
+          const imports = edges.filter((e) => e.line === n)
+          const broken = breaches.filter((v) => v.line === n)
+          const target = imports[0]?.to
+          const tier = target === undefined ? '' : tierOfModule(model, target)
+          const classes = [
+            'l',
+            broken.length > 0 ? 'breach-line' : imports.length > 0 ? 'imp-line' : '',
+            n === open.line ? 'target' : '',
+          ]
+          return (
+            <div
+              key={n}
+              className={classes.filter(Boolean).join(' ')}
+              style={target === undefined ? undefined : ({ '--tc': model.colour[tier] } as CSSProperties)}
+              ref={n === open.line ? scrollToTarget : undefined}
+            >
+              <span>{n}</span>
+              <span>{text === '' ? ' ' : highlight(text)}</span>
+              {target !== undefined && broken.length === 0 ? (
+                <span className="go">
+                  imports <a href={moduleHref(target)}>{labelOf(model, target)}</a>, {tierName(model, tier)}
+                </span>
+              ) : null}
+              {broken.map((v) => (
+                <div className="note" key={v.rule}>
+                  <b>Breach, {v.rule}.</b> {v.message}
+                  <br />
+                  {v.fix}
+                </div>
+              ))}
+            </div>
+          )
+        })}
+      </pre>
+    )
+  }
+  return (
+    <aside className={`src${visible ? ' open' : ''}`} aria-label="Source">
+      {open === undefined ? null : (
+        <>
+          <header>
+            <span className="path mono">{file}</span>
+            <span className="mute">
+              {plural(edges.length, 'import')}
+              {breaches.length > 0 ? (
+                <>
+                  ,{' '}
+                  <span className="breach-count">
+                    {breaches.length} breach{breaches.length === 1 ? '' : 'es'}
+                  </span>
+                </>
+              ) : null}
+            </span>
+            <button type="button" className="close" onClick={onClose}>
+              <Cross /> Close
+            </button>
+          </header>
+          {body}
+        </>
+      )}
+    </aside>
+  )
+}
