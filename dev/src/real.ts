@@ -1,5 +1,6 @@
 // The real infrastructure of the machine, as the dev commands use it.
 
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   analyzerOf,
@@ -27,11 +28,12 @@ const build = join(codeRoot, 'scripts/build/processes.ts')
 // The database's and the API's command lines, and the processes of a worktree
 // (the API, the MCP server, the front-end dev server, the worker and the
 // architecture view), run on its configuration.
-export function apiApplication(): Application {
+// exists: whether a file of the checkout is there, which picks the analyzer.
+export function apiApplication(exists: (path: string) => boolean = existsSync): Application {
   const cli = (path: string, command: string, env: Record<string, string>) =>
     run(process.execPath, [path, command], { env: { ...process.env, ...env } })
   return {
-    architecture: () => analyzerOf(codeRoot),
+    architecture: () => analyzerOf(codeRoot, exists),
     migrate: async (env) => {
       await cli(migrationsCli, 'migrate', env)
     },
@@ -77,6 +79,7 @@ export function apiApplication(): Application {
         codeRoot,
         port: Number(required(env, 'POLLY_ARCH_PORT')),
         host: architectureHostOf(required(env, 'POLLY_WORKTREE_ID')),
+        exists,
       }),
     ],
   }

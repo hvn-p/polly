@@ -7,7 +7,8 @@ describe("the worktree's processes", () => {
   })
 
   it("lets the analyzer answer the worktree's architecture host", () => {
-    const analyzer = apiApplication()
+    // Whatever this machine holds: a local build of the analyzer here.
+    const analyzer = apiApplication(() => true)
       .processes({ POLLY_ARCH_PORT: '4100', POLLY_WORKTREE_ID: 'x' })
       .find((process) => process.name === 'architecture')
     const args = analyzer?.args ?? []
