@@ -95,12 +95,21 @@ export async function up({ root, prerequisites, infrastructure, out, warn }: UpO
     const webPort = Number(required(env, 'POLLY_WEB_PORT'))
     const state = readState(worktree)
 
+    // In real mode, the worker follows the compute service of its worktree's
+    // code, unless dev:worker pointed it at another version on purpose: its
+    // service then differs from the fingerprint .env.local records as its own.
+    const real = env['POLLY_WORKER_MODE'] === 'real'
+    const recorded = env['POLLY_COMPUTE_FINGERPRINT']
+    const chosen = state.compute !== undefined && state.compute !== recorded ? state.compute : undefined
+    const computeChanged = real && (await infra.compute.fingerprintOf(root)) !== recorded
     // A running supervisor is kept only while it runs what this dev:up would
-    // start: a process added, or a port newly written to .env.local, restarts it.
+    // start: a process added, a port newly written to .env.local, or a compute
+    // service to change restarts it.
     const running =
       state.supervisor !== undefined &&
       infra.supervisor.isRunning(state.supervisor) &&
-      state.processes === digestOf(infra.application.processes(env))
+      state.processes === digestOf(infra.application.processes(env)) &&
+      !computeChanged
     if (!running) {
       if (state.supervisor !== undefined) {
         // Processes a killed or outdated supervisor left behind hold the
@@ -152,10 +161,13 @@ export async function up({ root, prerequisites, infrastructure, out, warn }: UpO
     let compute = state.compute
     let processes = state.processes
     if (supervisor === undefined || !running) {
-      if (env['POLLY_WORKER_MODE'] === 'real') {
-        // As dev:worker real, on the service the worktree last chose.
-        const used = await useCompute(root, infra, resources.identity, warn, compute)
+      if (real) {
+        // As dev:worker real: its own code's service, or the one it chose.
+        const used = await useCompute(root, infra, resources.identity, warn, chosen)
         env = setEnv(worktree, used.env)
+        if (compute !== undefined && compute !== used.fingerprint) {
+          await infra.compute.release(compute, resources.identity)
+        }
         compute = used.fingerprint
       }
       const started = infra.application.processes(env)

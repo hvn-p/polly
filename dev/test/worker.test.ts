@@ -139,6 +139,52 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     expect(lines).toContainEqual(expect.stringMatching(/^compute: this worktree runs its own service, fp-b/))
   })
 
+  it('C31: dev:up on a running real-mode worktree whose compute code changed switches to its own service, and says so', async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/changed-a', compute)
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined, warn: () => undefined })
+    const b = await worktree('feature/changed-b', compute)
+    await worker({ root: b.root, infra: b.infra, mode: 'real', out: () => undefined, warn: () => undefined })
+    const before = JSON.parse(readFileSync(join(b.root, '.dev/state.json'), 'utf8')) as {
+      supervisor: { pid: number }
+    }
+    compute.fingerprints.set(b.root, 'fp-b')
+    const lines: string[] = []
+    await up({ root: b.root, ...loaded(b.infra), out: () => undefined, warn: (line) => lines.push(line) })
+
+    expect(compute.calls).toEqual(['compute.start fp-main', 'compute.start fp-b'])
+    expect(envOf(b.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-b'))
+    expect(envOf(b.root).get('POLLY_COMPUTE_FINGERPRINT')).toBe('fp-b')
+    expect(lines).toContainEqual(expect.stringMatching(/^compute: this worktree runs its own service, fp-b/))
+    const after = JSON.parse(readFileSync(join(b.root, '.dev/state.json'), 'utf8')) as {
+      supervisor: { pid: number }
+      compute: string
+    }
+    expect(after.compute).toBe('fp-b')
+    expect(after.supervisor.pid).not.toBe(before.supervisor.pid)
+  })
+
+  it('a worktree pointed on purpose at another version keeps it when its own code changes, and dev:up warns naming both', async () => {
+    const compute = fakeCompute()
+    compute.images.add('fp-other')
+    const a = await worktree('feature/kept-a', compute)
+    await worker({
+      root: a.root,
+      infra: a.infra,
+      mode: 'real',
+      compute: 'fp-other',
+      out: () => undefined,
+      warn: () => undefined,
+    })
+    compute.fingerprints.set(a.root, 'fp-new')
+    const lines: string[] = []
+    await up({ root: a.root, ...loaded(a.infra), out: () => undefined, warn: (line) => lines.push(line) })
+
+    expect(envOf(a.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-other'))
+    expect(envOf(a.root).get('POLLY_COMPUTE_FINGERPRINT')).toBe('fp-new')
+    expect(lines).toContainEqual(expect.stringMatching(/^COMPUTE_VERSION_MISMATCH: .*fp-other.*fp-new/))
+  })
+
   it('C32: pointed on purpose at another version, the worker runs, and the command warns naming both', async () => {
     const compute = fakeCompute()
     const a = await worktree('feature/version-a', compute)
