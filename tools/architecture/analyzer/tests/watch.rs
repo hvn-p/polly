@@ -104,6 +104,80 @@ fn a_new_directory_and_a_removed_file_are_followed() {
     assert_eq!(next["violations"], serde_json::json!([]));
 }
 
+fn modules(report: &serde_json::Value) -> Vec<String> {
+    report["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["id"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[test]
+fn a_moved_directory_s_modules_move_with_it_and_its_files_are_followed_there() {
+    let tree = Tree::valid();
+    let (tx, rx) = mpsc::channel();
+    watch(tree.path(), None, tx).unwrap();
+    rx.recv_timeout(Duration::from_secs(5))
+        .expect("the first graph");
+    std::fs::rename(
+        tree.path().join("packages/back/src/flows/seed"),
+        tree.path().join("packages/back/src/flows/sown"),
+    )
+    .unwrap();
+    let moved = pushed(&rx, Duration::from_secs(2)).expect("a graph once the directory moved");
+    let ids = modules(&moved);
+    assert!(
+        ids.contains(&"packages/back/src/flows/sown".to_string()),
+        "{ids:?}"
+    );
+    assert!(
+        !ids.contains(&"packages/back/src/flows/seed".to_string()),
+        "{ids:?}"
+    );
+    tree.write(
+        "packages/back/src/flows/sown/index.ts",
+        "import '../start-lesson/index.ts'\n",
+    );
+    let change = rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("a graph for a file of the moved directory")
+        .change
+        .expect("what changed");
+    assert_eq!(change.files, ["packages/back/src/flows/sown/index.ts"]);
+}
+
+#[test]
+fn a_directory_moved_out_of_the_tree_or_removed_leaves_the_graph() {
+    let tree = Tree::valid();
+    let outside = Tree::empty();
+    let (tx, rx) = mpsc::channel();
+    watch(tree.path(), None, tx).unwrap();
+    pushed(&rx, Duration::from_secs(5)).expect("the first graph");
+    std::fs::rename(
+        tree.path().join("packages/back/src/flows/seed"),
+        outside.path().join("seed"),
+    )
+    .unwrap();
+    let next = pushed(&rx, Duration::from_secs(2)).expect("a graph once the directory left");
+    let ids = modules(&next);
+    assert!(
+        !ids.contains(&"packages/back/src/flows/seed".to_string()),
+        "{ids:?}"
+    );
+    // Its old watch no longer speaks for the tree.
+    outside.write("seed/index.ts", "import '../start-lesson/index.ts'\n");
+    assert!(pushed(&rx, Duration::from_millis(700)).is_none());
+
+    std::fs::remove_dir_all(tree.path().join("packages/back/src/domains/event-codes")).unwrap();
+    let next = pushed(&rx, Duration::from_secs(2)).expect("a graph once the directory is gone");
+    let ids = modules(&next);
+    assert!(
+        !ids.contains(&"packages/back/src/domains/event-codes".to_string()),
+        "{ids:?}"
+    );
+}
+
 #[test]
 fn a_rules_change_is_pushed() {
     let tree = Tree::valid();

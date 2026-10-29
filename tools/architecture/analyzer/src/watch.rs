@@ -67,10 +67,14 @@ const RELOADS: [&str; 3] = [RULES_FILE, "package.json", "pnpm-workspace.yaml"];
 /// Reading a file notifies nothing, so a watch costs nothing while nothing is written.
 struct Source {
     add: AddDir,
+    forget: ForgetDir,
 }
 
 /// Starts watching one directory.
 type AddDir = Box<dyn FnMut(&Path) -> Result<(), String> + Send>;
+
+/// Stops watching a directory and every directory under it, once moved away or removed.
+type ForgetDir = Box<dyn FnMut(&Path) + Send>;
 
 /// Linux: inotify, subscribed to writes only (notify also subscribes to every open).
 #[cfg(target_os = "linux")]
@@ -82,8 +86,10 @@ fn source(changed: Sender<PathBuf>) -> Result<Source, String> {
 
     let mut inotify = Inotify::init().map_err(|e| format!("inotify: {e}"))?;
     let mut watches = inotify.watches();
+    let mut forgotten = inotify.watches();
     let dirs: Arc<Mutex<HashMap<inotify::WatchDescriptor, PathBuf>>> = Arc::default();
     let reader_dirs = Arc::clone(&dirs);
+    let forget_dirs = Arc::clone(&dirs);
     std::thread::spawn(move || {
         let mut buffer = [0; 16 * 1024];
         while let Ok(events) = inotify.read_events_blocking(&mut buffer) {
@@ -106,6 +112,8 @@ fn source(changed: Sender<PathBuf>) -> Result<Source, String> {
         | WatchMask::MOVED_FROM
         | WatchMask::MOVED_TO;
     Ok(Source {
+        // A directory moved within the tree keeps its watch, which inotify ties to the
+        // directory itself: adding its new path maps that watch there.
         add: Box::new(move |dir| {
             let wd = watches
                 .add(dir, mask)
@@ -115,15 +123,32 @@ fn source(changed: Sender<PathBuf>) -> Result<Source, String> {
                 .insert(wd, dir.to_path_buf());
             Ok(())
         }),
+        // Whatever is still mapped under the old path was not watched again elsewhere.
+        forget: Box::new(move |gone| {
+            let Ok(mut dirs) = forget_dirs.lock() else {
+                return;
+            };
+            dirs.retain(|wd, dir| {
+                let keep = !dir.starts_with(gone);
+                if !keep {
+                    // Fails for a removed directory, whose watch went with it.
+                    let _ = forgotten.remove(wd.clone());
+                }
+                keep
+            });
+        }),
     })
 }
 
 /// macOS and the others: notify (FSEvents), which reports no read.
 #[cfg(not(target_os = "linux"))]
 fn source(changed: Sender<PathBuf>) -> Result<Source, String> {
+    use std::collections::BTreeSet;
+    use std::sync::{Arc, Mutex};
+
     use notify::{EventKind, RecursiveMode, Watcher};
 
-    let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+    let watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         if let Ok(event) = event
             && matches!(
                 event.kind,
@@ -136,11 +161,31 @@ fn source(changed: Sender<PathBuf>) -> Result<Source, String> {
         }
     })
     .map_err(|e| e.to_string())?;
+    // The watcher, and the directories it watches.
+    let shared: Arc<Mutex<(_, BTreeSet<PathBuf>)>> =
+        Arc::new(Mutex::new((watcher, BTreeSet::new())));
+    let forget_shared = Arc::clone(&shared);
     Ok(Source {
         add: Box::new(move |dir| {
-            watcher
+            let mut held = shared.lock().map_err(|e| e.to_string())?;
+            held.0
                 .watch(dir, RecursiveMode::NonRecursive)
-                .map_err(|e| format!("{}: {e}", dir.display()))
+                .map_err(|e| format!("{}: {e}", dir.display()))?;
+            held.1.insert(dir.to_path_buf());
+            Ok(())
+        }),
+        forget: Box::new(move |gone| {
+            let Ok(mut held) = forget_shared.lock() else {
+                return;
+            };
+            let (watcher, dirs) = &mut *held;
+            dirs.retain(|dir| {
+                let keep = !dir.starts_with(gone);
+                if !keep {
+                    let _ = watcher.unwatch(dir);
+                }
+                keep
+            });
         }),
     })
 }
@@ -267,6 +312,22 @@ fn apply(tree: &mut Tree, paths: &BTreeSet<PathBuf>, source: &mut Source) -> Vec
                 return vec![file];
             }
             continue;
+        }
+        if !path.exists() {
+            // A directory moved away or removed: its files leave the graph, and its
+            // watches the source. A file only finds nothing under it.
+            (source.forget)(path);
+            let under = format!("{file}/");
+            let gone: Vec<String> = tree
+                .parsed
+                .range(under.clone()..)
+                .take_while(|(f, _)| f.starts_with(&under))
+                .map(|(f, _)| f.clone())
+                .collect();
+            for f in gone {
+                tree.parsed.remove(&f);
+                changed.push(f);
+            }
         }
         if path.is_dir() {
             if workspace::is_skipped(&name) || !may_hold_sources(tree, &file) {
