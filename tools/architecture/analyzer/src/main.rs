@@ -2,9 +2,10 @@
 //!
 //! - `check`: prints every violation with its fix; exit 1 when any.
 //! - `json [--base <ref>]`: prints the report.
-//! - `watch [--port <n>] [--ui <dir>] [--base <ref>]`: serves the view, the analyzed
-//!   files and the session's history, and pushes each change to the architecture; prints
-//!   its address on its first line.
+//! - `watch [--port <n>] [--ui <dir>] [--base <ref>] [--allow-host <name>]`: serves the
+//!   view, the analyzed files and the session's history, and pushes each change to the
+//!   architecture; prints its address on its first line. It answers requests addressed
+//!   to that address, or to the host name a proxy routes to it.
 //!
 //! Run from the repository root, or give it with `--root <dir>`.
 
@@ -20,6 +21,7 @@ struct Options {
     base: Option<String>,
     port: u16,
     ui: Option<PathBuf>,
+    host: Option<String>,
 }
 
 fn options(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
@@ -32,6 +34,7 @@ fn options(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
         base: None,
         port: 0,
         ui: None,
+        host: None,
     };
     while let Some(flag) = args.next() {
         let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
@@ -44,6 +47,7 @@ fn options(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
                     .map_err(|_| format!("--port {value}: not a port"))?;
             }
             "--ui" => options.ui = Some(PathBuf::from(value)),
+            "--allow-host" => options.host = Some(value),
             other => return Err(format!("unknown option {other}")),
         }
     }
@@ -72,7 +76,13 @@ fn run(options: Options) -> Result<ExitCode, String> {
         "watch" => {
             let (tx, rx) = mpsc::channel();
             watch(&options.root, options.base.as_deref(), tx)?;
-            let address = serve(options.port, options.ui, options.root.clone(), rx)?;
+            let address = serve(
+                options.port,
+                options.ui,
+                options.root.clone(),
+                options.host,
+                rx,
+            )?;
             println!("{address}");
             loop {
                 std::thread::park();

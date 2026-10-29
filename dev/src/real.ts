@@ -14,7 +14,7 @@ import {
 import { prerequisites } from './machine/index.ts'
 import type { Application, Infrastructure } from './ports/index.ts'
 import { processSupervisor } from './supervisor/index.ts'
-import { required } from './worktree/index.ts'
+import { architectureHostOf, required } from './worktree/index.ts'
 
 const codeRoot = join(import.meta.dirname, '..', '..')
 // Every Node process runs from its build (scripts/build/processes.ts), which
@@ -71,7 +71,11 @@ export function apiApplication(): Application {
         args: ['--watch', join(codeRoot, 'apps/worker/dist/main.js')],
         cwd: codeRoot,
       },
-      ...architectureProcesses({ codeRoot, port: Number(required(env, 'POLLY_ARCH_PORT')) }),
+      ...architectureProcesses({
+        codeRoot,
+        port: Number(required(env, 'POLLY_ARCH_PORT')),
+        host: architectureHostOf(required(env, 'POLLY_WORKTREE_ID')),
+      }),
     ],
   }
 }

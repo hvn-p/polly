@@ -57,6 +57,11 @@ export function required(env: Record<string, string>, key: string): string {
   return value
 }
 
+// The architecture view's own host name, one level under the worktree's.
+export function architectureHostOf(identity: string): string {
+  return `arch.${resourceNames(identity).host}`
+}
+
 // The resources a worktree's configuration names, from its recorded identity.
 export function resourcesOf(env: Record<string, string>) {
   const identity = required(env, 'POLLY_WORKTREE_ID')
@@ -69,9 +74,8 @@ export function resourcesOf(env: Record<string, string>) {
     identity,
     route: `${identity}.polly`,
     host: names.host,
-    // The architecture view's own host name, one level under the worktree's.
     architectureRoute: `arch.${identity}.polly`,
-    architectureHost: `arch.${names.host}`,
+    architectureHost: architectureHostOf(identity),
     database,
     bucket: required(env, 'S3_BUCKET'),
   }

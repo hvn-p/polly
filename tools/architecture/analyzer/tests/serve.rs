@@ -11,13 +11,18 @@ use architecture_analyzer::{Change, Module, Report, Update, Violation, serve};
 use support::Tree;
 
 fn get(address: &str, path: &str) -> (u16, String, BufReader<TcpStream>) {
+    get_as(address, path, address.trim_start_matches("http://"))
+}
+
+/// A request addressed to `host`, wherever it is sent.
+fn get_as(address: &str, path: &str, host: &str) -> (u16, String, BufReader<TcpStream>) {
     let mut stream = TcpStream::connect(address.trim_start_matches("http://")).unwrap();
     stream
         .set_read_timeout(Some(Duration::from_secs(5)))
         .unwrap();
     write!(
         stream,
-        "GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"
+        "GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
     )
     .unwrap();
     let mut reader = BufReader::new(stream);
@@ -97,6 +102,7 @@ fn serves_the_view_the_report_and_its_updates() {
         0,
         Some(ui.path().to_path_buf()),
         ui.path().to_path_buf(),
+        None,
         rx,
     )
     .unwrap();
@@ -142,7 +148,7 @@ fn serves_an_analyzed_file_and_nothing_else() {
         .write("src/b c.ts", "export const b = 2\n")
         .write("secret.txt", "not analyzed");
     let (tx, rx) = mpsc::channel();
-    let address = serve(0, None, tree.path().to_path_buf(), rx).unwrap();
+    let address = serve(0, None, tree.path().to_path_buf(), None, rx).unwrap();
     tx.send(update(report(&[("src", &["src/a.ts", "src/b c.ts"])])))
         .unwrap();
     std::thread::sleep(Duration::from_millis(100));
@@ -166,7 +172,7 @@ fn serves_an_analyzed_file_and_nothing_else() {
 #[test]
 fn keeps_the_session_history_and_pushes_each_change() {
     let (tx, rx) = mpsc::channel();
-    let address = serve(0, None, std::env::temp_dir(), rx).unwrap();
+    let address = serve(0, None, std::env::temp_dir(), None, rx).unwrap();
     tx.send(update(report(&[]))).unwrap();
     std::thread::sleep(Duration::from_millis(100));
     assert_eq!(body(&address, "/history.json"), (200, "[]".to_string()));
@@ -208,7 +214,7 @@ fn keeps_the_session_history_and_pushes_each_change() {
 #[test]
 fn a_client_connecting_before_the_first_analysis_waits_for_it() {
     let (tx, rx) = mpsc::channel();
-    let address = serve(0, None, std::env::temp_dir(), rx).unwrap();
+    let address = serve(0, None, std::env::temp_dir(), None, rx).unwrap();
     let (status, _, mut events) = get(&address, "/events");
     assert_eq!(status, 200);
     tx.send(update(report(&[("a", &[])]))).unwrap();
@@ -220,9 +226,101 @@ fn a_client_connecting_before_the_first_analysis_waits_for_it() {
 #[test]
 fn without_a_view_only_the_report_is_served() {
     let (_tx, rx) = mpsc::channel();
-    let address = serve(0, None, std::env::temp_dir(), rx).unwrap();
+    let address = serve(0, None, std::env::temp_dir(), None, rx).unwrap();
     assert_eq!(body(&address, "/").0, 404);
     assert_eq!(body(&address, "/graph.json").0, 200);
+}
+
+#[test]
+fn answers_only_requests_addressed_to_its_loopback_address_or_its_host() {
+    let tree = Tree::empty();
+    tree.write("index.html", "<h1>view</h1>")
+        .write("src/a.ts", "export const a = 1\n");
+    let (tx, rx) = mpsc::channel();
+    let address = serve(
+        0,
+        Some(tree.path().to_path_buf()),
+        tree.path().to_path_buf(),
+        Some("arch.x.polly.localhost".to_string()),
+        rx,
+    )
+    .unwrap();
+    tx.send(update(report(&[("src", &["src/a.ts"])]))).unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+    let loopback = address.trim_start_matches("http://");
+    let port = loopback.rsplit(':').next().unwrap();
+    for path in [
+        "/",
+        "/graph.json",
+        "/history.json",
+        "/source/src/a.ts",
+        "/events",
+    ] {
+        for host in [
+            loopback,
+            "arch.x.polly.localhost",
+            "ARCH.x.polly.localhost:443",
+        ] {
+            assert_eq!(get_as(&address, path, host).0, 200, "{host}{path}");
+        }
+        for host in [
+            "evil.example",
+            &format!("evil.example:{port}"),
+            &format!("localhost:{port}"),
+            "arch.x.polly.localhost.evil.example",
+            "arch.y.polly.localhost",
+            "127.0.0.1",
+            "",
+        ] {
+            assert_eq!(get_as(&address, path, host).0, 403, "{host}{path}");
+        }
+    }
+}
+
+#[test]
+fn without_its_host_answers_its_loopback_address_only() {
+    let (_tx, rx) = mpsc::channel();
+    let address = serve(0, None, std::env::temp_dir(), None, rx).unwrap();
+    let loopback = address.trim_start_matches("http://");
+    assert_eq!(get_as(&address, "/graph.json", loopback).0, 200);
+    assert_eq!(
+        get_as(&address, "/graph.json", "arch.x.polly.localhost").0,
+        403
+    );
+}
+
+#[test]
+fn watch_answers_the_host_it_is_given() {
+    let tree = Tree::valid();
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_architecture-analyzer"))
+        .args([
+            "watch",
+            "--port",
+            "0",
+            "--allow-host",
+            "arch.x.polly.localhost",
+        ])
+        .current_dir(tree.path())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut address = String::new();
+    BufReader::new(child.stdout.take().unwrap())
+        .read_line(&mut address)
+        .unwrap();
+    let address = address.trim().to_string();
+    let allowed = address.starts_with("http://")
+        && get_as(&address, "/graph.json", "arch.x.polly.localhost").0 == 200;
+    let refused =
+        address.starts_with("http://") && get_as(&address, "/graph.json", "evil.example").0 == 403;
+    child.kill().unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        allowed && refused,
+        "{address}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -231,7 +329,7 @@ fn a_port_in_use_is_refused() {
     let port = listener.local_addr().unwrap().port();
     let (_tx, rx) = mpsc::channel();
     assert!(
-        serve(port, None, std::env::temp_dir(), rx)
+        serve(port, None, std::env::temp_dir(), None, rx)
             .unwrap_err()
             .contains(&port.to_string())
     );

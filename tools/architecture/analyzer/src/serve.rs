@@ -89,7 +89,8 @@ fn content_type(path: &Path) -> &'static str {
 }
 
 /// Serves `ui`, the reports and the analyzed files of the tree at `root` on
-/// 127.0.0.1:`port` (0 for any free port); returns the address once listening.
+/// 127.0.0.1:`port` (0 for any free port), to requests addressed to that address or to
+/// `host`, the name a proxy routes to it; returns the address once listening.
 ///
 /// # Errors
 /// When the port cannot be bound.
@@ -97,6 +98,7 @@ pub fn serve(
     port: u16,
     ui: Option<PathBuf>,
     root: PathBuf,
+    host: Option<String>,
     updates: Receiver<Update>,
 ) -> Result<String, String> {
     let server =
@@ -118,12 +120,17 @@ pub fn serve(
         }
     });
     let root = Arc::new(root);
+    let hosts = Arc::new(Hosts {
+        loopback: address.trim_start_matches("http://").to_string(),
+        name: host.map(|h| h.to_ascii_lowercase()),
+    });
     std::thread::spawn(move || {
         for request in server.incoming_requests() {
             let state = Arc::clone(&state);
             let ui = ui.clone();
+            let hosts = Arc::clone(&hosts);
             let root = Arc::clone(&root);
-            std::thread::spawn(move || answer(request, &state, ui.as_deref(), &root));
+            std::thread::spawn(move || answer(request, &state, ui.as_deref(), &root, &hosts));
         }
     });
     Ok(address)
@@ -173,7 +180,45 @@ fn stream(writer: &mut dyn Write, events: &Receiver<String>, keepalive: Duration
     }
 }
 
-fn answer(request: tiny_http::Request, state: &Mutex<State>, ui: Option<&Path>, root: &Path) {
+/// The hosts a request may be addressed to: the server's loopback address, and the name a
+/// proxy routes to it, on any port. Any other is refused, so a page whose own name
+/// resolves to the loopback (DNS rebinding) reads nothing.
+struct Hosts {
+    loopback: String,
+    name: Option<String>,
+}
+
+impl Hosts {
+    fn allow(&self, host: &str) -> bool {
+        let host = host.to_ascii_lowercase();
+        host == self.loopback
+            || self.name.as_deref().is_some_and(|name| {
+                host.strip_prefix(name).is_some_and(|port| {
+                    port.is_empty()
+                        || port
+                            .strip_prefix(':')
+                            .is_some_and(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+                })
+            })
+    }
+}
+
+fn answer(
+    request: tiny_http::Request,
+    state: &Mutex<State>,
+    ui: Option<&Path>,
+    root: &Path,
+    hosts: &Hosts,
+) {
+    let host = request
+        .headers()
+        .iter()
+        .find(|h| h.field.equiv("Host"))
+        .map(|h| h.value.as_str());
+    if !host.is_some_and(|h| hosts.allow(h)) {
+        let _ = request.respond(Response::from_string("forbidden host").with_status_code(403));
+        return;
+    }
     let url = request.url().split('?').next().unwrap_or("/").to_string();
     if let Some(path) = url.strip_prefix("/source/") {
         let _ = match source(state, root, path) {
