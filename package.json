@@ -20,7 +20,7 @@
     "lint:fix": "biome check --write .",
     "typecheck": "tsc -p scripts && pnpm -r --no-bail run typecheck",
     "test": "vitest run && pnpm run test:repo",
-    "test:repo": "node --test 'speckit/extensions/*/test/*.test.mjs'",
+    "test:repo": "node --test 'speckit/extensions/*/test/*.test.mjs' 'tools/architecture/npm/test/*.test.mjs'",
     "generate": "pnpm --filter @polly/migrations run generate",
     "build": "node scripts/build/processes.ts"
   },
