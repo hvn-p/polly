@@ -6,8 +6,10 @@ packages:
   - scripts
 # Released less than pnpm's minimum release age before they were pinned:
 # @aws-sdk/client-s3 3.1157.0 and the packages it pulls in at that release.
-# An entry goes once its version is older than the minimum.
+# An entry goes once its version is older than the minimum. @hvn-p's packages
+# stay: this repository's CI publishes them (the architecture analyzer).
 minimumReleaseAgeExclude:
+  - "@hvn-p/*"
   - "@aws-sdk/checksums@3.1001.6"
   - "@aws-sdk/client-s3@3.1157.0"
   - "@aws-sdk/core@3.978.6"
@@ -24,6 +26,11 @@ minimumReleaseAgeExclude:
   - "@aws-sdk/token-providers@3.1157.0"
   - "@smithy/core@3.37.0"
   - "@smithy/node-http-handler@4.13.0"
+  - "@hvn-p/architecture-darwin-arm64@0.1.0"
+  - "@hvn-p/architecture-darwin-x64@0.1.0"
+  - "@hvn-p/architecture-linux-arm64@0.1.0"
+  - "@hvn-p/architecture-linux-x64@0.1.0"
+  - "@hvn-p/architecture@0.1.0"
 # Install scripts a dependency may run. esbuild's only checks its binary, which
 # arrives through its platform package (@esbuild/<platform>); agent-browser's
 # marks its bundled binary executable, which its launcher also does.
