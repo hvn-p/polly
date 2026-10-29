@@ -1,5 +1,5 @@
 //! Watch mode: the graph held in memory, one file reread per change, a new report sent
-//! only when the architecture changed.
+//! only when the architecture or a use of an imported name changed.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -15,7 +15,8 @@ use crate::{Base, RULES_FILE, Report, Tree, Violation, base_pairs, graph, pairs,
 pub struct Update {
     /// The analysis now.
     pub report: Report,
-    /// What changed since the previous report; none for the first.
+    /// What changed since the previous report; none for the first, nor when no module
+    /// pair and no rule changed (an import's line, or a use of its names, moved).
     pub change: Option<Change>,
 }
 
@@ -57,6 +58,13 @@ impl Change {
                 .map(|v| (*v).clone())
                 .collect(),
         }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.added.is_empty()
+            && self.removed.is_empty()
+            && self.breaches.is_empty()
+            && self.fixed.is_empty()
     }
 }
 
@@ -288,7 +296,7 @@ fn run(
             last = report;
             let update = Update {
                 report: last.clone(),
-                change: Some(change),
+                change: (!change.is_empty()).then_some(change),
             };
             if reports.send(update).is_err() {
                 return;
@@ -297,7 +305,8 @@ fn run(
     }
 }
 
-/// Applies the changed paths to the tree; the files whose imports or exports changed.
+/// Applies the changed paths to the tree; the files whose imports, exports or uses of
+/// imported names changed.
 fn apply(tree: &mut Tree, paths: &BTreeSet<PathBuf>, source: &mut Source) -> Vec<String> {
     let mut changed = vec![];
     for path in paths {

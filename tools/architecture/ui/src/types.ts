@@ -33,6 +33,15 @@ export interface Edge {
   spec: string
   typeOnly: boolean
   names: string[]
+  // Where the file uses the names that reach `to`.
+  uses: Use[]
+}
+
+// A line from 1, and its columns from 0 in UTF-16 code units, as JavaScript counts them.
+export interface Use {
+  line: number
+  column: number
+  endColumn: number
 }
 
 export interface Technology {

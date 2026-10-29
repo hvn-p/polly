@@ -91,6 +91,7 @@ export function fixture(): Report {
         spec: '@shop/back',
         typeOnly: false,
         names: ['buy'],
+        uses: [],
       },
       {
         from: 'apps/api/src',
@@ -101,6 +102,7 @@ export function fixture(): Report {
         spec: '@shop/database',
         typeOnly: false,
         names: ['connect'],
+        uses: [],
       },
       {
         from: 'packages/back/src/flows/buy',
@@ -111,6 +113,7 @@ export function fixture(): Report {
         spec: '@shop/database',
         typeOnly: false,
         names: [],
+        uses: [],
       },
       {
         from: 'packages/back/src/flows/buy',
@@ -121,6 +124,7 @@ export function fixture(): Report {
         spec: '@shop/kernel',
         typeOnly: true,
         names: ['Price'],
+        uses: [],
       },
     ],
     technologies: [{ module: 'apps/api/src', file: 'apps/api/src/main.ts', line: 4, name: 'hono' }],

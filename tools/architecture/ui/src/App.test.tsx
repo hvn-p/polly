@@ -360,6 +360,36 @@ describe('the source', () => {
     expect(lines[5]?.textContent).toContain('Breach, tier.')
   })
 
+  it('marks where the file uses each imported name, in its import’s colour', async () => {
+    const file = 'packages/back/src/flows/buy/index.ts'
+    const source =
+      "import type { Price } from '@shop/kernel'\n// pricing\nimport { PostgresStore } from '@shop/database'\nconst store = new PostgresStore()\nexport const price: Price = store.price\n"
+    const report = fixture()
+    report.edges = report.edges.map((e) =>
+      e.file !== file
+        ? e
+        : e.to === 'packages/kernel'
+          ? { ...e, uses: [{ line: 5, column: 20, endColumn: 25 }] }
+          : { ...e, uses: [{ line: 4, column: 18, endColumn: 31 }] },
+    )
+    render(<App feed={feedOf({ report }, { [file]: source })} />)
+    await act(async () => {
+      fireEvent.click(within(side()).getByRole('button', { name: /index.ts:3/ }))
+    })
+    const panel = screen.getByRole('complementary', { name: 'Source' })
+    const marks = [...panel.querySelectorAll<HTMLElement>('pre .use')].map((mark) => [
+      mark.closest('.l')?.firstElementChild?.textContent,
+      mark.textContent,
+      mark.style.getPropertyValue('--uc'),
+    ])
+    expect(marks).toEqual([
+      ['4', 'PostgresStore', '#9bb35a'],
+      ['5', 'Price', '#5fb3a1'],
+    ])
+    expect(panel.querySelectorAll('pre > .l')[3]?.textContent).toBe('4const store = new PostgresStore()')
+    expect(panel.querySelectorAll('pre > .l')[4]?.querySelector('.k')?.textContent).toBe('export')
+  })
+
   it('shows or hides the imports of each module from a legend, the breaches always shown', async () => {
     const source =
       "import type { Price } from '@shop/kernel'\n// pricing\nimport { PostgresStore } from '@shop/database'\n"

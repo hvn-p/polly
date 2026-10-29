@@ -1,5 +1,5 @@
-//! The watch mode: a graph pushed on an architecture change only (C66, C67), and an
-//! analyzer that costs nothing while nothing changes (C74).
+//! The watch mode: a graph pushed when the architecture or a use of an imported name
+//! changes only (C66, C67), and an analyzer that costs nothing while nothing changes (C74).
 
 mod support;
 
@@ -74,17 +74,55 @@ fn each_change_says_what_it_changed() {
     assert_eq!(change.breaches, []);
 }
 
+const START_LESSON: &str = "packages/back/src/flows/start-lesson/index.ts";
+const START_LESSON_IMPORTS: &str = "import type { Code } from '@t/kernel'\nimport { bind, type EventCodes } from '../../domains/event-codes/index.ts'\n";
+
 #[test]
-fn c67_a_body_change_pushes_nothing() {
+fn c67_a_body_change_that_moves_no_use_pushes_nothing() {
     let tree = Tree::valid();
     let (tx, rx) = mpsc::channel();
     watch(tree.path(), None, tx).unwrap();
     pushed(&rx, Duration::from_secs(5)).expect("the first graph");
     tree.write(
-        "packages/back/src/flows/seed/index.ts",
-        "export function seed(): void { console.log('changed') }\n",
+        START_LESSON,
+        &format!(
+            "{START_LESSON_IMPORTS}export function startLesson(store: EventCodes) {{ return (code: Code) => bind(store, code) }}\nconsole.log('changed')\n"
+        ),
     );
     assert!(pushed(&rx, Duration::from_millis(700)).is_none());
+}
+
+#[test]
+fn c67_a_body_change_that_moves_a_use_pushes_the_graph_and_no_change() {
+    let tree = Tree::valid();
+    let (tx, rx) = mpsc::channel();
+    watch(tree.path(), None, tx).unwrap();
+    pushed(&rx, Duration::from_secs(5)).expect("the first graph");
+    tree.write(
+        START_LESSON,
+        &format!(
+            "{START_LESSON_IMPORTS}export function startLesson(store: EventCodes) {{\n  return (code: Code) => bind(store, code)\n}}\n"
+        ),
+    );
+    let update = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("a graph within 1 s");
+    // No pair and no rule changed: nothing for the session's history.
+    assert!(update.change.is_none());
+    let report = serde_json::to_value(&update.report).unwrap();
+    let edge = report["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["file"] == START_LESSON && e["to"] == "packages/back/src/domains/event-codes")
+        .expect("the import of the domain");
+    let lines: Vec<_> = edge["uses"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|u| u["line"].as_u64().unwrap())
+        .collect();
+    assert_eq!(lines, [3, 4]);
 }
 
 #[test]

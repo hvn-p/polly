@@ -1,9 +1,10 @@
 // A file opened in the app at a line: each import's lines tinted with the tier it
 // imports and linked to its module after its last line, a breaching import or line
-// annotated with its rule and fix. A legend shows or hides the imports of each
-// module, so one can be read alone; a breach always shows.
+// annotated with its rule and fix, each use of an imported name marked in its
+// import's colour. A legend shows or hides the imports of each module, so one can
+// be read alone; a breach always shows.
 
-import { type CSSProperties, type ReactNode, useState } from 'react'
+import { type CSSProperties, Fragment, type ReactNode, useState } from 'react'
 import { labelOf, tierName, tierOfModule } from './model.ts'
 import { Cross, moduleHref, plural, tint, useView } from './parts.tsx'
 
@@ -35,6 +36,34 @@ function highlight(line: string): ReactNode[] {
   return out
 }
 
+// A use of an imported name, in the colour of the tier its import reaches.
+interface Mark {
+  column: number
+  endColumn: number
+  colour: string | undefined
+}
+
+// The highlight, each use cut out of it and marked. A use two imports share (a
+// namespace through a barrel) is marked once.
+function marked(line: string, marks: Mark[]): ReactNode[] {
+  const out: ReactNode[] = []
+  let last = 0
+  for (const mark of marks) {
+    if (mark.column < last) {
+      continue
+    }
+    out.push(<Fragment key={last}>{highlight(line.slice(last, mark.column))}</Fragment>)
+    out.push(
+      <span className="use" key={`use${mark.column}`} style={{ '--uc': mark.colour } as CSSProperties}>
+        {line.slice(mark.column, mark.endColumn)}
+      </span>,
+    )
+    last = mark.endColumn
+  }
+  out.push(<Fragment key={last}>{highlight(line.slice(last))}</Fragment>)
+  return out
+}
+
 interface SourcePanelProps {
   // The file last opened, kept while the panel slides out.
   open: OpenSource | undefined
@@ -61,6 +90,12 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
       }
       return { file, ids }
     })
+  const marks = Map.groupBy(
+    edges
+      .flatMap((e) => e.uses.map((u) => ({ ...u, colour: model.colour[tierOfModule(model, e.to)] })))
+      .sort((a, b) => a.column - b.column),
+    (u) => u.line,
+  )
   // A breach on an import is annotated after the import's last line.
   const noteLine = (line: number) => edges.find((e) => e.line === line)?.endLine ?? line
   const scrollToTarget = (element: HTMLDivElement | null) => {
@@ -100,7 +135,7 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
               ref={n === open.line ? scrollToTarget : undefined}
             >
               <span>{n}</span>
-              <span>{text === '' ? ' ' : highlight(text)}</span>
+              <span>{text === '' ? ' ' : marked(text, marks.get(n) ?? [])}</span>
               {target !== undefined && ends && broken.length === 0 ? (
                 <span className="go">
                   imports <a href={moduleHref(target)}>{labelOf(model, target)}</a>, {tierName(model, tier)}

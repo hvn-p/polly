@@ -7,7 +7,7 @@ use oxc_resolver::{ResolveOptions, Resolver};
 use serde::Serialize;
 
 use crate::glob;
-use crate::parse::{Parsed, Request};
+use crate::parse::{Parsed, Request, Use};
 use crate::rules::{MayImport, Rules, Tier};
 use crate::workspace::Package;
 
@@ -45,6 +45,8 @@ pub struct Edge {
     pub type_only: bool,
     /// The names it takes.
     pub names: Vec<String>,
+    /// Where the file uses the names that reach this module.
+    pub uses: Vec<Use>,
 }
 
 /// One file's import of a technology: an external package or a Node built-in.
@@ -101,11 +103,13 @@ enum Target {
     Unresolved,
 }
 
-/// The names an import takes, and those among them taken as types only.
+/// The names an import takes, those among them taken as types only, and the names of
+/// the import statement each one comes from through re-exports.
 #[derive(Debug, Clone)]
 struct Taken {
     names: BTreeSet<String>,
     types: BTreeSet<String>,
+    origins: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// Each file's imports with what they resolved to.
@@ -413,10 +417,23 @@ fn module_edges(
     let taken = Taken {
         names: request.names.clone(),
         types,
+        origins: request
+            .names
+            .iter()
+            .map(|n| (n.clone(), BTreeSet::from([n.clone()])))
+            .collect(),
     };
     follow(cx, to_file, &taken, &mut BTreeSet::new(), &mut reached);
     let mut edges = vec![];
-    for (to_file, Taken { names, types }) in reached {
+    for (
+        to_file,
+        Taken {
+            names,
+            types,
+            origins,
+        },
+    ) in reached
+    {
         let Some((_, to_module)) = cx.locate(&to_file) else {
             continue;
         };
@@ -424,6 +441,17 @@ fn module_edges(
             continue;
         }
         check_entry(cx, file, request, &to_file, &to_module, barrels);
+        let origins: BTreeSet<&String> = names
+            .iter()
+            .filter_map(|n| origins.get(n))
+            .flatten()
+            .collect();
+        let uses = request
+            .uses
+            .iter()
+            .filter(|(name, _)| origins.contains(name))
+            .map(|(_, at)| at.clone())
+            .collect();
         edges.push((
             Edge {
                 from: from_module.to_string(),
@@ -434,6 +462,7 @@ fn module_edges(
                 spec: request.spec.clone(),
                 type_only: !names.is_empty() && names.is_subset(&types),
                 names: names.into_iter().collect(),
+                uses,
             },
             to_file,
         ));
@@ -489,7 +518,11 @@ fn follow(
     seen: &mut BTreeSet<String>,
     out: &mut Vec<(String, Taken)>,
 ) {
-    let Taken { names, types } = taken;
+    let Taken {
+        names,
+        types,
+        origins,
+    } = taken;
     if cx.locate(file).is_some() || !seen.insert(file.to_string()) {
         out.push((file.to_string(), taken.clone()));
         return;
@@ -501,16 +534,30 @@ fn follow(
     for request in parsed.requests.clone() {
         let mut taken = BTreeSet::new();
         let mut as_types = BTreeSet::new();
+        let mut from: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut inherit = |name: &String, of: &str| {
+            let original = origins.get(of).into_iter().flatten().cloned();
+            from.entry(name.clone()).or_default().extend(original);
+        };
         for (imported, exported) in &request.reexports {
             if exported == "*" {
                 for name in names.iter().filter(|n| all || n.as_str() != "default") {
                     taken.insert(name.clone());
+                    inherit(name, name);
                     if types.contains(name) || request.type_names.contains(imported) {
                         as_types.insert(name.clone());
                     }
                 }
             } else if all || names.contains(exported) {
                 taken.insert(imported.clone());
+                inherit(
+                    imported,
+                    if names.contains(exported) {
+                        exported
+                    } else {
+                        "*"
+                    },
+                );
                 if types.contains(exported) || request.type_names.contains(imported) {
                     as_types.insert(imported.clone());
                 }
@@ -534,6 +581,7 @@ fn follow(
                 &Taken {
                     names: taken,
                     types: as_types,
+                    origins: from,
                 },
                 seen,
                 out,

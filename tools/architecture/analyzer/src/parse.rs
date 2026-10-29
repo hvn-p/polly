@@ -5,10 +5,25 @@ use std::path::Path;
 
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
-use oxc_span::SourceType;
+use oxc_semantic::{Semantic, SemanticBuilder};
+use oxc_span::{GetSpan, SourceType, Span};
 use oxc_syntax::module_record::{
     ExportExportName, ExportImportName, ImportImportName, ModuleRecord, RequestedModule,
 };
+use serde::Serialize;
+
+/// Where a file uses a name it imports: its line from 1, and its columns from 0 in UTF-16
+/// code units, as the view's text counts them.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Use {
+    /// The line, from 1.
+    pub line: u32,
+    /// Where the name starts in its line.
+    pub column: u32,
+    /// Where it ends.
+    pub end_column: u32,
+}
 
 /// One import or re-export statement, or a dynamic import of a literal.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +42,10 @@ pub struct Request {
     pub type_names: BTreeSet<String>,
     /// For a re-export: (name in the target, name exported here); `*` for all.
     pub reexports: Vec<(String, String)>,
+    /// Where the file uses each name it takes, by that name as in `names`, in order: the
+    /// references the scope analysis resolves to its binding, so neither a property nor
+    /// a local of the same name.
+    pub uses: Vec<(String, Use)>,
 }
 
 /// What a file imports and exports.
@@ -43,9 +62,28 @@ fn line_of(source: &str, offset: u32) -> u32 {
     u32::try_from(before.matches('\n').count() + 1).unwrap_or(u32::MAX)
 }
 
+fn use_at(source: &str, span: Span) -> Use {
+    let (start, end) = (span.start as usize, span.end as usize);
+    let line_start = source
+        .get(..start)
+        .and_then(|before| before.rfind('\n'))
+        .map_or(0, |i| i + 1);
+    let width = |from: usize, to: usize| {
+        let text = source.get(from..to).unwrap_or_default();
+        u32::try_from(text.encode_utf16().count()).unwrap_or(u32::MAX)
+    };
+    let column = width(line_start, start);
+    Use {
+        line: line_of(source, span.start),
+        column,
+        end_column: column + width(start, end),
+    }
+}
+
 /// One import or re-export statement.
 fn static_request(
     module: &ModuleRecord,
+    semantic: &Semantic,
     source: &str,
     spec: &str,
     statement: &RequestedModule,
@@ -59,6 +97,7 @@ fn static_request(
         type_only: statement.is_type,
         type_names: BTreeSet::new(),
         reexports: vec![],
+        uses: vec![],
     };
     if statement.is_import {
         let entries: Vec<_> = module
@@ -75,8 +114,20 @@ fn static_request(
             if entry.is_type || statement.is_type {
                 request.type_names.insert(name.clone());
             }
+            let scoping = semantic.scoping();
+            let local = entry.local_name.name.as_str();
+            for reference in scoping
+                .get_root_binding(local.into())
+                .map(|symbol| scoping.get_resolved_reference_ids(symbol))
+                .unwrap_or_default()
+            {
+                let node = scoping.get_reference(*reference).node_id();
+                let span = semantic.nodes().get_node(node).span();
+                request.uses.push((name.clone(), use_at(source, span)));
+            }
             request.names.insert(name);
         }
+        request.uses.sort_by(|a, b| a.1.cmp(&b.1));
         request.type_only |= !entries.is_empty() && entries.iter().all(|e| e.is_type);
     } else {
         let entries: Vec<_> = module
@@ -114,13 +165,17 @@ fn static_request(
 pub fn parse(path: &Path, source: &str) -> Parsed {
     let allocator = Allocator::default();
     let source_type = SourceType::from_path(path).unwrap_or_default();
-    let module = Parser::new(&allocator, source, source_type)
-        .parse()
-        .module_record;
+    let parsed = Parser::new(&allocator, source, source_type).parse();
+    // The nodes give each reference its span.
+    let semantic = SemanticBuilder::new()
+        .with_build_nodes(true)
+        .build(&parsed.program)
+        .semantic;
+    let module = &parsed.module_record;
     let mut requests = vec![];
     for (spec, statements) in &module.requested_modules {
         for statement in statements {
-            requests.push(static_request(&module, source, spec, statement));
+            requests.push(static_request(module, &semantic, source, spec, statement));
         }
     }
     for dynamic in &module.dynamic_imports {
@@ -137,6 +192,7 @@ pub fn parse(path: &Path, source: &str) -> Parsed {
                 type_only: false,
                 type_names: BTreeSet::new(),
                 reexports: vec![],
+                uses: vec![],
             });
         }
     }

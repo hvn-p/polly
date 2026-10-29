@@ -75,6 +75,90 @@ fn an_import_written_over_several_lines_reports_where_it_ends() {
     );
 }
 
+/// A use: its line, its column in UTF-16 code units, and the text there.
+type At = (u64, u64, String);
+
+/// Where a file uses the names of each module it imports.
+fn uses(tree: &Tree, file: &str) -> Vec<(String, Vec<At>)> {
+    let report = serde_json::to_value(analyze(tree.path(), None).unwrap()).unwrap();
+    let source = std::fs::read_to_string(tree.path().join(file)).unwrap();
+    let lines: Vec<Vec<u16>> = source.lines().map(|l| l.encode_utf16().collect()).collect();
+    let mut found = vec![];
+    for edge in report["edges"].as_array().unwrap() {
+        if edge["file"] != file {
+            continue;
+        }
+        let Some(uses) = edge["uses"].as_array() else {
+            panic!("no uses on {edge:#}");
+        };
+        let at = uses
+            .iter()
+            .map(|u| {
+                let (line, column, end) = (
+                    u["line"].as_u64().unwrap(),
+                    u["column"].as_u64().unwrap(),
+                    u["endColumn"].as_u64().unwrap(),
+                );
+                let text = &lines[usize::try_from(line).unwrap() - 1]
+                    [usize::try_from(column).unwrap()..usize::try_from(end).unwrap()];
+                (line, column, String::from_utf16(text).unwrap())
+            })
+            .collect();
+        found.push((edge["to"].as_str().unwrap().to_string(), at));
+    }
+    found
+}
+
+#[test]
+fn the_uses_of_an_imported_name_are_its_references_not_its_homonyms() {
+    let tree = Tree::valid();
+    tree.write(
+        "apps/api/src/routes.ts",
+        "import type { EventCodes } from '@t/back/domains'\nimport { type Code, hash } from '@t/kernel'\nconst store = { hash: 1 }\nexport function serve(x: EventCodes, code: Code): string { void store.hash; return hash(code) }\nfunction local(hash: string): string { return hash }\nexport const label = 'été ' + hash('x')\nexport { local }\n",
+    );
+    let at = |line, column, text: &str| (line, column, text.to_string());
+    assert_eq!(
+        uses(&tree, "apps/api/src/routes.ts"),
+        [
+            (
+                "packages/back/src/domains/event-codes".to_string(),
+                vec![at(4, 25, "EventCodes")]
+            ),
+            (
+                "packages/kernel".to_string(),
+                vec![at(4, 43, "Code"), at(4, 83, "hash"), at(6, 30, "hash")]
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_use_through_a_barrel_goes_to_the_module_its_name_reaches() {
+    let tree = Tree::valid();
+    tree.write(
+        "packages/back/src/index.ts",
+        "export { startLesson, startLesson as begin } from './flows/start-lesson/index.ts'\nexport * from './flows/seed/index.ts'\n",
+    )
+    .write(
+        "apps/api/src/routes.ts",
+        "import { begin, seed } from '@t/back'\nexport function serve(): void { seed(); void begin }\n",
+    );
+    let at = |column, text: &str| (2, column, text.to_string());
+    assert_eq!(
+        uses(&tree, "apps/api/src/routes.ts"),
+        [
+            (
+                "packages/back/src/flows/seed".to_string(),
+                vec![at(32, "seed")]
+            ),
+            (
+                "packages/back/src/flows/start-lesson".to_string(),
+                vec![at(45, "begin")]
+            ),
+        ]
+    );
+}
+
 #[test]
 fn c69_types_only_is_judged_name_by_name_through_a_barrel() {
     let tree = Tree::valid();

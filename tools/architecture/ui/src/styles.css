@@ -1514,3 +1514,8 @@ fieldset.zoom {
 .src .legend .stn {
   color: var(--c);
 }
+.src .use {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--uc) 22%, transparent);
+  box-shadow: inset 0 -1px var(--uc);
+}

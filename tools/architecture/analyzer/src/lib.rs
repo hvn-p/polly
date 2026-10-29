@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 pub use graph::{Edge, Module, Technology, Violation};
+pub use parse::Use;
 pub use rules::Rules;
 pub use serve::serve;
 pub use watch::{Change, Update, watch};
