@@ -19,8 +19,8 @@ Every command acts on the worktree it runs in.
 
 | Command | Does |
 |---|---|
-| `nr dev:up` | Creates what is missing, migrates, seeds the demo account, starts the processes, prints the URL. Safe to run again: it repairs a stopped or partly set up worktree. |
-| `nr dev:down` | Stops the processes and releases the worktree's databases, bucket and route. |
+| `nr dev:up` | Creates what is missing, migrates, seeds the demo account, starts the processes, prints the architecture view's URL and the worktree's. Safe to run again: it repairs a stopped or partly set up worktree. |
+| `nr dev:down` | Stops the processes and releases the worktree's databases, bucket and routes. |
 | `nr dev:url` | Prints the worktree's URL. |
 | `nr dev:worker real [--compute <fingerprint>]` / `nr dev:worker fake` | Restarts the worktree's worker with the machine's compute service for its fingerprint of `services/compute` (or the one named), or with the fake analyzer that loads none. Worktrees with the same fingerprint share one service; `nr dev:down` puts the worktree back in fake mode. |
 | `nr dev:e2e <scenario>` | Plays a scenario (`smoke`) in a driven Claude Code session against this worktree, then prints pass or fail and the transcript's path. Needs `claude` signed in and util-linux `script`; never runs in CI. |
@@ -37,9 +37,19 @@ with the demo account.
 
 - `.env.local`: the worktree's configuration, generated from
   [`env.template`](env.template). Generated values are never rewritten.
-- `.dev/logs/api.log`, `.dev/logs/web.log`, `.dev/logs/worker.log`: the output of each
+- `.dev/logs/api.log`, `.dev/logs/web.log`, `.dev/logs/worker.log`,
+  `.dev/logs/architecture.log`, `.dev/logs/architecture-view.log`: the output of each
   process.
 - `.dev/state.json`: what `dev:down` releases.
+
+## Architecture view
+
+`https://arch.<identity>.polly.localhost` shows the worktree's architecture as
+`architecture.rules.json` and the analyzer see it, compared with `main`, updated on
+every saved file. The analyzer is the one built in the worktree
+(`cargo build --release` in `tools/architecture/analyzer`) when there is one, the
+prebuilt package otherwise: only whoever changes the analyzer needs Rust, and then
+restarts the worktree's processes to run the new build.
 
 ## Demo account
 

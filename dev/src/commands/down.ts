@@ -49,6 +49,7 @@ export async function down({ root, infra, out }: DownOptions): Promise<void> {
     await infra.garage.release(resources.bucket)
     resetConfiguration(worktree)
     await infra.routes.remove(state.route ?? resources.route)
+    await infra.routes.remove(state.architectureRoute ?? resources.architectureRoute)
     deleteState(worktree)
     out(`released ${resources.host}`)
   } finally {

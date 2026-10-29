@@ -25,6 +25,7 @@ describe('dev:down with faked infrastructure', () => {
       `postgres.release polly_${id.replaceAll('-', '_')}`,
       `garage.release polly-${id}`,
       `routes.remove ${id}.polly`,
+      `routes.remove arch.${id}.polly`,
     ])
     expect(existsSync(join(root, '.dev/state.json'))).toBe(false)
   })
@@ -41,6 +42,7 @@ describe('dev:down with faked infrastructure', () => {
     expect(infra.calls).toContain(`postgres.release polly_${id.replaceAll('-', '_')}`)
     expect(infra.calls).toContain(`garage.release polly-${id}`)
     expect(infra.calls).toContain(`routes.remove ${id}.polly`)
+    expect(infra.calls).toContain(`routes.remove arch.${id}.polly`)
   })
 
   it('C16: on a worktree already released, or never set up, changes nothing', async () => {
@@ -86,6 +88,7 @@ describe('dev:down after a dev:up that failed midway', () => {
       expect.stringMatching(/^postgres\.release /),
       expect.stringMatching(/^garage\.release /),
       expect.stringMatching(/^routes\.remove /),
+      expect.stringMatching(/^routes\.remove arch\./),
     ])
   })
 })

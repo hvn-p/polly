@@ -12,6 +12,7 @@ import type { Worktree } from './worktree.ts'
 export interface WorktreeState {
   supervisor?: SupervisorState
   route?: string
+  architectureRoute?: string
   role?: string
   garageKeyId?: string
   // The fingerprint of the compute service the real worker uses.
@@ -59,6 +60,9 @@ export function resourcesOf(env: Record<string, string>) {
     identity,
     route: `${identity}.polly`,
     host: names.host,
+    // The architecture view's own host name, one level under the worktree's.
+    architectureRoute: `arch.${identity}.polly`,
+    architectureHost: `arch.${names.host}`,
     database,
     bucket: required(env, 'S3_BUCKET'),
   }

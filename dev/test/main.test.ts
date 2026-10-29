@@ -26,7 +26,13 @@ describe('dev command line', () => {
     expect(await run(['worker', 'fake'], options)).toBe(0)
     expect(await run(['down'], options)).toBe(0)
     const url = readFileSync(join(root, '.env.local'), 'utf8').match(/^PUBLIC_URL=(.*)$/m)?.[1]
-    expect(stdout).toEqual([url, url, 'worker: fake', expect.stringMatching(/^released /)])
+    expect(stdout).toEqual([
+      expect.stringMatching(/^architecture view: https:\/\/arch\./),
+      url,
+      url,
+      'worker: fake',
+      expect.stringMatching(/^released /),
+    ])
   })
 
   it('refuses an unknown worker mode with exit 1', async () => {
@@ -42,7 +48,7 @@ describe('dev command line', () => {
     const { stdout, io: options } = io(temporaryRepository(), infra)
     await run(['up'], options)
     expect(await run(['worker', 'real', '--compute', 'fp-other'], options)).toBe(0)
-    expect(stdout.slice(1)).toEqual([
+    expect(stdout.slice(2)).toEqual([
       expect.stringMatching(/^COMPUTE_VERSION_MISMATCH: .*fp-other/),
       'worker: real',
     ])

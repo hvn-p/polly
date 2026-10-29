@@ -34,12 +34,15 @@ describe('dev:up with faked infrastructure', () => {
       `application.migrate ${role}`,
       'application.seed local',
       `routes.add ${id}.polly ${env(root).get('POLLY_WEB_PORT')}`,
+      `routes.add arch.${id}.polly ${env(root).get('POLLY_ARCH_PORT')}`,
       'supervisor.start',
     ])
+    expect(out.lines).toContain(`architecture view: https://arch.${id}.polly.localhost`)
     expect(out.lines.at(-1)).toBe(`https://${id}.polly.localhost`)
     expect(JSON.parse(readFileSync(join(root, '.dev/state.json'), 'utf8'))).toMatchObject({
       supervisor: { pid: expect.any(Number) },
       route: `${id}.polly`,
+      architectureRoute: `arch.${id}.polly`,
       role,
       garageKeyId: env(root).get('S3_ACCESS_KEY_ID'),
     })
@@ -106,6 +109,32 @@ describe('dev:up with faked infrastructure', () => {
       message: expect.stringContaining(`${id}.polly.localhost is routed to port 1`),
     })
     expect(infra.routeTable.get(`${id}.polly`)).toBe(1)
+  })
+
+  it('C9: refuses an architecture view host routed to another port, and leaves the route alone', async () => {
+    const root = temporaryRepository()
+    const infra = fakeInfrastructure()
+    await up({ root, ...loaded(infra), out: output().write })
+    const id = env(root).get('POLLY_WORKTREE_ID')
+    infra.routeTable.set(`arch.${id}.polly`, 1)
+    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
+      code: 'RESOURCE_CONFLICT',
+      message: expect.stringContaining(`arch.${id}.polly.localhost is routed to port 1`),
+    })
+    expect(infra.routeTable.get(`arch.${id}.polly`)).toBe(1)
+  })
+
+  it('C9: refuses the port of the architecture view held by another process', async () => {
+    const root = temporaryRepository()
+    const infra = fakeInfrastructure()
+    await up({ root, ...loaded(infra), out: output().write })
+    infra.runningSupervisors.clear()
+    const port = Number(env(root).get('POLLY_ARCH_PORT'))
+    infra.heldPorts.add(port)
+    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
+      code: 'RESOURCE_CONFLICT',
+      message: expect.stringMatching(new RegExp(`^port ${port} \\(POLLY_ARCH_PORT\\)`)),
+    })
   })
 
   describe('C58: vendors/infra not initialised', () => {

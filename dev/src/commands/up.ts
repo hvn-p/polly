@@ -99,7 +99,7 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
         // ports: they are stopped before a port counts as held by another.
         await infra.supervisor.stop(state.supervisor)
       }
-      for (const key of ['POLLY_API_PORT', 'POLLY_MCP_PORT', 'POLLY_WEB_PORT']) {
+      for (const key of ['POLLY_API_PORT', 'POLLY_MCP_PORT', 'POLLY_WEB_PORT', 'POLLY_ARCH_PORT']) {
         const port = Number(required(env, key))
         if (await infra.ports.isHeld(port)) {
           throw new Refusal(
@@ -109,12 +109,26 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
         }
       }
     }
-    const routedPort = await infra.routes.portOf(resources.route)
-    if (routedPort !== undefined && routedPort !== webPort) {
-      throw new Refusal(
-        'RESOURCE_CONFLICT',
-        `${resources.host} is routed to port ${routedPort}, not ${webPort}; remove that route, then run nr dev:up`,
-      )
+    // Each host name routed to its process, or to nothing yet.
+    const routes = [
+      { name: resources.route, host: resources.host, port: webPort },
+      {
+        name: resources.architectureRoute,
+        host: resources.architectureHost,
+        port: Number(required(env, 'POLLY_ARCH_PORT')),
+      },
+    ]
+    const unrouted: typeof routes = []
+    for (const route of routes) {
+      const routedPort = await infra.routes.portOf(route.name)
+      if (routedPort === undefined) {
+        unrouted.push(route)
+      } else if (routedPort !== route.port) {
+        throw new Refusal(
+          'RESOURCE_CONFLICT',
+          `${route.host} is routed to port ${routedPort}, not ${route.port}; remove that route, then run nr dev:up`,
+        )
+      }
     }
 
     await infra.postgres.ensure(resources.database, EXTENSIONS)
@@ -122,8 +136,8 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
     await infra.garage.ensure(bucket, Number(required(env, 'S3_EXPIRATION_DAYS')))
     await infra.application.migrate(env)
     await infra.application.seed(env)
-    if (routedPort === undefined) {
-      await infra.routes.add(resources.route, webPort)
+    for (const route of unrouted) {
+      await infra.routes.add(route.name, route.port)
     }
     let supervisor = state.supervisor
     let compute = state.compute
@@ -139,10 +153,12 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
     writeState(worktree, {
       supervisor,
       route: resources.route,
+      architectureRoute: resources.architectureRoute,
       role: resources.database.names.role,
       garageKeyId: bucket.accessKeyId,
       ...(compute === undefined ? {} : { compute }),
     })
+    out(`architecture view: https://${resources.architectureHost}`)
     out(required(env, 'PUBLIC_URL'))
   } finally {
     await lock.release()

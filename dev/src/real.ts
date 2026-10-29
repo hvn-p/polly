@@ -2,6 +2,7 @@
 
 import { join } from 'node:path'
 import {
+  architectureProcesses,
   computeServices,
   garageAdmin,
   listeningPorts,
@@ -22,7 +23,8 @@ const migrationsCli = join(codeRoot, 'packages/migrations/dist/cli.js')
 const build = join(codeRoot, 'scripts/build/processes.ts')
 
 // The database's and the API's command lines, and the processes of a worktree
-// (the API, the front-end dev server and the worker), run on its configuration.
+// (the API, the MCP server, the front-end dev server, the worker and the
+// architecture view), run on its configuration.
 export function apiApplication(): Application {
   const cli = (path: string, command: string, env: Record<string, string>) =>
     run(process.execPath, [path, command], { env: { ...process.env, ...env } })
@@ -33,7 +35,7 @@ export function apiApplication(): Application {
     seed: async (env) => {
       await cli(apiCli, 'seed-demo', env)
     },
-    processes: () => [
+    processes: (env) => [
       // Rebuilds the processes below on each change; node --watch restarts
       // each on its new build.
       {
@@ -68,6 +70,7 @@ export function apiApplication(): Application {
         args: ['--watch', join(codeRoot, 'apps/worker/dist/main.js')],
         cwd: codeRoot,
       },
+      ...architectureProcesses({ codeRoot, port: Number(env['POLLY_ARCH_PORT']) }),
     ],
   }
 }
