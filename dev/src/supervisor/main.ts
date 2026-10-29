@@ -26,6 +26,10 @@ const children = new Map<string, ChildProcess>()
 let stopping = false
 
 function launch(definition: SupervisedProcess): void {
+  // A restart due after the stop began is dropped.
+  if (stopping) {
+    return
+  }
   const log = openSync(join(logs, `${definition.name}.log`), 'a')
   const child = spawn(definition.command, definition.args, {
     cwd: definition.cwd,

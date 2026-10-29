@@ -48,7 +48,7 @@ async function worktree(branch: string, compute: FakeCompute, fingerprint = 'fp-
   const root = temporaryRepository(branch)
   compute.fingerprints.set(root, fingerprint)
   const infra = infrastructure(compute)
-  await up({ root, ...loaded(infra), out: () => undefined })
+  await up({ root, ...loaded(infra), out: () => undefined, warn: () => undefined })
   const identity = envOf(root).get('POLLY_WORKTREE_ID') ?? ''
   return { root, infra, identity }
 }
@@ -70,8 +70,20 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     const a = await worktree('feature/same-a', compute)
     const b = await worktree('feature/same-b', compute)
     const lines: string[] = []
-    await worker({ root: a.root, infra: a.infra, mode: 'real', out: (line) => lines.push(line) })
-    await worker({ root: b.root, infra: b.infra, mode: 'real', out: (line) => lines.push(line) })
+    await worker({
+      root: a.root,
+      infra: a.infra,
+      mode: 'real',
+      out: (line) => lines.push(line),
+      warn: (line) => lines.push(line),
+    })
+    await worker({
+      root: b.root,
+      infra: b.infra,
+      mode: 'real',
+      out: (line) => lines.push(line),
+      warn: (line) => lines.push(line),
+    })
 
     expect(compute.calls).toEqual(['compute.start fp-main'])
     expect(envOf(a.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-main'))
@@ -85,9 +97,15 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     const compute = fakeCompute()
     const a = await worktree('feature/own-a', compute)
     const b = await worktree('feature/own-b', compute, 'fp-b')
-    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined })
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined, warn: () => undefined })
     const lines: string[] = []
-    await worker({ root: b.root, infra: b.infra, mode: 'real', out: (line) => lines.push(line) })
+    await worker({
+      root: b.root,
+      infra: b.infra,
+      mode: 'real',
+      out: (line) => lines.push(line),
+      warn: (line) => lines.push(line),
+    })
 
     expect(compute.calls).toEqual(['compute.start fp-main', 'compute.start fp-b'])
     expect(envOf(b.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-b'))
@@ -100,7 +118,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
   it('C31: dev:up of a worktree left in real mode starts its service, and says when it is its own', async () => {
     const compute = fakeCompute()
     const a = await worktree('feature/up-a', compute)
-    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined })
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined, warn: () => undefined })
     const b = await worktree('feature/up-b', compute, 'fp-b')
     const envFile = join(b.root, '.env.local')
     writeFileSync(
@@ -109,7 +127,12 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     )
     await stopSupervisor(b.root, b.infra)
     const lines: string[] = []
-    await up({ root: b.root, ...loaded(b.infra), out: (line) => lines.push(line) })
+    await up({
+      root: b.root,
+      ...loaded(b.infra),
+      out: (line) => lines.push(line),
+      warn: (line) => lines.push(line),
+    })
 
     expect(compute.calls).toEqual(['compute.start fp-main', 'compute.start fp-b'])
     expect(envOf(b.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-b'))
@@ -120,7 +143,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     const compute = fakeCompute()
     const a = await worktree('feature/version-a', compute)
     const b = await worktree('feature/version-b', compute, 'fp-b')
-    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined })
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined, warn: () => undefined })
     const lines: string[] = []
     await worker({
       root: b.root,
@@ -128,6 +151,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
       mode: 'real',
       compute: 'fp-main',
       out: (line) => lines.push(line),
+      warn: (line) => lines.push(line),
     })
 
     expect(compute.calls).toEqual(['compute.start fp-main'])
@@ -143,7 +167,14 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     const compute = fakeCompute()
     const a = await worktree('feature/version-unknown', compute)
     await expect(
-      worker({ root: a.root, infra: a.infra, mode: 'real', compute: 'fp-gone', out: () => undefined }),
+      worker({
+        root: a.root,
+        infra: a.infra,
+        mode: 'real',
+        compute: 'fp-gone',
+        out: () => undefined,
+        warn: () => undefined,
+      }),
     ).rejects.toMatchObject({ code: 'UNKNOWN_COMPUTE_VERSION', message: expect.stringContaining('fp-gone') })
     expect(envOf(a.root).get('POLLY_WORKER_MODE')).toBe('fake')
   })
@@ -154,7 +185,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     const b = await worktree('feature/down-b', compute, 'fp-b')
     const c = await worktree('feature/down-c', compute)
     for (const { root, infra } of [a, b, c]) {
-      await worker({ root, infra, mode: 'real', out: () => undefined })
+      await worker({ root, infra, mode: 'real', out: () => undefined, warn: () => undefined })
     }
     await down({ root: b.root, infra: b.infra, out: () => undefined })
     await down({ root: a.root, infra: a.infra, out: () => undefined })
@@ -166,8 +197,8 @@ describe('dev:worker', { timeout: 30_000 }, () => {
   it('back to fake, the worktree no longer uses its service, which stops once no worktree does', async () => {
     const compute = fakeCompute()
     const a = await worktree('feature/fake-again', compute)
-    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined })
-    await worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined })
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined, warn: () => undefined })
+    await worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined, warn: () => undefined })
     expect(compute.calls).toEqual(['compute.start fp-main', 'compute.stop fp-main'])
     expect(envOf(a.root).get('POLLY_WORKER_MODE')).toBe('fake')
   })
@@ -175,10 +206,10 @@ describe('dev:worker', { timeout: 30_000 }, () => {
   it('C19: dev:down puts the worker back in fake mode, so the next dev:up starts no compute service', async () => {
     const compute = fakeCompute()
     const a = await worktree('feature/real-reset', compute)
-    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined })
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined, warn: () => undefined })
     await down({ root: a.root, infra: a.infra, out: () => undefined })
     expect(envOf(a.root).get('POLLY_WORKER_MODE')).toBe('fake')
-    await up({ root: a.root, ...loaded(a.infra), out: () => undefined })
+    await up({ root: a.root, ...loaded(a.infra), out: () => undefined, warn: () => undefined })
     expect(compute.calls).toEqual(['compute.start fp-main', 'compute.stop fp-main'])
   })
 
@@ -191,7 +222,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
       return { pid: 0 }
     }
     await expect(
-      worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined }),
+      worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined, warn: () => undefined }),
     ).rejects.toMatchObject({
       code: 'WORKTREE_NOT_RUNNING',
       message: expect.stringContaining('nr dev:up'),
@@ -209,7 +240,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
       startedAt = Date.now()
       return start(options)
     }
-    await worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined })
+    await worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined, warn: () => undefined })
     // The lock is released when the holder exits, which Node may notice after the worker command does.
     expect(startedAt - heldAt).toBeGreaterThan(900)
   })
@@ -217,7 +248,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
   it('refuses a mode other than real or fake', async () => {
     const a = await worktree('feature/mode', fakeCompute())
     await expect(
-      worker({ root: a.root, infra: a.infra, mode: 'turbo', out: () => undefined }),
+      worker({ root: a.root, infra: a.infra, mode: 'turbo', out: () => undefined, warn: () => undefined }),
     ).rejects.toMatchObject({
       code: 'UNKNOWN_WORKER_MODE',
     })

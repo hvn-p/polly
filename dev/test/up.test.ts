@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -23,7 +23,7 @@ describe('dev:up with faked infrastructure', () => {
     const root = temporaryRepository('feature/probe')
     const infra = fakeInfrastructure()
     const out = output()
-    await up({ root, ...loaded(infra), out: out.write })
+    await up({ root, ...loaded(infra), out: out.write, warn: out.write })
     const id = env(root).get('POLLY_WORKTREE_ID') ?? ''
     const role = `polly_${id.replaceAll('-', '_')}`
     expect(infra.calls).toEqual([
@@ -51,19 +51,45 @@ describe('dev:up with faked infrastructure', () => {
   it('C2: on a running worktree, recreates nothing it already has', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out: output().write })
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
     const before = readFileSync(join(root, '.env.local'), 'utf8')
     infra.calls.length = 0
-    await up({ root, ...loaded(infra), out: output().write })
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
     expect(infra.calls).not.toContain('supervisor.start')
     expect(infra.calls.filter((call) => call.startsWith('routes.add'))).toEqual([])
     expect(readFileSync(join(root, '.env.local'), 'utf8')).toBe(before)
   })
 
+  it('restarts a running supervisor whose process set changed, as when .env.local gains a port', async () => {
+    const root = temporaryRepository()
+    const infra = fakeInfrastructure()
+    infra.application.processes = (values) => [
+      {
+        name: 'architecture',
+        command: 'analyzer',
+        args: ['--port', String(values['POLLY_ARCH_PORT'])],
+        cwd: root,
+      },
+    ]
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
+    const envFile = join(root, '.env.local')
+    writeFileSync(envFile, readFileSync(envFile, 'utf8').replace(/^POLLY_ARCH_PORT=.*\n/m, ''))
+    infra.routeTable.clear()
+    infra.calls.length = 0
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
+    expect(infra.calls.filter((call) => call.startsWith('supervisor.'))).toEqual([
+      expect.stringMatching(/^supervisor\.stop /),
+      'supervisor.start',
+    ])
+    infra.calls.length = 0
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
+    expect(infra.calls.filter((call) => call.startsWith('supervisor.'))).toEqual([])
+  })
+
   it('C3: restarts a dead supervisor, stopping the group it left behind before checking the ports it holds', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out: output().write })
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
     infra.runningSupervisors.clear()
     const port = Number(env(root).get('POLLY_API_PORT'))
     infra.heldPorts.add(port)
@@ -73,7 +99,7 @@ describe('dev:up with faked infrastructure', () => {
       infra.heldPorts.delete(port)
     }
     infra.calls.length = 0
-    await up({ root, ...loaded(infra), out: output().write })
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
     expect(infra.calls.filter((call) => call.startsWith('supervisor.'))).toEqual([
       expect.stringMatching(/^supervisor\.stop /),
       'supervisor.start',
@@ -83,12 +109,14 @@ describe('dev:up with faked infrastructure', () => {
   it('C9: refuses a port held by another process, naming the port, and leaves it alone', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out: output().write })
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
     infra.runningSupervisors.clear()
     const port = Number(env(root).get('POLLY_API_PORT'))
     infra.heldPorts.add(port)
     infra.calls.length = 0
-    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
+    await expect(
+      up({ root, ...loaded(infra), out: output().write, warn: () => undefined }),
+    ).rejects.toMatchObject({
       code: 'RESOURCE_CONFLICT',
       message: expect.stringMatching(
         new RegExp(`^port ${port} \\(POLLY_API_PORT\\) is held by another process`),
@@ -100,11 +128,13 @@ describe('dev:up with faked infrastructure', () => {
   it('C9: refuses a host name already routed to another port, and leaves the route alone', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out: output().write })
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
     const id = env(root).get('POLLY_WORKTREE_ID')
     infra.routeTable.set(`${id}.polly`, 1)
     infra.calls.length = 0
-    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
+    await expect(
+      up({ root, ...loaded(infra), out: output().write, warn: () => undefined }),
+    ).rejects.toMatchObject({
       code: 'RESOURCE_CONFLICT',
       message: expect.stringContaining(`${id}.polly.localhost is routed to port 1`),
     })
@@ -114,10 +144,12 @@ describe('dev:up with faked infrastructure', () => {
   it('C9: refuses an architecture view host routed to another port, and leaves the route alone', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out: output().write })
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
     const id = env(root).get('POLLY_WORKTREE_ID')
     infra.routeTable.set(`arch.${id}.polly`, 1)
-    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
+    await expect(
+      up({ root, ...loaded(infra), out: output().write, warn: () => undefined }),
+    ).rejects.toMatchObject({
       code: 'RESOURCE_CONFLICT',
       message: expect.stringContaining(`arch.${id}.polly.localhost is routed to port 1`),
     })
@@ -127,11 +159,13 @@ describe('dev:up with faked infrastructure', () => {
   it('C9: refuses the port of the architecture view held by another process', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out: output().write })
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
     infra.runningSupervisors.clear()
     const port = Number(env(root).get('POLLY_ARCH_PORT'))
     infra.heldPorts.add(port)
-    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
+    await expect(
+      up({ root, ...loaded(infra), out: output().write, warn: () => undefined }),
+    ).rejects.toMatchObject({
       code: 'RESOURCE_CONFLICT',
       message: expect.stringMatching(new RegExp(`^port ${port} \\(POLLY_ARCH_PORT\\)`)),
     })
@@ -164,7 +198,7 @@ describe('dev:up with faked infrastructure', () => {
       git(root, 'submodule', '--quiet', 'deinit', '--force', 'vendors/infra')
       expect(existsSync(join(root, 'vendors/infra/CLAUDE.md'))).toBe(false)
       const infra = fakeInfrastructure()
-      await up({ root, ...loaded(infra), out: output().write })
+      await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
       expect(readFileSync(join(root, 'vendors/infra/CLAUDE.md'), 'utf8')).toBe('infra\n')
       expect(infra.calls).toContain('supervisor.start')
     })
@@ -174,7 +208,7 @@ describe('dev:up with faked infrastructure', () => {
 describe('dev:url', () => {
   it('prints the URL from .env.local', async () => {
     const root = temporaryRepository()
-    await up({ root, ...loaded(fakeInfrastructure()), out: output().write })
+    await up({ root, ...loaded(fakeInfrastructure()), out: output().write, warn: () => undefined })
     const out = output()
     url({ root, out: out.write })
     expect(out.lines).toEqual([env(root).get('PUBLIC_URL')])

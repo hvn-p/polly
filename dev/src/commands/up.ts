@@ -13,6 +13,7 @@ import type { Infrastructure, Prerequisites } from '../ports/index.ts'
 import {
   bucketAccessOf,
   currentBranch,
+  digestOf,
   readEnv,
   readState,
   required,
@@ -30,10 +31,12 @@ const EXTENSIONS: readonly string[] = []
 export interface UpOptions {
   root: string
   prerequisites: Prerequisites
-  // Called once the checks pass and the worktree lock is held: installs the
-  // dependencies the infrastructure adapters need, then loads them.
+  // Called once the checks pass and the worktree lock is held.
   infrastructure: () => Promise<Infrastructure>
+  // stdout: the worktree URL, alone.
   out: (line: string) => void
+  // stderr: everything else, warnings included.
+  warn: (line: string) => void
 }
 
 async function freePort(): Promise<number> {
@@ -60,7 +63,7 @@ function initialiseInfraSubmodule(root: string): void {
   }
 }
 
-export async function up({ root, prerequisites, infrastructure, out }: UpOptions): Promise<void> {
+export async function up({ root, prerequisites, infrastructure, out, warn }: UpOptions): Promise<void> {
   const missing = await prerequisites.missing()
   if (missing !== undefined) {
     throw new Refusal('MISSING_PREREQUISITE', `${missing} is missing; install it, then run nr dev:up again`)
@@ -92,11 +95,17 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
     const webPort = Number(required(env, 'POLLY_WEB_PORT'))
     const state = readState(worktree)
 
-    const running = state.supervisor !== undefined && infra.supervisor.isRunning(state.supervisor)
+    // A running supervisor is kept only while it runs what this dev:up would
+    // start: a process added, or a port newly written to .env.local, restarts it.
+    const running =
+      state.supervisor !== undefined &&
+      infra.supervisor.isRunning(state.supervisor) &&
+      state.processes === digestOf(infra.application.processes(env))
     if (!running) {
       if (state.supervisor !== undefined) {
-        // Processes a killed supervisor left behind hold the worktree's own
-        // ports: they are stopped before a port counts as held by another.
+        // Processes a killed or outdated supervisor left behind hold the
+        // worktree's own ports: they are stopped before a port counts as held
+        // by another.
         await infra.supervisor.stop(state.supervisor)
       }
       for (const key of ['POLLY_API_PORT', 'POLLY_MCP_PORT', 'POLLY_WEB_PORT', 'POLLY_ARCH_PORT']) {
@@ -141,24 +150,28 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
     }
     let supervisor = state.supervisor
     let compute = state.compute
+    let processes = state.processes
     if (supervisor === undefined || !running) {
       if (env['POLLY_WORKER_MODE'] === 'real') {
         // As dev:worker real, on the service the worktree last chose.
-        const used = await useCompute(root, infra, resources.identity, out, compute)
+        const used = await useCompute(root, infra, resources.identity, warn, compute)
         env = setEnv(worktree, used.env)
         compute = used.fingerprint
       }
-      supervisor = await infra.supervisor.start({ root, processes: infra.application.processes(env), env })
+      const started = infra.application.processes(env)
+      supervisor = await infra.supervisor.start({ root, processes: started, env })
+      processes = digestOf(started)
     }
     writeState(worktree, {
       supervisor,
+      ...(processes === undefined ? {} : { processes }),
       route: resources.route,
       architectureRoute: resources.architectureRoute,
       role: resources.database.names.role,
       garageKeyId: bucket.accessKeyId,
       ...(compute === undefined ? {} : { compute }),
     })
-    out(`architecture view: https://${resources.architectureHost}`)
+    warn(`architecture view: https://${resources.architectureHost}`)
     out(required(env, 'PUBLIC_URL'))
   } finally {
     await lock.release()

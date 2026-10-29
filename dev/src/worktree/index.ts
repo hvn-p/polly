@@ -5,6 +5,7 @@ export { agentSession, type Session } from './session.ts'
 export {
   bucketAccessOf,
   deleteState,
+  digestOf,
   readEnv,
   readState,
   required,

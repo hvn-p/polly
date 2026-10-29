@@ -18,7 +18,9 @@ describe('command frame', () => {
     const root = temporaryRepository()
     git(root, 'checkout', '--quiet', '--detach')
     const infra = fakeInfrastructure()
-    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
+    await expect(
+      up({ root, ...loaded(infra), out: output().write, warn: () => undefined }),
+    ).rejects.toMatchObject({
       code: 'DETACHED_HEAD',
     })
     expect(infra.calls).toEqual([])
@@ -28,7 +30,9 @@ describe('command frame', () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
     infra.missingPrerequisite = 'docker'
-    await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
+    await expect(
+      up({ root, ...loaded(infra), out: output().write, warn: () => undefined }),
+    ).rejects.toMatchObject({
       code: 'MISSING_PREREQUISITE',
       message: expect.stringContaining('docker'),
     })
@@ -41,7 +45,9 @@ describe('command frame', () => {
     const holder = await holdLock(join(root, '.dev/up.lock'))
     const infra = fakeInfrastructure()
     try {
-      await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
+      await expect(
+        up({ root, ...loaded(infra), out: output().write, warn: () => undefined }),
+      ).rejects.toMatchObject({
         code: 'DEV_UP_IN_PROGRESS',
       })
       expect(infra.calls).toEqual([])

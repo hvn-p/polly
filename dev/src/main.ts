@@ -5,7 +5,7 @@
 
 import { Refusal } from '@polly/platform'
 import { agent, down, e2e, up, url, worker } from './commands/index.ts'
-import { installDependencies, prerequisites } from './machine/index.ts'
+import { prerequisites } from './machine/index.ts'
 import type { Infrastructure } from './ports/index.ts'
 
 export interface Io {
@@ -31,13 +31,9 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
         await up({
           root: io.cwd,
           prerequisites: io.infra?.prerequisites ?? prerequisites,
-          infrastructure: async () => {
-            if (io.infra === undefined) {
-              installDependencies(io.cwd)
-            }
-            return infrastructure(io)
-          },
+          infrastructure: () => infrastructure(io),
           out: io.stdout,
+          warn: io.stderr,
         })
         return 0
       case 'down':
@@ -60,6 +56,7 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
           mode,
           ...(compute === undefined ? {} : { compute }),
           out: io.stdout,
+          warn: io.stderr,
         })
         return 0
       }

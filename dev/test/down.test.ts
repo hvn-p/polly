@@ -14,7 +14,7 @@ describe('dev:down with faked infrastructure', () => {
   it('stops the processes, then releases the databases, the bucket and the route', async () => {
     const root = temporaryRepository('feature/probe')
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     const env = parseEnv(readFileSync(join(root, '.env.local'), 'utf8'))
     const id = env.get('POLLY_WORKTREE_ID') ?? ''
     infra.calls.length = 0
@@ -33,7 +33,7 @@ describe('dev:down with faked infrastructure', () => {
   it('C13: after a branch rename, releases the resources recorded at the first dev:up', async () => {
     const root = temporaryRepository('feature/before')
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     const id = parseEnv(readFileSync(join(root, '.env.local'), 'utf8')).get('POLLY_WORKTREE_ID') ?? ''
     git(root, 'branch', '--move', 'feature/after')
     infra.calls.length = 0
@@ -55,7 +55,7 @@ describe('dev:down with faked infrastructure', () => {
   it('C62: started while dev:up holds the worktree lock, waits for it, then releases', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     await holdLock(join(root, '.dev/up.lock'), 1)
     const heldAt = Date.now()
     infra.calls.length = 0
@@ -79,7 +79,7 @@ describe('dev:down after a dev:up that failed midway', () => {
     infra.garage.ensure = async () => {
       throw new Error('garage down')
     }
-    await expect(up({ root, ...loaded(infra), out })).rejects.toThrow('garage down')
+    await expect(up({ root, ...loaded(infra), out, warn: out })).rejects.toThrow('garage down')
     expect(existsSync(join(root, '.dev/state.json'))).toBe(false)
     infra.calls.length = 0
     await down({ root, infra, out })
@@ -97,7 +97,7 @@ describe('dev:down and the bucket key', () => {
   it('forgets the deleted key, which Garage never lets exist again, and keeps every other value', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     const before = parseEnv(readFileSync(join(root, '.env.local'), 'utf8'))
     await down({ root, infra, out })
     const after = parseEnv(readFileSync(join(root, '.env.local'), 'utf8'))
@@ -106,7 +106,7 @@ describe('dev:down and the bucket key', () => {
     for (const [key, value] of after) {
       expect(before.get(key)).toBe(value)
     }
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     const again = parseEnv(readFileSync(join(root, '.env.local'), 'utf8'))
     expect(again.get('S3_ACCESS_KEY_ID')).not.toBe(before.get('S3_ACCESS_KEY_ID'))
     expect(again.get('BETTER_AUTH_SECRET')).toBe(before.get('BETTER_AUTH_SECRET'))

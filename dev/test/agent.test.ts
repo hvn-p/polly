@@ -21,7 +21,7 @@ const codeRoot = join(import.meta.dirname, '..', '..')
 describe('nr agent', () => {
   it("starts Claude Code with the worktree's plugin and its URLs", async () => {
     const root = temporaryRepository()
-    await up({ root, ...loaded(fakeInfrastructure()), out: () => undefined })
+    await up({ root, ...loaded(fakeInfrastructure()), out: () => undefined, warn: () => undefined })
     const env = parseEnv(readFileSync(join(root, '.env.local'), 'utf8'))
     const { launches, launch } = recorder()
     const lines: string[] = []

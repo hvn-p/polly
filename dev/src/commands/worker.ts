@@ -7,7 +7,15 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { Refusal } from '@polly/platform'
 import { lock } from '../machine/index.ts'
 import type { ComputeService, Infrastructure, SupervisorState } from '../ports/index.ts'
-import { readEnv, readState, required, type Worktree, worktreeAt, writeState } from '../worktree/index.ts'
+import {
+  digestOf,
+  readEnv,
+  readState,
+  required,
+  type Worktree,
+  worktreeAt,
+  writeState,
+} from '../worktree/index.ts'
 
 const MODES = ['real', 'fake']
 
@@ -33,16 +41,18 @@ export async function useCompute(
   root: string,
   infra: Infrastructure,
   identity: string,
-  out: (line: string) => void,
+  warn: (line: string) => void,
   fingerprint?: string,
 ): Promise<{ fingerprint: string; service: ComputeService; env: Record<string, string> }> {
   const own = await infra.compute.fingerprintOf(root)
   const target = fingerprint ?? own
   const service = await infra.compute.use(target, identity, target === own ? root : undefined)
   if (target !== own) {
-    out(`COMPUTE_VERSION_MISMATCH: the worker calls the compute service ${target}; this worktree's is ${own}`)
+    warn(
+      `COMPUTE_VERSION_MISMATCH: the worker calls the compute service ${target}; this worktree's is ${own}`,
+    )
   } else if (service.started && service.others.length > 0) {
-    out(
+    warn(
       `compute: this worktree runs its own service, ${own}, built from its sources; the machine also runs ${service.others.join(', ')}`,
     )
   }
@@ -59,13 +69,17 @@ export async function worker({
   mode,
   compute,
   out,
+  warn,
 }: {
   root: string
   infra: Infrastructure
   mode: string
   // The fingerprint of the compute service to call, in real mode.
   compute?: string
+  // stdout: the mode the worker now runs in.
   out: (line: string) => void
+  // stderr: warnings.
+  warn: (line: string) => void
 }): Promise<void> {
   if (!MODES.includes(mode)) {
     throw new Refusal('UNKNOWN_WORKER_MODE', `${mode}; the modes are ${MODES.join(', ')}`)
@@ -83,21 +97,19 @@ export async function worker({
     if (state.supervisor === undefined || !infra.supervisor.isRunning(state.supervisor)) {
       throw new Refusal('WORKTREE_NOT_RUNNING', "this worktree's Polly is not running; run nr dev:up")
     }
-    const used = mode === 'real' ? await useCompute(root, infra, identity, out, compute) : undefined
+    const used = mode === 'real' ? await useCompute(root, infra, identity, warn, compute) : undefined
     const updated = setEnv(worktree, { ...used?.env, POLLY_WORKER_MODE: mode })
     if (state.compute !== undefined && state.compute !== used?.fingerprint) {
       await infra.compute.release(state.compute, identity)
     }
     await infra.supervisor.stop(state.supervisor)
-    const supervisor: SupervisorState = await infra.supervisor.start({
-      root,
-      processes: infra.application.processes(updated),
-      env: updated,
-    })
+    const processes = infra.application.processes(updated)
+    const supervisor: SupervisorState = await infra.supervisor.start({ root, processes, env: updated })
     const { compute: _, ...rest } = readState(worktree)
     writeState(worktree, {
       ...rest,
       supervisor,
+      processes: digestOf(processes),
       ...(used === undefined ? {} : { compute: used.fingerprint }),
     })
     out(`worker: ${mode}`)

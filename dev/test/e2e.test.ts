@@ -10,7 +10,7 @@ describe('nr dev:e2e refusals', () => {
   it('C39: refuses when Claude Code is missing or signed out', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     for (const client of [
       { installed: false, signedIn: false },
       { installed: true, signedIn: false },
@@ -31,7 +31,7 @@ describe('nr dev:e2e refusals', () => {
     })
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     infra.runningSupervisors.clear()
     await expect(e2e({ root, infra, scenario: 'smoke', out, client })).rejects.toMatchObject({
       code: 'WORKTREE_NOT_RUNNING',
@@ -41,7 +41,7 @@ describe('nr dev:e2e refusals', () => {
   it('refuses an unknown scenario', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     await expect(
       e2e({ root, infra, scenario: 'nope', out, client: async () => ({ installed: true, signedIn: true }) }),
     ).rejects.toMatchObject({ code: 'UNKNOWN_SCENARIO' })
@@ -55,7 +55,7 @@ describe('nr dev:e2e outcome', () => {
   it('refuses when a tool the driver needs is missing, naming it, and drives nothing', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     let driven = false
     const driver = async () => {
       driven = true
@@ -73,7 +73,7 @@ describe('nr dev:e2e outcome', () => {
   it('C38: prints pass and the transcript path', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     const lines: string[] = []
     const driver = async () => ({ failures: [], transcript: '/tmp/session.jsonl' })
     await e2e({ root, infra, scenario: 'smoke', out: (line) => lines.push(line), client, tools, driver })
@@ -83,7 +83,7 @@ describe('nr dev:e2e outcome', () => {
   it('C38: fails with what the transcript misses', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     const driver = async () => ({ failures: ['whoami was not called'], transcript: '/tmp/session.jsonl' })
     await expect(e2e({ root, infra, scenario: 'smoke', out, client, tools, driver })).rejects.toMatchObject({
       code: 'E2E_FAILED',

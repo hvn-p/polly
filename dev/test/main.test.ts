@@ -18,40 +18,33 @@ function io(cwd: string, infra = fakeInfrastructure()) {
 }
 
 describe('dev command line', () => {
-  it('runs up, url, worker and down in a worktree', async () => {
+  it('runs up, url, worker and down in a worktree; up prints the worktree URL alone on stdout', async () => {
     const root = temporaryRepository()
-    const { stdout, io: options } = io(root)
+    const { stdout, stderr, io: options } = io(root)
     expect(await run(['up'], options)).toBe(0)
     expect(await run(['url'], options)).toBe(0)
     expect(await run(['worker', 'fake'], options)).toBe(0)
     expect(await run(['down'], options)).toBe(0)
     const url = readFileSync(join(root, '.env.local'), 'utf8').match(/^PUBLIC_URL=(.*)$/m)?.[1]
-    expect(stdout).toEqual([
-      expect.stringMatching(/^architecture view: https:\/\/arch\./),
-      url,
-      url,
-      'worker: fake',
-      expect.stringMatching(/^released /),
-    ])
+    expect(stdout).toEqual([url, url, 'worker: fake', expect.stringMatching(/^released /)])
+    expect(stderr).toEqual([expect.stringMatching(/^architecture view: https:\/\/arch\./)])
   })
 
   it('refuses an unknown worker mode with exit 1', async () => {
     const { stderr, io: options } = io(temporaryRepository())
     await run(['up'], options)
     expect(await run(['worker', 'turbo'], options)).toBe(1)
-    expect(stderr).toEqual([expect.stringMatching(/^UNKNOWN_WORKER_MODE: /)])
+    expect(stderr.slice(1)).toEqual([expect.stringMatching(/^UNKNOWN_WORKER_MODE: /)])
   })
 
   it('points the real worker at the compute service --compute names', async () => {
     const infra = fakeInfrastructure()
     infra.compute.images.add('fp-other')
-    const { stdout, io: options } = io(temporaryRepository(), infra)
+    const { stdout, stderr, io: options } = io(temporaryRepository(), infra)
     await run(['up'], options)
     expect(await run(['worker', 'real', '--compute', 'fp-other'], options)).toBe(0)
-    expect(stdout.slice(2)).toEqual([
-      expect.stringMatching(/^COMPUTE_VERSION_MISMATCH: .*fp-other/),
-      'worker: real',
-    ])
+    expect(stdout.slice(1)).toEqual(['worker: real'])
+    expect(stderr.slice(1)).toEqual([expect.stringMatching(/^COMPUTE_VERSION_MISMATCH: .*fp-other/)])
   })
 
   it('refuses a worker option other than --compute and its fingerprint', async () => {
@@ -59,7 +52,7 @@ describe('dev command line', () => {
     await run(['up'], options)
     expect(await run(['worker', 'real', '--compute'], options)).toBe(1)
     expect(await run(['worker', 'real', '--turbo', 'x'], options)).toBe(1)
-    expect(stderr).toEqual([
+    expect(stderr.slice(1)).toEqual([
       expect.stringMatching(/^UNKNOWN_WORKER_MODE: .*--compute <fingerprint>/),
       expect.stringMatching(/^UNKNOWN_WORKER_MODE: .*--compute <fingerprint>/),
     ])

@@ -11,7 +11,7 @@ const plugin = join(import.meta.dirname, '..', '..', 'plugin')
 describe('driven session', () => {
   it("C27: is the launcher's session, with the run's arguments after the launcher's", async () => {
     const root = temporaryRepository()
-    await up({ root, ...loaded(fakeInfrastructure()), out: () => undefined })
+    await up({ root, ...loaded(fakeInfrastructure()), out: () => undefined, warn: () => undefined })
     const baseEnv = { HOME: '/home/x', CLAUDECODE: '1', CLAUDE_CODE_SSE_PORT: '1', CLAUDE_CODE_ENABLE_X: '1' }
     const launcher = agentSession(root, ['mcp', 'list'], { HOME: '/home/x', CLAUDE_CODE_ENABLE_X: '1' })
     const driven = drivenSession(root, ['mcp', 'list'], baseEnv)

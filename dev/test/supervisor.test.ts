@@ -66,6 +66,47 @@ describe('process supervisor', { timeout: 30_000 }, () => {
     }
   })
 
+  it('launches nothing once stopping, even a process waiting for its restart', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'supervisor-'))
+    const started = join(root, 'started')
+    const state = await supervisor.start({
+      root,
+      processes: [
+        // Crashes on its first run, lives on the next: a restart would keep it.
+        {
+          name: 'flaky',
+          command: process.execPath,
+          args: [
+            '-e',
+            `const fs = require('node:fs'); fs.appendFileSync(${JSON.stringify(started)}, 'run\\n');
+             if (fs.readFileSync(${JSON.stringify(started)}, 'utf8').length === 4) process.exit(1);
+             setInterval(() => {}, 1000)`,
+          ],
+          cwd: root,
+        },
+        // Takes longer to stop than the restart delay.
+        {
+          name: 'slow',
+          command: process.execPath,
+          args: [
+            '-e',
+            "process.on('SIGTERM', () => setTimeout(() => process.exit(0), 3000)); setInterval(() => {}, 1000)",
+          ],
+          cwd: root,
+        },
+      ],
+      env: {},
+    })
+    try {
+      await until(() => existsSync(started) && groupMembers(state.pid).length === 2)
+      process.kill(state.pid, 'SIGTERM')
+      await until(() => !supervisor.isRunning(state), 8000)
+      expect(readFileSync(started, 'utf8')).toBe('run\n')
+    } finally {
+      await supervisor.stop(state)
+    }
+  })
+
   it('kills, after its grace period, a process that ignores SIGTERM', async () => {
     const root = mkdtempSync(join(tmpdir(), 'supervisor-'))
     const stubborn = processSupervisor({ graceMs: 200 })

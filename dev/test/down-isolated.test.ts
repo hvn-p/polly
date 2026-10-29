@@ -66,7 +66,7 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
   it('C15, C16: with processes running and a connection open, releases everything; again changes nothing', async () => {
     const root = temporaryRepository('feature/release')
     const infra = infrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     const pid = stateOf(root).supervisor.pid
     await until(() => groupMembers(pid).length === 2)
     const client = new pg.Client({ connectionString: envOf(root)['DATABASE_URL'] })
@@ -83,7 +83,7 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
   it('C17: with the infrastructure stopped, starts it, then releases', async () => {
     const root = temporaryRepository('feature/stopped')
     const infra = infrastructure()
-    await up({ root, ...loaded(infra), out })
+    await up({ root, ...loaded(infra), out, warn: out })
     execFileSync('docker', ['compose', '-p', shared.project, 'stop'], { stdio: 'ignore' })
     const env = envOf(root)
     await down({ root, infra, out })
@@ -94,8 +94,8 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     const a = temporaryRepository('feature/a')
     const b = temporaryRepository('feature/b')
     const infra = infrastructure()
-    await up({ root: a, ...loaded(infra), out })
-    await up({ root: b, ...loaded(infra), out })
+    await up({ root: a, ...loaded(infra), out, warn: out })
+    await up({ root: b, ...loaded(infra), out, warn: out })
     await query(a, 'create table mine (value text)')
     await query(b, `create table mine (value text); insert into mine values ('b')`)
     await query(
@@ -114,7 +114,7 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     const kept = await bucketB.send(new GetObjectCommand(object))
     expect(await kept.Body?.transformToString()).toBe('kept')
 
-    await up({ root: a, ...loaded(infra), out })
+    await up({ root: a, ...loaded(infra), out, warn: out })
     expect(
       await query(
         a,
