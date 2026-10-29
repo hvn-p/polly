@@ -8,9 +8,17 @@ import { serve } from '@hono/node-server'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { createApiClient } from '@polly/contract'
 import { createLogger } from '@polly/logging'
-import { environment, type Logger, originOf, Refusal, readConfigOf } from '@polly/platform'
+import {
+  environment,
+  type Logger,
+  originOf,
+  Refusal,
+  type Route,
+  RouteRegistry,
+  readConfigOf,
+} from '@polly/platform'
 import { exchangeToken } from './exchange.ts'
-import { notFound, unauthorized } from './refusals.ts'
+import { notFound, refusedRequest, unauthorized } from './refusals.ts'
 import { TOOLS, type ToolDefinition } from './tools.ts'
 
 export interface McpOptions {
@@ -25,8 +33,16 @@ export interface McpOptions {
   tools?: readonly ToolDefinition[]
 }
 
+// What the server's access rules establish about a request they let through.
+export interface AccessContext {
+  // The learner's API token, exchanged for the request's MCP token.
+  learner: { apiToken: string }
+}
+
 export interface RunningMcp {
   url: string
+  // The registered routes, for the route walk.
+  routes: readonly Route<AccessContext>[]
   close: () => Promise<void>
 }
 
@@ -63,17 +79,31 @@ export async function startMcpServer(options: McpOptions): Promise<RunningMcp> {
     })
     return response
   }
+  const registry = new RouteRegistry<AccessContext>(
+    {
+      // A token that does not exchange gets the challenge of the OAuth flow.
+      learner: async (request) => {
+        const bearer = request.headers.get('authorization') ?? ''
+        const apiToken = bearer.startsWith('Bearer ')
+          ? await exchangeToken(exchange, bearer.slice('Bearer '.length))
+          : undefined
+        return apiToken === undefined ? unauthorized(options.publicUrl) : { apiToken }
+      },
+    },
+    refusedRequest,
+  ).add({
+    method: 'ALL',
+    path: '/mcp',
+    access: 'learner',
+    handle: (request, { apiToken }) =>
+      handler.fetch(request, { authInfo: { token: apiToken, clientId: '', scopes: [] } }),
+  })
   const answer = async (request: Request): Promise<Response> => {
     const { pathname } = new URL(request.url)
-    if (pathname !== '/mcp') {
-      return notFound()
-    }
-    const bearer = request.headers.get('authorization') ?? ''
-    const apiToken = bearer.startsWith('Bearer ') ? await exchangeToken(exchange, bearer.slice(7)) : undefined
-    if (apiToken === undefined) {
-      return unauthorized(options.publicUrl)
-    }
-    return handler.fetch(request, { authInfo: { token: apiToken, clientId: '', scopes: [] } })
+    const route = registry
+      .routes()
+      .find(({ method, path }) => path === pathname && (method === 'ALL' || method === request.method))
+    return route === undefined ? notFound() : registry.handler(route)(request)
   }
   const server = await new Promise<ReturnType<typeof serve>>((resolve) => {
     const listening = serve({ fetch, hostname: options.hostname, port: options.port }, () =>
@@ -84,6 +114,7 @@ export async function startMcpServer(options: McpOptions): Promise<RunningMcp> {
   const port = typeof address === 'object' && address !== null ? address.port : options.port
   return {
     url: originOf(options.hostname, port),
+    routes: registry.routes(),
     close: () =>
       new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
   }

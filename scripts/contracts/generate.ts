@@ -225,7 +225,8 @@ interface DocumentOperation {
 // A response's JSON Schema on its own, for a client to validate an answer: the
 // document's references point into $defs, which it carries when it uses them.
 function standalone(schema: unknown, components: Record<string, unknown>): unknown {
-  const local = (value: unknown) => JSON.parse(JSON.stringify(value).replaceAll('#/components/schemas/', '#/$defs/'))
+  const local = (value: unknown) =>
+    JSON.parse(JSON.stringify(value).replaceAll('#/components/schemas/', '#/$defs/'))
   const text = JSON.stringify(schema)
   return text.includes('#/components/schemas/') ? { ...local(schema), $defs: local(components) } : schema
 }
@@ -284,7 +285,7 @@ export function clientModule(source: string, document: Record<string, unknown>):
   lines.push('export interface Operations {', ...operations, '}', '')
   lines.push('export const OPERATIONS = {', ...table, '} as const', '')
   lines.push(
-    '// The JSON Schema of each operation\'s response, which the client checks.',
+    "// The JSON Schema of each operation's response, which the client checks.",
     'export const RESPONSES: Partial<Record<keyof Operations, JSONSchema.JSONSchema>> = {',
     ...responses,
     '}',

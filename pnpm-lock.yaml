@@ -218,15 +218,6 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
-      '@modelcontextprotocol/client':
-        specifier: 2.4.0
-        version: 2.4.0
-      '@modelcontextprotocol/server':
-        specifier: 2.4.0
-        version: 2.4.0
-      '@polly/mcp':
-        specifier: workspace:*
-        version: link:../mcp
       '@polly/migrations':
         specifier: workspace:*
         version: link:../../packages/migrations
@@ -257,6 +248,22 @@ importers:
       zod:
         specifier: 4.6.7
         version: 4.6.7
+    devDependencies:
+      '@modelcontextprotocol/client':
+        specifier: 2.4.0
+        version: 2.4.0
+      '@polly/api':
+        specifier: workspace:*
+        version: link:../api
+      '@polly/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@polly/migrations':
+        specifier: workspace:*
+        version: link:../../packages/migrations
+      kysely:
+        specifier: 0.29.7
+        version: 0.29.7
 
   apps/web:
     dependencies:

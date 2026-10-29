@@ -107,7 +107,7 @@
       "id": "socle",
       "group": "server",
       "name": "Socle",
-      "criterion": "What every process shares, with no product word and no chosen technology: Refusal, the Logger and Clock ports, the configuration schema.",
+      "criterion": "What every process shares, with no product word and no chosen technology: Refusal, the Logger and Clock ports, the configuration schema, the route registry.",
       "paths": ["packages/platform"],
       "mayImport": [],
       "technologies": ["zod"],

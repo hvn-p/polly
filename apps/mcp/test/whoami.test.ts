@@ -1,9 +1,9 @@
+import { createLearner, mcpAccessToken } from '@polly/api/test-support'
 import { describe, expect, it } from 'vitest'
 import { mcpClient, resultOf } from './support/mcp.ts'
-import { createLearner, mcpAccessToken } from './support/oauth.ts'
-import { testServer } from './support/server.ts'
+import { mcpTestServer } from './support/server.ts'
 
-const server = await testServer()
+const server = await mcpTestServer()
 
 describe('MCP endpoint and whoami', () => {
   it('C45: whoami without a token is refused with 401 and the protected resource metadata', async () => {
@@ -53,7 +53,7 @@ describe('MCP endpoint and whoami', () => {
 })
 
 describe('tokens of another worktree', async () => {
-  const other = await testServer({
+  const other = await mcpTestServer({
     PUBLIC_URL: 'https://other.polly.localhost',
     BETTER_AUTH_SECRET: 'another-secret-'.padEnd(43, 'y'),
   })

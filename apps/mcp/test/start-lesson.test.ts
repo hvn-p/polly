@@ -1,12 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { createLearner, mcpAccessToken } from '@polly/api/test-support'
 import { connect } from '@polly/database'
 import { sql } from 'kysely'
 import { describe, expect, it } from 'vitest'
 import { mcpClient, resultOf } from './support/mcp.ts'
-import { createLearner, mcpAccessToken } from './support/oauth.ts'
-import { testServer } from './support/server.ts'
+import { mcpTestServer } from './support/server.ts'
 
-const server = await testServer()
+const server = await mcpTestServer()
 const db = connect(server.config.DATABASE_URL)
 
 function newCode(): string {

@@ -2,6 +2,10 @@
   "name": "@polly/api",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/main.ts",
+    "./test-support": "./test/support/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc -p ."
   },
@@ -17,9 +21,6 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "2.4.0",
-    "@modelcontextprotocol/server": "2.4.0",
-    "@polly/mcp": "workspace:*",
     "@polly/migrations": "workspace:*",
     "better-auth": "1.7.13",
     "kysely": "0.29.7"

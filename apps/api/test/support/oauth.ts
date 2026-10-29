@@ -139,6 +139,17 @@ export function exchangeToken(
   })
 }
 
+// The real flow, then the exchange: an API token for the learner, as the MCP
+// server obtains one.
+export async function apiAccessToken(server: TestServer, email: string, password: string): Promise<string> {
+  const exchanged = await exchangeToken(server, {
+    subjectToken: await mcpAccessToken(server, email, password),
+  })
+  const { access_token: token } = (await exchanged.json()) as { access_token?: string }
+  expect(token).toBeTypeOf('string')
+  return token ?? ''
+}
+
 // A JWT's claims, unverified: what the test reads of a token it was issued.
 export function claimsOf(token: string): Record<string, unknown> {
   return JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString()) as Record<string, unknown>

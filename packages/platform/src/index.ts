@@ -6,3 +6,4 @@ export { type Config, environment, readConfig, readConfigOf, type Settings } fro
 export type { LogFields, Logger } from './logger.ts'
 export { originOf } from './origin.ts'
 export { Refusal } from './refusal.ts'
+export { type Guard, type Guards, type Method, type Route, RouteRegistry } from './routes.ts'

@@ -5,8 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { openStream, type StreamReader } from './support/event-stream.ts'
 import { fakeClock } from './support/fake-clock.ts'
 import { captureLog } from './support/log.ts'
-import { mcpClient } from './support/mcp.ts'
-import { createLearner, mcpAccessToken } from './support/oauth.ts'
+import { apiAccessToken, createLearner } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
 
 const clock = fakeClock()
@@ -36,8 +35,17 @@ async function connect(code: string | undefined, path = '/api/agent-events'): Pr
 
 async function signedInAgent(label: string) {
   const { email, password, learnerId } = await createLearner(server, label)
-  const client = await mcpClient(server, await mcpAccessToken(server, email, password))
-  return { learnerId, bind: (code: string) => client.callTool({ name: 'start_lesson', arguments: { code } }) }
+  const token = await apiAccessToken(server, email, password)
+  return {
+    learnerId,
+    // What start_lesson calls: the binding of the contract.
+    bind: (code: string) =>
+      fetch(`${server.url}/api/event-codes`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ code }),
+      }),
+  }
 }
 
 describe('agent-event stream: refusals', () => {

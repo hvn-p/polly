@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mcpClient, resultOf } from './support/mcp.ts'
-import { createLearner, mcpAccessToken } from './support/oauth.ts'
+import { apiAccessToken, createLearner } from './support/oauth.ts'
 import { type TestServer, testServer } from './support/server.ts'
 
 // The whole of 127.0.0.0/8 is loopback on Linux: a server listening on
@@ -8,10 +7,12 @@ import { type TestServer, testServer } from './support/server.ts'
 const everyInterface = await testServer({}, { hostname: '0.0.0.0' })
 const otherAddress = await testServer({}, { hostname: '127.0.0.2' })
 
+// An API token verified: GET /api/me names its learner.
 async function whoamiAnswers(server: TestServer): Promise<void> {
   const { email, password, learnerId } = await createLearner(server)
-  const client = await mcpClient(server, await mcpAccessToken(server, email, password))
-  expect(resultOf(await client.callTool({ name: 'whoami', arguments: {} }))).toEqual({ learnerId })
+  const token = await apiAccessToken(server, email, password)
+  const me = await fetch(`${server.url}/api/me`, { headers: { authorization: `Bearer ${token}` } })
+  expect(await me.json()).toEqual({ learnerId })
 }
 
 describe('the listen address', () => {

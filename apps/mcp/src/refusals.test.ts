@@ -1,5 +1,6 @@
+import { Refusal } from '@polly/platform'
 import { describe, expect, it } from 'vitest'
-import { notFound, toolResult, unauthorized } from './refusals.ts'
+import { notFound, refusedRequest, toolResult, unauthorized } from './refusals.ts'
 
 describe("the MCP server's refusals", () => {
   it('passes an API refusal to the agent as `CODE: reason`', () => {
@@ -31,6 +32,12 @@ describe("the MCP server's refusals", () => {
       'Bearer resource_metadata="https://x.polly.localhost/.well-known/oauth-protected-resource/mcp"',
     )
     expect(await response.json()).toMatchObject({ code: 'UNAUTHORIZED' })
+  })
+
+  it('answers a refusal an access rule or a route throws with its code and reason', async () => {
+    const response = refusedRequest(new Refusal('EVENT_CODE_REVOKED', 'draw a new code'))
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ code: 'EVENT_CODE_REVOKED', reason: 'draw a new code' })
   })
 
   it('answers a path it does not serve with 404 and no code outside the contract', async () => {

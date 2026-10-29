@@ -1,13 +1,13 @@
 import { randomBytes } from 'node:crypto'
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { McpServer } from '@modelcontextprotocol/server'
+import { createLearner, mcpAccessToken } from '@polly/api/test-support'
 import { describe, expect, it } from 'vitest'
 import { mcpClient, resultOf } from './support/mcp.ts'
-import { createLearner, mcpAccessToken } from './support/oauth.ts'
-import { testServer } from './support/server.ts'
+import { mcpTestServer } from './support/server.ts'
 import { assertEveryToolCalled, recordCalls } from './support/tool-coverage.ts'
 
-const server = await testServer()
+const server = await mcpTestServer()
 
 describe('MCP tools', () => {
   it('C36: every tool the server lists is called by an MCP client, against the running server', async () => {

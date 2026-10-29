@@ -5,6 +5,7 @@
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import type { Outcome } from '@polly/contract'
+import type { Refusal } from '@polly/platform'
 
 export function toolResult<T extends Record<string, unknown>>(outcome: Outcome<T>): CallToolResult {
   if (!outcome.ok) {
@@ -27,6 +28,11 @@ export function unauthorized(publicUrl: string): Response {
       },
     },
   )
+}
+
+// A refusal an access rule or a route throws: its code and reason.
+export function refusedRequest(refusal: Refusal): Response {
+  return Response.json({ code: refusal.code, reason: refusal.message }, { status: 409 })
 }
 
 // No refusal of the contract, so no code.

@@ -15,5 +15,12 @@
     "@polly/logging": "workspace:*",
     "@polly/platform": "workspace:*",
     "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@polly/api": "workspace:*",
+    "@polly/database": "workspace:*",
+    "@polly/migrations": "workspace:*",
+    "kysely": "0.29.7"
   }
 }
