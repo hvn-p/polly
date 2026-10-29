@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -6,6 +5,7 @@ import { down } from '../src/commands/down.ts'
 import { up } from '../src/commands/up.ts'
 import { parseEnv } from '../src/config/index.ts'
 import { fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
+import { holdLock } from './support/lock-holder.ts'
 import { git, temporaryRepository } from './support/repository.ts'
 
 const out = () => undefined
@@ -54,8 +54,7 @@ describe('dev:down with faked infrastructure', () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out })
-    const holder = spawn('flock', [join(root, '.dev/up.lock'), 'sh', '-c', 'echo held; sleep 1'])
-    await new Promise((resolve) => holder.stdout.once('data', resolve))
+    await holdLock(join(root, '.dev/up.lock'), 1)
     const heldAt = Date.now()
     infra.calls.length = 0
     let firstCall = 0

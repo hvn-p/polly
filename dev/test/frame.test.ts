@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -6,6 +5,7 @@ import { up } from '../src/commands/up.ts'
 import { probePrerequisites } from '../src/machine/prerequisites.ts'
 import { run } from '../src/main.ts'
 import { fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
+import { holdLock } from './support/lock-holder.ts'
 import { git, temporaryRepository } from './support/repository.ts'
 
 function output() {
@@ -38,8 +38,7 @@ describe('command frame', () => {
   it('C7: refuses while another dev:up holds the worktree lock, leaving it alone', async () => {
     const root = temporaryRepository()
     mkdirSync(join(root, '.dev'))
-    const holder = spawn('flock', [join(root, '.dev/up.lock'), 'sh', '-c', 'echo held; exec sleep 30'])
-    await new Promise((resolve) => holder.stdout.once('data', resolve))
+    const holder = await holdLock(join(root, '.dev/up.lock'))
     const infra = fakeInfrastructure()
     try {
       await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({

@@ -7,7 +7,7 @@ export interface FakeInfrastructure extends Infrastructure {
   calls: string[]
   missingPrerequisite: string | undefined
   routeTable: Map<string, number>
-  heldPorts: Map<number, string>
+  heldPorts: Set<number>
   runningSupervisors: Set<number>
 }
 
@@ -69,7 +69,7 @@ export function fakeInfrastructure(): FakeInfrastructure {
     calls,
     missingPrerequisite: undefined,
     routeTable: new Map(),
-    heldPorts: new Map(),
+    heldPorts: new Set(),
     runningSupervisors: new Set(),
     compute: fakeCompute(),
     prerequisites: { missing: async () => fake.missingPrerequisite },
@@ -107,7 +107,7 @@ export function fakeInfrastructure(): FakeInfrastructure {
         fake.routeTable.delete(name)
       },
     },
-    ports: { holderOf: async (port) => fake.heldPorts.get(port) },
+    ports: { isHeld: async (port) => fake.heldPorts.has(port) },
     application: {
       migrate: async (env) => {
         calls.push(`application.migrate ${env['DATABASE_URL']?.split('/').pop()}`)

@@ -63,7 +63,7 @@ describe('dev:up with faked infrastructure', () => {
     await up({ root, ...loaded(infra), out: output().write })
     infra.runningSupervisors.clear()
     const port = Number(env(root).get('POLLY_API_PORT'))
-    infra.heldPorts.set(port, 'node (pid 90001)')
+    infra.heldPorts.add(port)
     const stop = infra.supervisor.stop
     infra.supervisor.stop = async (state) => {
       await stop(state)
@@ -77,17 +77,19 @@ describe('dev:up with faked infrastructure', () => {
     ])
   })
 
-  it('C9: refuses a port held by another process, naming it and its holder, and leaves it alone', async () => {
+  it('C9: refuses a port held by another process, naming the port, and leaves it alone', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out: output().write })
     infra.runningSupervisors.clear()
     const port = Number(env(root).get('POLLY_API_PORT'))
-    infra.heldPorts.set(port, 'python3 (pid 4242)')
+    infra.heldPorts.add(port)
     infra.calls.length = 0
     await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
       code: 'RESOURCE_CONFLICT',
-      message: expect.stringMatching(new RegExp(`port ${port}.*python3 \\(pid 4242\\)`)),
+      message: expect.stringMatching(
+        new RegExp(`^port ${port} \\(POLLY_API_PORT\\) is held by another process`),
+      ),
     })
     expect(infra.calls).not.toContain('supervisor.start')
   })

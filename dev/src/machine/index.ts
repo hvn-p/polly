@@ -2,5 +2,5 @@
 // exclusive locks, the prerequisite probe, the dependency install.
 
 export { installDependencies } from './dependencies.ts'
-export { type Lock, lock, tryLock } from './flock.ts'
+export { type Lock, lock, tryLock } from './lock.ts'
 export { type Exec, prerequisites, probePrerequisites } from './prerequisites.ts'

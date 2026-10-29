@@ -55,9 +55,8 @@ export interface RouteTable {
 }
 
 export interface PortTable {
-  // A description of the process listening on the port, or undefined when the
-  // port is free.
-  holderOf: (port: number) => Promise<string | undefined>
+  // Whether another process listens on the port.
+  isHeld: (port: number) => Promise<boolean>
 }
 
 export interface SupervisedProcess {

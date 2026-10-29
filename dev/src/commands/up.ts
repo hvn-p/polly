@@ -101,11 +101,10 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
       }
       for (const key of ['POLLY_API_PORT', 'POLLY_MCP_PORT', 'POLLY_WEB_PORT']) {
         const port = Number(required(env, key))
-        const holder = await infra.ports.holderOf(port)
-        if (holder !== undefined) {
+        if (await infra.ports.isHeld(port)) {
           throw new Refusal(
             'RESOURCE_CONFLICT',
-            `port ${port} (${key}) is held by ${holder}; stop it, then run nr dev:up`,
+            `port ${port} (${key}) is held by another process; stop it, then run nr dev:up`,
           )
         }
       }

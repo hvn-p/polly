@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -10,6 +9,7 @@ import { parseEnv } from '../src/config/index.ts'
 import type { Infrastructure } from '../src/ports/index.ts'
 import { processSupervisor } from '../src/supervisor/index.ts'
 import { type FakeCompute, fakeCompute, fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
+import { holdLock } from './support/lock-holder.ts'
 import { temporaryRepository } from './support/repository.ts'
 
 const supervisors: number[] = []
@@ -202,8 +202,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
 
   it('waits for a dev:up running in the worktree before it restarts the worker', async () => {
     const a = await worktree('feature/worker-wait', fakeCompute())
-    const holder = spawn('flock', [join(a.root, '.dev/up.lock'), 'sh', '-c', 'echo held; sleep 1'])
-    await once(holder.stdout, 'data')
+    const holder = await holdLock(join(a.root, '.dev/up.lock'), 1)
     const released = once(holder, 'exit').then(() => Date.now())
     let startedAt = 0
     const start = a.infra.supervisor.start

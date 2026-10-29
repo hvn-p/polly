@@ -2,8 +2,8 @@
 // process group, so stopping the group stops every process it started, even
 // after the supervisor itself was killed.
 
-import { spawn } from 'node:child_process'
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import type { Supervisor } from '../ports/index.ts'
@@ -12,21 +12,29 @@ import { SUPERVISOR_MARK } from './mark.ts'
 // Its build, written by scripts/build/processes.ts.
 const supervisorMain = join(import.meta.dirname, '..', '..', 'dist', 'supervisor.js')
 
-// The state and process group of a live (not zombie) process, read from /proc.
-function liveProcess(pid: string): { group: number } | undefined {
-  try {
-    const [state, , group] = readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ')[1]?.split(' ') ?? []
-    return state === 'Z' ? undefined : { group: Number(group) }
-  } catch {
-    return undefined
-  }
+interface Listed {
+  pid: number
+  group: number
+  args: string
+}
+
+// The live (not zombie) processes, read with ps, on Linux as on macOS.
+function processes(): Listed[] {
+  return execFileSync('ps', ['-A', '-o', 'pid=,pgid=,stat=,args='], { encoding: 'utf8' })
+    .split('\n')
+    .flatMap((line) => {
+      const [, pid, group, state, args] = /^\s*(\d+)\s+(\d+)\s+(\S+)\s?(.*)$/.exec(line) ?? []
+      return pid === undefined || state?.startsWith('Z')
+        ? []
+        : [{ pid: Number(pid), group: Number(group), args: args ?? '' }]
+    })
 }
 
 // The live processes of a process group.
 export function groupMembers(pgid: number): number[] {
-  return readdirSync('/proc')
-    .filter((entry) => /^\d+$/.test(entry) && liveProcess(entry)?.group === pgid)
-    .map(Number)
+  return processes()
+    .filter(({ group }) => group === pgid)
+    .map(({ pid }) => pid)
 }
 
 function groupAlive(pgid: number): boolean {
@@ -34,29 +42,30 @@ function groupAlive(pgid: number): boolean {
 }
 
 function runsSupervisor(pid: number): boolean {
-  try {
-    return readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').includes(supervisorMain)
-  } catch {
-    return false
-  }
+  return processes().some((listed) => listed.pid === pid && listed.args.split(' ').includes(supervisorMain))
 }
 
+// Whether the process carries the supervisor's mark in its environment, which
+// ps prints after its arguments (`e` on Linux, -E on macOS).
 function carriesMark(pid: number, leader: number): boolean {
+  const flags = process.platform === 'darwin' ? ['-E', '-ww', '-o', 'command='] : ['eww', '-o', 'args=']
   try {
-    return readFileSync(`/proc/${pid}/environ`, 'utf8').split('\0').includes(`${SUPERVISOR_MARK}=${leader}`)
+    return execFileSync('ps', [...flags, '-p', String(pid)], { encoding: 'utf8' })
+      .split(/\s+/)
+      .includes(`${SUPERVISOR_MARK}=${leader}`)
   } catch {
     return false
   }
 }
 
-// Whether the process group led by pid is still the supervisor's. Linux does
+// Whether the process group led by pid is still the supervisor's. POSIX does
 // not reuse a PID while a group of that number has members, so when the
 // supervisor is gone, its group is the one whose members carry its mark.
 function supervisorGroup(pid: number): boolean {
   if (runsSupervisor(pid)) {
     return true
   }
-  if (liveProcess(String(pid)) !== undefined) {
+  if (processes().some((listed) => listed.pid === pid)) {
     return false
   }
   return groupMembers(pid).some((member) => carriesMark(member, pid))
