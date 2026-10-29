@@ -7,7 +7,9 @@ name: Architecture release
 
 on:
   push:
-    branches: [main]
+    # TEMPORARY: 4-worktree-dev-env publishes the first version, before npm can
+    # trust this workflow; removed once it has.
+    branches: [main, 4-worktree-dev-env]
     paths: ["tools/architecture/**", ".github/workflows/architecture.yml"]
   pull_request:
     paths: ["tools/architecture/**", ".github/workflows/architecture.yml"]
