@@ -116,6 +116,7 @@ export function fakeInfrastructure(): FakeInfrastructure {
         calls.push(`application.seed ${env['POLLY_ENV']}`)
       },
       processes: () => [],
+      architecture: () => 'prebuilt',
     },
     supervisor: {
       isRunning: (state: SupervisorState) => fake.runningSupervisors.has(state.pid),

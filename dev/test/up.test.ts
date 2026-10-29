@@ -48,6 +48,17 @@ describe('dev:up with faked infrastructure', () => {
     })
   })
 
+  it('says the architecture view needs a local analyzer build when none is installed, instead of its URL', async () => {
+    const root = temporaryRepository()
+    const infra = fakeInfrastructure()
+    infra.application.architecture = () => 'missing'
+    const warnings: string[] = []
+    await up({ root, ...loaded(infra), out: output().write, warn: (line) => warnings.push(line) })
+    expect(warnings).toEqual([
+      expect.stringMatching(/^ARCHITECTURE_VIEW_UNAVAILABLE: .*cargo build --release/),
+    ])
+  })
+
   it('C2: on a running worktree, recreates nothing it already has', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()

@@ -1,10 +1,12 @@
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { architectureProcesses } from './architecture.ts'
+import { analyzerOf, architectureProcesses } from './architecture.ts'
 
 const codeRoot = '/repo'
 const host = 'arch.x.polly.localhost'
 const local = join(codeRoot, 'tools/architecture/analyzer/target/release/architecture-analyzer')
+// What a published package holding the view carries.
+const prebuiltView = join(codeRoot, 'node_modules/@hvn-p/architecture/view')
 const watch = [
   'watch',
   '--root',
@@ -21,7 +23,9 @@ const watch = [
 
 describe('the architecture view of a worktree', () => {
   it('C70: without a local build of the analyzer, runs the prebuilt one from its package', () => {
-    const [, analyzer] = architectureProcesses({ codeRoot, port: 4100, host, exists: () => false })
+    const exists = (path: string) => path === prebuiltView
+    expect(analyzerOf(codeRoot, exists)).toBe('prebuilt')
+    const [, analyzer] = architectureProcesses({ codeRoot, port: 4100, host, exists })
     expect(analyzer).toEqual({
       name: 'architecture',
       command: process.execPath,
@@ -38,10 +42,16 @@ describe('the architecture view of a worktree', () => {
       exists: (path) => path === local,
     })
     expect(analyzer).toEqual({ name: 'architecture', command: local, args: watch, cwd: codeRoot })
+    expect(analyzerOf(codeRoot, (path) => path === local)).toBe('local')
+  })
+
+  it('starts nothing when neither a local build nor the installed package holds the view', () => {
+    expect(analyzerOf(codeRoot, () => false)).toBe('missing')
+    expect(architectureProcesses({ codeRoot, port: 4100, host, exists: () => false })).toEqual([])
   })
 
   it('rebuilds the view on each change, for the analyzer to serve', () => {
-    const [view] = architectureProcesses({ codeRoot, port: 4100, host, exists: () => false })
+    const [view] = architectureProcesses({ codeRoot, port: 4100, host, exists: () => true })
     expect(view).toEqual({
       name: 'architecture-view',
       command: process.execPath,

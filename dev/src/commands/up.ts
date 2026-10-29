@@ -183,7 +183,11 @@ export async function up({ root, prerequisites, infrastructure, out, warn }: UpO
       garageKeyId: bucket.accessKeyId,
       ...(compute === undefined ? {} : { compute }),
     })
-    warn(`architecture view: https://${resources.architectureHost}`)
+    warn(
+      infra.application.architecture() === 'missing'
+        ? 'ARCHITECTURE_VIEW_UNAVAILABLE: no analyzer here holds the view; run cargo build --release in tools/architecture/analyzer, then nr dev:up'
+        : `architecture view: https://${resources.architectureHost}`,
+    )
     out(required(env, 'PUBLIC_URL'))
   } finally {
     await lock.release()

@@ -71,6 +71,9 @@ export interface Application {
   seed: (env: Record<string, string>) => Promise<void>
   // The worktree's processes, run by its supervisor.
   processes: (env: Record<string, string>) => SupervisedProcess[]
+  // Which architecture analyzer the worktree runs: none until it builds one or
+  // installs a published version holding the view.
+  architecture: () => 'local' | 'prebuilt' | 'missing'
 }
 
 export interface SupervisorState {

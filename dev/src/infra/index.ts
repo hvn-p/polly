@@ -2,7 +2,7 @@
 // dependencies installed: compose, Postgres, Garage, portless, the port table,
 // and the processes of the architecture view.
 
-export { architectureProcesses } from './architecture.ts'
+export { analyzerOf, architectureProcesses } from './architecture.ts'
 export { type ComposeInfrastructure, composeInfrastructure, run, sharedInfrastructure } from './compose.ts'
 export { computeServices } from './compute.ts'
 export { garageAdmin } from './garage.ts'

@@ -2,6 +2,7 @@
 
 import { join } from 'node:path'
 import {
+  analyzerOf,
   architectureProcesses,
   computeServices,
   garageAdmin,
@@ -30,6 +31,7 @@ export function apiApplication(): Application {
   const cli = (path: string, command: string, env: Record<string, string>) =>
     run(process.execPath, [path, command], { env: { ...process.env, ...env } })
   return {
+    architecture: () => analyzerOf(codeRoot),
     migrate: async (env) => {
       await cli(migrationsCli, 'migrate', env)
     },
