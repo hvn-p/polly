@@ -412,6 +412,9 @@ importers:
       '@polly/back':
         specifier: workspace:*
         version: link:../back
+      '@polly/kernel':
+        specifier: workspace:*
+        version: link:../kernel
       '@polly/platform':
         specifier: workspace:*
         version: link:../platform

@@ -1,4 +1,5 @@
-import { apiResource, authenticator } from '@polly/identity'
+import { apiResource, authenticator, MCP_CLIENT_ID } from '@polly/identity'
+import { hash } from '@polly/kernel'
 import { describe, expect, it } from 'vitest'
 import { claimsOf, createLearner, exchangeToken, mcpAccessToken } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
@@ -11,6 +12,15 @@ async function mcpToken() {
 }
 
 describe('token exchange', () => {
+  it("keeps the MCP server's secret as the kernel's hash, never in clear", async () => {
+    const { adapter } = await server.identity.$context
+    const client = await adapter.findOne<{ clientSecret: string }>({
+      model: 'oauthClient',
+      where: [{ field: 'clientId', value: MCP_CLIENT_ID }],
+    })
+    expect(client?.clientSecret).toBe(hash(server.config.MCP_CLIENT_SECRET))
+  })
+
   it('C73: exchanges the MCP token for an API token naming the same learner, valid 5 minutes', async () => {
     const { learnerId, subjectToken } = await mcpToken()
     const response = await exchangeToken(server, { subjectToken })

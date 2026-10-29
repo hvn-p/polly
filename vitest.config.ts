@@ -12,6 +12,7 @@ export default defineConfig({
         'apps/*/src/**/*.{ts,tsx}',
         'dev/src/**/*.ts',
         'packages/*/src/**/*.ts',
+        'plugin/src/**/*.ts',
         'scripts/**/*.{ts,mjs}',
         'tools/architecture/ui/src/**/*.{ts,tsx}',
       ],
@@ -23,6 +24,9 @@ export default defineConfig({
         // (the supervisor by dev:up), and V8 coverage does not follow a child
         // process.
         'dev/src/supervisor/main.ts',
+        // The plugin's monitor: its tests spawn its committed bundle, as Claude
+        // Code runs it.
+        'plugin/src/agent-events.ts',
         // The driven agent run: on demand, never in CI (nr dev:e2e).
         'dev/src/e2e/claude.ts',
         // Applied by the tests' global setups, in their own process; the
