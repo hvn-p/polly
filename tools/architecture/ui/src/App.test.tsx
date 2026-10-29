@@ -414,6 +414,32 @@ describe('the source', () => {
     expect(line(1)?.className).toContain('imp-line')
   })
 
+  it('hides the uses of a module’s names along with its imports', async () => {
+    const file = 'packages/back/src/flows/buy/index.ts'
+    const source =
+      "import type { Price } from '@shop/kernel'\n// pricing\nimport { PostgresStore } from '@shop/database'\nconst store = new PostgresStore()\nexport const price: Price = store.price\n"
+    const report = fixture()
+    report.edges = report.edges.map((e) =>
+      e.file !== file
+        ? e
+        : e.to === 'packages/kernel'
+          ? { ...e, uses: [{ line: 5, column: 20, endColumn: 25 }] }
+          : { ...e, uses: [{ line: 4, column: 18, endColumn: 31 }] },
+    )
+    render(<App feed={feedOf({ report }, { [file]: source })} />)
+    await act(async () => {
+      fireEvent.click(within(side()).getByRole('button', { name: /index.ts:3/ }))
+    })
+    const panel = screen.getByRole('complementary', { name: 'Source' })
+    const marked = () => [...panel.querySelectorAll('pre .use')].map((mark) => mark.textContent)
+    const legend = within(within(panel).getByRole('group', { name: 'Imported modules' }))
+    fireEvent.click(legend.getByRole('button', { name: 'database' }))
+    expect(marked()).toEqual(['Price'])
+    expect(panel.querySelectorAll('pre > .l')[3]?.textContent).toBe('4const store = new PostgresStore()')
+    fireEvent.click(legend.getByRole('button', { name: 'database' }))
+    expect(marked()).toEqual(['PostgresStore', 'Price'])
+  })
+
   it('says when a file cannot be read, and closes on Escape', async () => {
     render(<App feed={feedOf({})} />)
     go('#/breaches')

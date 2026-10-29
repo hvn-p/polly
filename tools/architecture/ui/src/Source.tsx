@@ -1,8 +1,8 @@
 // A file opened in the app at a line: each import's lines tinted with the tier it
 // imports and linked to its module after its last line, a breaching import or line
 // annotated with its rule and fix, each use of an imported name marked in its
-// import's colour. A legend shows or hides the imports of each module, so one can
-// be read alone; a breach always shows.
+// import's colour. A legend shows or hides the imports of each module and the uses
+// of its names, so one can be read alone; a breach always shows.
 
 import { type CSSProperties, Fragment, type ReactNode, useState } from 'react'
 import { labelOf, tierName, tierOfModule } from './model.ts'
@@ -92,6 +92,7 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
     })
   const marks = Map.groupBy(
     edges
+      .filter((e) => !hidden.has(e.to))
       .flatMap((e) => e.uses.map((u) => ({ ...u, colour: model.colour[tierOfModule(model, e.to)] })))
       .sort((a, b) => a.column - b.column),
     (u) => u.line,
