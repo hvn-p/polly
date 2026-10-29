@@ -13,7 +13,8 @@
     "architecture": "bin/architecture.js"
   },
   "files": [
-    "bin"
+    "bin",
+    "view"
   ],
   "engines": {
     "node": ">=24"

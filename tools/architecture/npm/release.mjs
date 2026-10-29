@@ -1,9 +1,10 @@
 // Writes the npm packages of one release of the analyzer: one per platform,
 // holding its binary, and the launcher, which depends on each at the same
-// version and runs the one its machine installed. The release workflow runs it
-// with the binaries CI built, then publishes the packages it lists.
+// version, runs the one its machine installed, and carries the view's build.
+// The release workflow runs it with the binaries and the view CI built, then
+// publishes the packages it lists.
 //
-// Usage: node release.mjs <version> <binaries directory> <output directory>
+// Usage: node release.mjs <version> <binaries directory> <view directory> <output directory>
 //   <binaries directory>/<platform key>/architecture-analyzer
 
 import { chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -34,10 +35,10 @@ export function nextVersion(published) {
 }
 
 /**
- * @param {{ version: string, binaries: string, out: string }} release
+ * @param {{ version: string, binaries: string, view: string, out: string }} release
  * @returns {string[]} the names of the packages written, in publication order
  */
-export function writePackages({ version, binaries, out }) {
+export function writePackages({ version, binaries, view, out }) {
   const launcher = JSON.parse(readFileSync(join(LAUNCHER, 'package.json'), 'utf8'))
   /** @param {string} name */
   const directoryOf = (name) => join(out, name.replace('/', '__'))
@@ -71,6 +72,7 @@ export function writePackages({ version, binaries, out }) {
   }
   const directory = directoryOf(launcher.name)
   cpSync(LAUNCHER, directory, { recursive: true })
+  cpSync(view, join(directory, 'view'), { recursive: true })
   cpSync(LICENSE, join(directory, 'LICENSE'))
   const optionalDependencies = Object.fromEntries(names.map((name) => [name, version]))
   writeFileSync(
@@ -81,12 +83,19 @@ export function writePackages({ version, binaries, out }) {
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const [version, binaries, out] = process.argv.slice(2)
-  if (version === undefined || binaries === undefined || out === undefined) {
-    console.error('usage: node release.mjs <version> <binaries directory> <output directory>')
+  const [version, binaries, view, out] = process.argv.slice(2)
+  if (version === undefined || binaries === undefined || view === undefined || out === undefined) {
+    console.error(
+      'usage: node release.mjs <version> <binaries directory> <view directory> <output directory>',
+    )
     process.exit(1)
   }
-  for (const name of writePackages({ version, binaries: resolve(binaries), out: resolve(out) })) {
+  for (const name of writePackages({
+    version,
+    binaries: resolve(binaries),
+    view: resolve(view),
+    out: resolve(out),
+  })) {
     console.log(join(resolve(out), name.replace('/', '__')))
   }
 }

@@ -18,8 +18,12 @@ describe('release', () => {
       mkdirSync(join(binaries, platform.key))
       writeFileSync(join(binaries, platform.key, 'architecture-analyzer'), `binary for ${platform.key}`)
     }
+    const view = mkdtempSync(join(tmpdir(), 'view-'))
+    mkdirSync(join(view, 'assets'))
+    writeFileSync(join(view, 'index.html'), '<h1>view</h1>')
+    writeFileSync(join(view, 'assets', 'app.js'), '1')
     const out = mkdtempSync(join(tmpdir(), 'packages-'))
-    const written = writePackages({ version: '0.1.5', binaries, out })
+    const written = writePackages({ version: '0.1.5', binaries, view, out })
 
     const name = JSON.parse(readFileSync(join(LAUNCHER, 'package.json'), 'utf8')).name
     assert.deepEqual(written, [...PLATFORMS.map(({ key }) => `${name}-${key}`), name])
@@ -42,6 +46,8 @@ describe('release', () => {
       Object.fromEntries(PLATFORMS.map(({ key }) => [`${name}-${key}`, '0.1.5'])),
     )
     assert.ok(statSync(join(out, name.replace('/', '__'), 'bin', 'architecture.js')).isFile())
+    assert.equal(readFileSync(join(out, name.replace('/', '__'), 'view', 'assets', 'app.js'), 'utf8'), '1')
+    assert.deepEqual(launcher.files, ['bin', 'view'])
     assert.equal(launcher.license, 'MIT')
     assert.match(readFileSync(join(out, name.replace('/', '__'), 'LICENSE'), 'utf8'), /^MIT License/)
   })

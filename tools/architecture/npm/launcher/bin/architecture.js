@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Runs the analyzer built for this machine, from the platform package npm
-// installed next to this one, with the same arguments and exit status.
+// installed next to this one, with the same arguments and exit status. In
+// watch mode, it serves the view this package carries unless given another.
 
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
@@ -20,5 +21,10 @@ try {
   )
   process.exit(1)
 }
-const run = spawnSync(binary, process.argv.slice(2), { stdio: 'inherit' })
+const args = process.argv.slice(2)
+const view = join(import.meta.dirname, '..', 'view')
+if (args[0] === 'watch' && !args.includes('--ui') && existsSync(view)) {
+  args.push('--ui', view)
+}
+const run = spawnSync(binary, args, { stdio: 'inherit' })
 process.exit(run.status ?? 1)
