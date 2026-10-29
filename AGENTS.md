@@ -55,8 +55,9 @@ vague idea goes through `/speckit-assess-intake` first. A bug goes through
   recent wins.
 
 **Write consent**: Spec Kit commands write to the issue and PR of the current feature,
-through the `issue-sync` extension, and open that PR as a draft, without asking. The
-consent covers only those two and that channel: any other issue or PR is asked for.
+through the `issue-sync` extension, and open that PR as a draft, without asking;
+`/speckit-converge` also answers that PR's comments in their threads. The consent covers
+only those two and these channels: any other issue or PR is asked for.
 
 ## Stack
 
