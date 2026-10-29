@@ -28,10 +28,11 @@ describe('route walk', () => {
     }
   })
 
-  it('lists the auth routes as public', () => {
+  it('lists the auth routes and the sign-in as public', () => {
     expect(server.routes.filter(({ access }) => access === 'public').map(({ path }) => path)).toEqual([
       '/api/auth/*',
       '/.well-known/*',
+      '/api/sign-in',
     ])
   })
 })

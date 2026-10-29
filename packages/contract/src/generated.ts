@@ -2,7 +2,15 @@
 
 import type { JSONSchema } from 'zod/v4/core'
 
-export type Learner = { learnerId: string }
+export type Learner = { learnerId: string; name: string }
+
+export type SignInRequest = { email: string; password: string; oauthQuery?: string }
+
+export type SignedIn = { next?: string }
+
+export type ConsentRequest = { accept: boolean; oauthQuery: string }
+
+export type Consented = { next: string }
 
 export type EventCodeBinding = { code: string }
 
@@ -21,11 +29,15 @@ export type Refusal = {
 }
 
 export interface Operations {
-  getMe: { body: undefined; response: { learnerId: string } }
+  signIn: { body: { email: string; password: string; oauthQuery?: string }; response: { next?: string } }
+  consent: { body: { accept: boolean; oauthQuery: string }; response: { next: string } }
+  getMe: { body: undefined; response: { learnerId: string; name: string } }
   bindEventCode: { body: { code: string }; response: { bound: true } }
 }
 
 export const OPERATIONS = {
+  signIn: { method: 'POST', path: '/api/sign-in', refusals: ['INVALID_EMAIL_OR_PASSWORD'] },
+  consent: { method: 'POST', path: '/api/consent', refusals: ['UNAUTHORIZED', 'INVALID_OAUTH_REQUEST'] },
   getMe: { method: 'GET', path: '/api/me', refusals: ['UNAUTHORIZED'] },
   bindEventCode: {
     method: 'POST',
@@ -36,10 +48,24 @@ export const OPERATIONS = {
 
 // The JSON Schema of each operation's response, which the client checks.
 export const RESPONSES: Partial<Record<keyof Operations, JSONSchema.JSONSchema>> = {
+  signIn: {
+    type: 'object',
+    properties: { next: { type: 'string', minLength: 1, maxLength: 2048 } },
+    additionalProperties: false,
+  },
+  consent: {
+    type: 'object',
+    properties: { next: { type: 'string', minLength: 1, maxLength: 2048 } },
+    required: ['next'],
+    additionalProperties: false,
+  },
   getMe: {
     type: 'object',
-    properties: { learnerId: { type: 'string', minLength: 1, maxLength: 64 } },
-    required: ['learnerId'],
+    properties: {
+      learnerId: { type: 'string', minLength: 1, maxLength: 64 },
+      name: { type: 'string', minLength: 1, maxLength: 256 },
+    },
+    required: ['learnerId', 'name'],
     additionalProperties: false,
   },
   bindEventCode: {
@@ -66,7 +92,9 @@ export const REFUSAL_CODES = [
   'EVENT_CODE_ALREADY_BOUND',
   'EVENT_CODE_NOT_BOUND',
   'EVENT_CODE_REVOKED',
+  'INVALID_EMAIL_OR_PASSWORD',
   'INVALID_EVENT_CODE',
+  'INVALID_OAUTH_REQUEST',
   'UNAUTHORIZED',
 ] as const
 

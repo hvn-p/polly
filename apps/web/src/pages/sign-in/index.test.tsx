@@ -3,20 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { catalogues, translator } from '../../shared/i18n/index.ts'
 import { SignInPage } from './index.tsx'
 
-const auth = vi.hoisted(() => ({
-  useSession: vi.fn(),
-  signInEmail: vi.fn(),
-  consent: vi.fn(),
-}))
+const api = vi.hoisted(() => ({ call: vi.fn() }))
 
-vi.mock('../../shared/auth/index.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../shared/auth/index.ts')>()),
-  authClient: {
-    useSession: auth.useSession,
-    signIn: { email: auth.signInEmail },
-    oauth2: { consent: auth.consent },
-  },
-}))
+vi.mock('../../shared/api/index.ts', () => ({ api }))
 
 const t = translator(['en'])
 const en = catalogues.en
@@ -24,6 +13,7 @@ let assigned: string[]
 
 beforeEach(() => {
   assigned = []
+  window.history.pushState({}, '', '/')
   vi.spyOn(window.location, 'assign').mockImplementation((url) => {
     assigned.push(String(url))
   })
@@ -32,9 +22,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
-  auth.useSession.mockReset()
-  auth.signInEmail.mockReset()
-  auth.consent.mockReset()
+  api.call.mockReset()
 })
 
 function fillSignIn(email: string, password: string): void {
@@ -54,30 +42,43 @@ describe('sign-in page', () => {
     fillSignIn('a@', 'password-1')
     await submit(en['signIn.submit'])
     expect(screen.getByRole('alert').textContent).toBe(en['signIn.emailInvalid'])
-    expect(auth.signInEmail).not.toHaveBeenCalled()
+    expect(api.call).not.toHaveBeenCalled()
   })
 
-  it('signs in, then goes where the server says, or home', async () => {
-    auth.signInEmail.mockResolvedValueOnce({ data: { url: '/consent?x=1' }, error: null })
+  it("signs in through the API's contract, then goes where it says, or home", async () => {
+    api.call.mockResolvedValueOnce({ ok: true, value: { next: '/consent?x=1' } })
     render(<SignInPage t={t} />)
     fillSignIn('demo@polly.localhost', 'polly-demo-learner')
     await submit(en['signIn.submit'])
-    expect(auth.signInEmail).toHaveBeenCalledWith({
+    expect(api.call).toHaveBeenCalledWith('signIn', {
       email: 'demo@polly.localhost',
       password: 'polly-demo-learner',
     })
-    auth.signInEmail.mockResolvedValueOnce({ data: { token: 'x' }, error: null })
+    api.call.mockResolvedValueOnce({ ok: true, value: {} })
     await submit(en['signIn.submit'])
     expect(assigned).toEqual(['/consent?x=1', '/'])
   })
 
+  it('carries the pending authorization request the page received', async () => {
+    window.history.pushState({}, '', '/sign-in?client_id=c&sig=s')
+    api.call.mockResolvedValueOnce({ ok: true, value: {} })
+    render(<SignInPage t={t} />)
+    fillSignIn('demo@polly.localhost', 'polly-demo-learner')
+    await submit(en['signIn.submit'])
+    expect(api.call).toHaveBeenCalledWith('signIn', {
+      email: 'demo@polly.localhost',
+      password: 'polly-demo-learner',
+      oauthQuery: 'client_id=c&sig=s',
+    })
+  })
+
   it('says a refused sign-in apart from an unexpected failure', async () => {
-    auth.signInEmail.mockResolvedValueOnce({ data: null, error: { status: 401 } })
+    api.call.mockResolvedValueOnce({ ok: false, status: 401, code: 'INVALID_EMAIL_OR_PASSWORD' })
     render(<SignInPage t={t} />)
     fillSignIn('demo@polly.localhost', 'wrong-password')
     await submit(en['signIn.submit'])
     expect(screen.getByRole('alert').textContent).toBe(en['signIn.refused'])
-    auth.signInEmail.mockResolvedValueOnce({ data: null, error: { status: 500 } })
+    api.call.mockResolvedValueOnce({ ok: false, status: 500, code: 'UNEXPECTED' })
     await submit(en['signIn.submit'])
     expect(screen.getByRole('alert').textContent).toBe(en['error.unexpected'])
     expect(assigned).toEqual([])

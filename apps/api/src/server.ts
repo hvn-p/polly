@@ -3,14 +3,15 @@
 
 import type { AddressInfo } from 'node:net'
 import { serve } from '@hono/node-server'
-import type { EventCodeStore } from '@polly/back'
+import type { EventCodeStore, LearnerDirectory } from '@polly/back'
 import { type Clock, type Logger, originOf } from '@polly/platform'
-import { type Authenticate, learnerGuard } from './access.ts'
+import { type Authenticate, learnerGuard, type SessionLearner } from './access.ts'
 import { eventCodeGuard, registerAgentEventRoute } from './agent-events/index.ts'
 import { createApp } from './app.ts'
 import { registerAuthRoutes } from './auth.ts'
 import { registerLearnerRoutes } from './learner/index.ts'
 import { type Guards, type Route, RouteRegistry } from './routes.ts'
+import { type BrowserSessions, registerSessionRoutes } from './session/index.ts'
 
 export interface ApiPorts {
   codes: EventCodeStore
@@ -18,6 +19,11 @@ export interface ApiPorts {
   identityHandler: (request: Request) => Promise<Response>
   // Which learner an API token names, given where the server's keys are read.
   learner: (jwksUrl: () => string) => Authenticate
+  // The browser's sessions: sign-in, consent, and the learner a cookie names.
+  sessions: BrowserSessions & { learnerOf: SessionLearner }
+  directory: LearnerDirectory
+  // The worktree's origin, the only one a cookie-admitted change comes from.
+  origin: string
   clock: Clock
   log: Logger
 }
@@ -40,12 +46,17 @@ export async function serveApi(
     public: async () => ({}),
     // The keys are read on the address the server listens on, never through
     // the worktree's public URL.
-    learner: learnerGuard(ports.learner(() => `${originOf(hostname, listeningPort)}/api/auth/jwks`)),
+    learner: learnerGuard(
+      ports.learner(() => `${originOf(hostname, listeningPort)}/api/auth/jwks`),
+      ports.sessions.learnerOf,
+      ports.origin,
+    ),
     'event-code': eventCodeGuard(ports.codes),
   }
   const registry = new RouteRegistry(guards)
   registerAuthRoutes(registry, ports.identityHandler)
-  registerLearnerRoutes(registry, ports.codes)
+  registerSessionRoutes(registry, ports.sessions)
+  registerLearnerRoutes(registry, ports.codes, ports.directory)
   registerAgentEventRoute(registry, ports.codes, ports.clock)
   const app = createApp(registry, ports.log)
   const server = await new Promise<ReturnType<typeof serve>>((resolve) => {

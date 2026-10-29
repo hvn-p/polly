@@ -130,7 +130,9 @@
       "criterion": "The front end's entry: providers, router, global styles.",
       "paths": ["apps/web/src/app"],
       "mayImport": ["web-pages", "web-widgets", "web-features", "web-entities", "web-shared", "contract"],
-      "fix": "Feature-Sliced Design: a layer imports only the layers below it."
+      "fix": "Feature-Sliced Design: a layer imports only the layers below it.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
     },
     {
       "id": "web-pages",
@@ -140,7 +142,9 @@
       "paths": ["apps/web/src/pages/*"],
       "mayImport": ["web-widgets", "web-features", "web-entities", "web-shared", "contract"],
       "isolated": "Two pages never import each other: move what they share down a layer.",
-      "fix": "Feature-Sliced Design: a page imports only the layers below it."
+      "fix": "Feature-Sliced Design: a page imports only the layers below it.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
     },
     {
       "id": "web-widgets",
@@ -150,7 +154,9 @@
       "paths": ["apps/web/src/widgets/*"],
       "mayImport": ["web-features", "web-entities", "web-shared", "contract"],
       "isolated": "Two widgets never import each other: move what they share down a layer.",
-      "fix": "Feature-Sliced Design: a widget imports only the layers below it."
+      "fix": "Feature-Sliced Design: a widget imports only the layers below it.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
     },
     {
       "id": "web-features",
@@ -160,7 +166,9 @@
       "paths": ["apps/web/src/features/*"],
       "mayImport": ["web-entities", "web-shared", "contract"],
       "isolated": "Two features never import each other: compose them in a widget or a page.",
-      "fix": "Feature-Sliced Design: a feature imports only entities and shared."
+      "fix": "Feature-Sliced Design: a feature imports only entities and shared.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
     },
     {
       "id": "web-entities",
@@ -170,7 +178,9 @@
       "paths": ["apps/web/src/entities/*"],
       "mayImport": ["web-shared", "contract"],
       "isolated": "Two entities never import each other: compose them in a feature.",
-      "fix": "Feature-Sliced Design: an entity imports only shared."
+      "fix": "Feature-Sliced Design: an entity imports only shared.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
     },
     {
       "id": "web-shared",
@@ -180,7 +190,9 @@
       "paths": ["apps/web/src/shared/*"],
       "mayImport": ["contract"],
       "isolated": "Two shared segments never import each other: merge them or split what they share.",
-      "fix": "Shared knows no layer above it."
+      "fix": "Shared knows no layer above it.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
     },
     {
       "id": "plugin",
@@ -356,7 +368,8 @@
       "technologies": ["node:*", "@dbos-inc/dbos-sdk"]
     },
     "@polly/web": {
-      "provides": "React front end"
+      "provides": "React front end",
+      "technologies": ["react", "react-dom"]
     },
     "@polly/back": {
       "provides": "flows and domains, no technology"
@@ -392,7 +405,7 @@
       "provides": "product values, the hash"
     },
     "@polly/platform": {
-      "provides": "Refusal, the Logger and Clock ports, the configuration schema"
+      "provides": "Refusal, the Logger and Clock ports, the configuration schema, the route registry"
     },
     "@polly/contract": {
       "provides": "the API's generated client and refusal codes"

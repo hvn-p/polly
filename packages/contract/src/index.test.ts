@@ -26,9 +26,9 @@ describe('API client', () => {
   })
 
   it('sends no body for an operation that takes none', async () => {
-    const { calls, fetch } = recordingFetch(Response.json({ learnerId: 'l-1' }))
+    const { calls, fetch } = recordingFetch(Response.json({ learnerId: 'l-1', name: 'Ada' }))
     const api = createApiClient({ baseUrl: 'http://127.0.0.1:1', token: async () => 't', fetch })
-    expect(await api.call('getMe')).toEqual({ ok: true, value: { learnerId: 'l-1' } })
+    expect(await api.call('getMe')).toEqual({ ok: true, value: { learnerId: 'l-1', name: 'Ada' } })
     expect(calls[0]?.method).toBe('GET')
     expect(calls[0]?.body).toBeNull()
   })
@@ -44,6 +44,12 @@ describe('API client', () => {
         reason: 'the answer does not match the contract',
       })
     }
+  })
+
+  it('sends no authorization header without a token, as a browser relying on its cookie', async () => {
+    const { calls, fetch } = recordingFetch(Response.json({ learnerId: 'l-1', name: 'Ada' }))
+    await createApiClient({ baseUrl: 'http://x', fetch }).call('getMe')
+    expect(calls[0]?.headers.has('authorization')).toBe(false)
   })
 
   it('reads a refusal by its code, and an answer outside the contract as UNEXPECTED', async () => {

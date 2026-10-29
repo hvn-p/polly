@@ -9,8 +9,10 @@ import { assertSchemaCurrent, connect, PostgresStore, waitForSchemaCurrent } fro
 import {
   apiResource,
   authenticator,
+  browserSessions,
   createIdentity,
   type IdentitySettings,
+  learnerDirectory,
   registerMcpClient,
 } from '@polly/identity'
 import { createLogger } from '@polly/logging'
@@ -71,6 +73,9 @@ export async function startServer({
       codes: new PostgresStore(db),
       identityHandler: (request) => identity.handler(request),
       learner: (jwksUrl) => authenticator(identity, apiResource(config.PUBLIC_URL), jwksUrl),
+      sessions: browserSessions(identity, config.PUBLIC_URL),
+      directory: learnerDirectory(identity),
+      origin: new URL(config.PUBLIC_URL).origin,
       clock,
       log,
     },

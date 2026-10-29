@@ -26,7 +26,10 @@ describe('MCP endpoint and whoami', () => {
   it('whoami returns the learner the token was issued to', async () => {
     const { learnerId, email, password } = await createLearner(server)
     const client = await mcpClient(server, await mcpAccessToken(server, email, password))
-    expect(resultOf(await client.callTool({ name: 'whoami', arguments: {} }))).toEqual({ learnerId })
+    expect(resultOf(await client.callTool({ name: 'whoami', arguments: {} }))).toEqual({
+      learnerId,
+      name: 'learner',
+    })
   })
 
   it('admits each request as its own learner, request after request', async () => {
@@ -36,9 +39,11 @@ describe('MCP endpoint and whoami', () => {
     const secondClient = await mcpClient(server, await mcpAccessToken(server, second.email, second.password))
     expect(resultOf(await secondClient.callTool({ name: 'whoami', arguments: {} }))).toEqual({
       learnerId: second.learnerId,
+      name: 'second',
     })
     expect(resultOf(await firstClient.callTool({ name: 'whoami', arguments: {} }))).toEqual({
       learnerId: first.learnerId,
+      name: 'first',
     })
   })
 
@@ -47,7 +52,7 @@ describe('MCP endpoint and whoami', () => {
     const client = await mcpClient(server, await mcpAccessToken(server, email, password))
     const { tools } = await client.listTools()
     expect(tools.find(({ name }) => name === 'whoami')?.description).toBe(
-      'Returns the identifier of the learner this connection is signed in as. Call it to check that Polly is reachable and that you are signed in.',
+      'Returns the identifier and the name of the learner this connection is signed in as. Call it to check that Polly is reachable and that you are signed in.',
     )
   })
 })

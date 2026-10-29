@@ -13,7 +13,10 @@ describe('MCP tools', () => {
   it('C36: every tool the server lists is called by an MCP client, against the running server', async () => {
     const { email, password, learnerId } = await createLearner(server)
     const client = recordCalls(await mcpClient(server, await mcpAccessToken(server, email, password)))
-    expect(resultOf(await client.callTool({ name: 'whoami', arguments: {} }))).toEqual({ learnerId })
+    expect(resultOf(await client.callTool({ name: 'whoami', arguments: {} }))).toEqual({
+      learnerId,
+      name: 'learner',
+    })
     const code = randomBytes(32).toString('base64url')
     expect(resultOf(await client.callTool({ name: 'start_lesson', arguments: { code } }))).toEqual({
       bound: true,

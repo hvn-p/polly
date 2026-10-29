@@ -34,10 +34,10 @@ describe('the learner routes of the contract', () => {
     }
   })
 
-  it('GET /api/me names the learner the API token was issued to', async () => {
+  it('GET /api/me names the learner the API token was issued to, with their name', async () => {
     const { learnerId, apiToken } = await tokens()
     const response = await fetch(`${server.url}/api/me`, { headers: { authorization: `Bearer ${apiToken}` } })
-    expect(await response.json()).toEqual({ learnerId })
+    expect(await response.json()).toEqual({ learnerId, name: 'learner' })
   })
 
   it('C72: the MCP token sent to the API as is is refused with 401', async () => {

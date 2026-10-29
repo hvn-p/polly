@@ -16,6 +16,7 @@ export {
   mcpResource,
   registerMcpClient,
 } from './better-auth.ts'
+export { browserSessions, type Consent, learnerDirectory, type Sessions, type SignIn } from './sessions.ts'
 export { MCP_CLIENT_ID, TOKEN_EXCHANGE_GRANT } from './token-exchange.ts'
 
 // Which learner makes a request for this resource: the learner its bearer

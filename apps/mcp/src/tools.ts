@@ -34,9 +34,9 @@ function defineTool<Input extends z.ZodObject, Output extends z.ZodObject>(tool:
 export const whoami = defineTool({
   name: 'whoami',
   description:
-    'Returns the identifier of the learner this connection is signed in as. Call it to check that Polly is reachable and that you are signed in.',
+    'Returns the identifier and the name of the learner this connection is signed in as. Call it to check that Polly is reachable and that you are signed in.',
   inputSchema: z.object({}),
-  outputSchema: z.object({ learnerId: z.string() }),
+  outputSchema: z.object({ learnerId: z.string(), name: z.string() }),
   call: (_input, api) => api.call('getMe'),
 })
 

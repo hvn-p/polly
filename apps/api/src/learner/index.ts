@@ -1,18 +1,22 @@
-// The learner's routes of the contract: who the token names, and binding an
+// The learner's routes of the contract: who the request names, and binding an
 // event listener's code to them. Each calls one flow; the event code is checked
 // exactly by the back, so a malformed one gets its named refusal.
 
-import { type EventCodeStore, startLesson } from '@polly/back'
+import { describeLearner, type EventCodeStore, type LearnerDirectory, startLesson } from '@polly/back'
 import { operations } from '../contracts/api.ts'
 import type { RouteRegistry } from '../routes.ts'
 
-export function registerLearnerRoutes(registry: RouteRegistry, codes: EventCodeStore): void {
+export function registerLearnerRoutes(
+  registry: RouteRegistry,
+  codes: EventCodeStore,
+  directory: LearnerDirectory,
+): void {
   const { getMe, bindEventCode } = operations
   registry.add({
     method: getMe.method,
     path: getMe.path,
     access: getMe.access,
-    handle: (_request, { learnerId }) => Response.json({ learnerId }),
+    handle: async (_request, { learnerId }) => Response.json(await describeLearner({ directory }, learnerId)),
   })
   registry.add({
     method: bindEventCode.method,

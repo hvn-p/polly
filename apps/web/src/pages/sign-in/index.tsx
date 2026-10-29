@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { authClient, nextLocation } from '../../shared/auth/index.ts'
+import { api } from '../../shared/api/index.ts'
 import type { MessageKey, Translate } from '../../shared/i18n/index.ts'
 import { signInProblem } from './bounds.ts'
 
@@ -16,12 +16,19 @@ export function SignInPage({ t }: { t: Translate }) {
       setProblem(invalid)
       return
     }
-    const { data, error } = await authClient.signIn.email({ email, password })
-    if (error !== null) {
-      setProblem(error.status === 401 ? 'signIn.refused' : 'error.unexpected')
+    // The authorization request an agent's sign-in is part of, signed by the
+    // server, which it resumes once the learner is signed in.
+    const oauthQuery = window.location.search.slice(1)
+    const outcome = await api.call('signIn', {
+      email,
+      password,
+      ...(oauthQuery === '' ? {} : { oauthQuery }),
+    })
+    if (!outcome.ok) {
+      setProblem(outcome.code === 'INVALID_EMAIL_OR_PASSWORD' ? 'signIn.refused' : 'error.unexpected')
       return
     }
-    window.location.assign(nextLocation(data) ?? '/')
+    window.location.assign(outcome.value.next ?? '/')
   }
 
   return (

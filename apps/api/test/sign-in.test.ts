@@ -1,0 +1,141 @@
+import { createHash, randomBytes } from 'node:crypto'
+import { mcpResource } from '@polly/identity'
+import { describe, expect, it } from 'vitest'
+import { createLearner, createPublicClient, headers, signedInCookie } from './support/oauth.ts'
+import { testServer } from './support/server.ts'
+
+const server = await testServer()
+
+function post(path: string, body: unknown, extra: Record<string, string> = {}): Promise<Response> {
+  return fetch(`${server.url}${path}`, {
+    method: 'POST',
+    headers: headers(server, { 'content-type': 'application/json', ...extra }),
+    body: JSON.stringify(body),
+  })
+}
+
+function cookieOf(response: Response): string {
+  return response.headers
+    .getSetCookie()
+    .map((cookie) => cookie.split(';')[0])
+    .join('; ')
+}
+
+// An agent's authorization request, as the identity sends a signed-out learner
+// to the sign-in page: the query string that page receives.
+async function signInPageQuery(): Promise<string> {
+  const owner = await createLearner(server, 'owner')
+  const clientId = await createPublicClient(server, await signedInCookie(server, owner.email, owner.password))
+  const authorize = new URL(`${server.url}/api/auth/oauth2/authorize`)
+  for (const [key, value] of Object.entries({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: 'http://127.0.0.1:9/callback',
+    scope: 'openid',
+    state: 'state',
+    code_challenge: createHash('sha256').update(randomBytes(32).toString('base64url')).digest('base64url'),
+    code_challenge_method: 'S256',
+    resource: mcpResource(server.config.PUBLIC_URL),
+  })) {
+    authorize.searchParams.set(key, value)
+  }
+  const redirect = await fetch(authorize, { headers: headers(server), redirect: 'manual' })
+  const location = redirect.headers.get('location') ?? ((await redirect.json()) as { url: string }).url
+  const page = new URL(location, server.config.PUBLIC_URL)
+  expect(page.pathname).toBe('/sign-in')
+  return page.search.slice(1)
+}
+
+describe('POST /api/sign-in', () => {
+  it('signs the learner in, setting the host-only secure session cookie, with nowhere to go next', async () => {
+    const { email, password } = await createLearner(server)
+    const response = await post('/api/sign-in', { email, password })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({})
+    const session = response.headers.getSetCookie().find((cookie) => cookie.includes('session_token='))
+    expect(session).toMatch(/^__Secure-/)
+    expect(session).toMatch(/;\s*Secure/i)
+    expect(session).toMatch(/;\s*HttpOnly/i)
+    expect(session).not.toMatch(/;\s*Domain=/i)
+  })
+
+  it('C22: refuses a wrong password, and a pair out of bounds, with INVALID_EMAIL_OR_PASSWORD', async () => {
+    const { email, password } = await createLearner(server)
+    for (const attempt of [
+      { email, password: 'wrong-password' },
+      { email: `${'a'.repeat(250)}@x.io`, password },
+      { email, password: 'x'.repeat(7) },
+      { email, password: 'x'.repeat(129) },
+      { email, password, oauthQuery: 'q'.repeat(4097) },
+    ]) {
+      const response = await post('/api/sign-in', attempt)
+      expect(response.status).toBe(401)
+      expect(await response.json()).toMatchObject({ code: 'INVALID_EMAIL_OR_PASSWORD' })
+      expect(response.headers.getSetCookie()).toEqual([])
+    }
+  })
+
+  it('resumes a pending authorization request: next is the consent page', async () => {
+    const oauthQuery = await signInPageQuery()
+    const { email, password } = await createLearner(server)
+    const response = await post('/api/sign-in', { email, password, oauthQuery })
+    const { next } = (await response.json()) as { next: string }
+    expect(new URL(next, server.config.PUBLIC_URL).pathname).toBe('/consent')
+  })
+})
+
+describe('POST /api/consent', () => {
+  async function consentPage() {
+    const signInQuery = await signInPageQuery()
+    const { email, password } = await createLearner(server)
+    const signedIn = await post('/api/sign-in', { email, password, oauthQuery: signInQuery })
+    const { next } = (await signedIn.json()) as { next: string }
+    return { cookie: cookieOf(signedIn), oauthQuery: new URL(next, server.config.PUBLIC_URL).search.slice(1) }
+  }
+
+  it("records the learner's consent and sends them to the client's callback with a code", async () => {
+    const { cookie, oauthQuery } = await consentPage()
+    const response = await post('/api/consent', { accept: true, oauthQuery }, { cookie })
+    expect(response.status).toBe(200)
+    const { next } = (await response.json()) as { next: string }
+    expect(new URL(next).origin).toBe('http://127.0.0.1:9')
+    expect(new URL(next).searchParams.get('code')).toMatch(/.+/)
+  })
+
+  it('sends a denial to the callback too', async () => {
+    const { cookie, oauthQuery } = await consentPage()
+    const response = await post('/api/consent', { accept: false, oauthQuery }, { cookie })
+    const { next } = (await response.json()) as { next: string }
+    expect(new URL(next).searchParams.get('error')).toBe('access_denied')
+  })
+
+  it('refuses without a session, and from another origin, with UNAUTHORIZED', async () => {
+    const { cookie, oauthQuery } = await consentPage()
+    const anonymous = await post('/api/consent', { accept: true, oauthQuery })
+    expect(anonymous.status).toBe(401)
+    const foreign = await post(
+      '/api/consent',
+      { accept: true, oauthQuery },
+      { cookie, origin: 'https://evil.test' },
+    )
+    expect(foreign.status).toBe(401)
+    expect(await foreign.json()).toMatchObject({ code: 'UNAUTHORIZED' })
+  })
+
+  it('refuses an altered authorization request with INVALID_OAUTH_REQUEST', async () => {
+    const { cookie, oauthQuery } = await consentPage()
+    const altered = oauthQuery.replace(/state=[^&]*/, 'state=other')
+    const response = await post('/api/consent', { accept: true, oauthQuery: altered }, { cookie })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ code: 'INVALID_OAUTH_REQUEST' })
+  })
+})
+
+describe('GET /api/me with the session cookie', () => {
+  it('names the signed-in learner, as the home page shows them', async () => {
+    const { email, password, learnerId } = await createLearner(server, 'home')
+    const cookie = cookieOf(await post('/api/sign-in', { email, password }))
+    const me = await fetch(`${server.url}/api/me`, { headers: headers(server, { cookie }) })
+    expect(await me.json()).toEqual({ learnerId, name: 'home' })
+  })
+})

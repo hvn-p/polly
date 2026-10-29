@@ -15,6 +15,25 @@ export interface LearnerAccounts {
   create: (account: LearnerAccount) => Promise<string>
 }
 
+// Where a learner's name is read.
+export interface LearnerDirectory {
+  // Undefined once the account is gone.
+  nameOf: (learnerId: string) => Promise<string | undefined>
+}
+
+// A learner as shown to them: refused when their account is gone, since the
+// credential that named them then speaks for no one.
+export async function describe(
+  directory: LearnerDirectory,
+  learnerId: string,
+): Promise<{ learnerId: string; name: string }> {
+  const name = await directory.nameOf(learnerId)
+  if (name === undefined) {
+    throw new Refusal('UNAUTHORIZED', 'this account no longer exists')
+  }
+  return { learnerId, name }
+}
+
 // Creates an account whose credentials are public: only in a local environment.
 export async function createLocalAccount(
   accounts: LearnerAccounts,

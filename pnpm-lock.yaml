@@ -267,12 +267,9 @@ importers:
 
   apps/web:
     dependencies:
-      '@better-auth/oauth-provider':
-        specifier: 1.7.13
-        version: 1.7.13(@better-auth/core@1.7.13(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(@opentelemetry/api@1.10.0)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.13(@opentelemetry/api@1.10.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
-      better-auth:
-        specifier: 1.7.13
-        version: 1.7.13(@opentelemetry/api@1.10.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+      '@polly/contract':
+        specifier: workspace:*
+        version: link:../../packages/contract
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -415,6 +412,9 @@ importers:
       '@polly/back':
         specifier: workspace:*
         version: link:../back
+      '@polly/platform':
+        specifier: workspace:*
+        version: link:../platform
       better-auth:
         specifier: 1.7.13
         version: 1.7.13(@opentelemetry/api@1.10.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)

@@ -7,7 +7,9 @@ import type { Refusal } from '@polly/platform'
 // A refusal not listed here depends on the state of something: 409.
 const HTTP_STATUS: Record<string, number> = {
   INVALID_EVENT_CODE: 400,
+  INVALID_OAUTH_REQUEST: 400,
   UNAUTHORIZED: 401,
+  INVALID_EMAIL_OR_PASSWORD: 401,
   EVENT_CODE_REVOKED: 403,
 }
 

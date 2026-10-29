@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { authClient, nextLocation } from '../../shared/auth/index.ts'
+import { api } from '../../shared/api/index.ts'
 import type { Translate } from '../../shared/i18n/index.ts'
 
 export function ConsentPage({ t }: { t: Translate }) {
@@ -7,13 +7,13 @@ export function ConsentPage({ t }: { t: Translate }) {
   const client = new URLSearchParams(window.location.search).get('client_id') ?? ''
 
   async function answer(accept: boolean) {
-    const { data, error } = await authClient.oauth2.consent({ accept })
-    const next = nextLocation(data)
-    if (error !== null || next === undefined) {
+    // The authorization request the server signed, which the answer completes.
+    const outcome = await api.call('consent', { accept, oauthQuery: window.location.search.slice(1) })
+    if (!outcome.ok) {
       setFailed(true)
       return
     }
-    window.location.assign(next)
+    window.location.assign(outcome.value.next)
   }
 
   return (

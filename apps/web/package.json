@@ -6,8 +6,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
-    "@better-auth/oauth-provider": "1.7.13",
-    "better-auth": "1.7.13",
+    "@polly/contract": "workspace:*",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

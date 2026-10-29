@@ -1,22 +1,11 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { catalogues, translator } from '../../shared/i18n/index.ts'
 import { HomePage } from './index.tsx'
 
-const auth = vi.hoisted(() => ({
-  useSession: vi.fn(),
-  signInEmail: vi.fn(),
-  consent: vi.fn(),
-}))
+const api = vi.hoisted(() => ({ call: vi.fn() }))
 
-vi.mock('../../shared/auth/index.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../shared/auth/index.ts')>()),
-  authClient: {
-    useSession: auth.useSession,
-    signIn: { email: auth.signInEmail },
-    oauth2: { consent: auth.consent },
-  },
-}))
+vi.mock('../../shared/api/index.ts', () => ({ api }))
 
 const t = translator(['en'])
 const en = catalogues.en
@@ -24,6 +13,7 @@ let assigned: string[]
 
 beforeEach(() => {
   assigned = []
+  window.history.pushState({}, '', '/')
   vi.spyOn(window.location, 'assign').mockImplementation((url) => {
     assigned.push(String(url))
   })
@@ -32,24 +22,29 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
-  auth.useSession.mockReset()
-  auth.signInEmail.mockReset()
-  auth.consent.mockReset()
+  api.call.mockReset()
 })
 
-describe('home page', () => {
-  it('shows the signed-in learner', () => {
-    auth.useSession.mockReturnValue({ data: { user: { name: 'Demo Learner' } }, isPending: false })
+async function renderHome(): Promise<void> {
+  await act(async () => {
     render(<HomePage t={t} />)
+  })
+}
+
+describe('home page', () => {
+  it('shows the signed-in learner the API names', async () => {
+    api.call.mockResolvedValueOnce({ ok: true, value: { learnerId: 'l1', name: 'Demo Learner' } })
+    await renderHome()
+    expect(api.call).toHaveBeenCalledWith('getMe')
     expect(screen.getByText('Signed in as Demo Learner.')).toBeDefined()
   })
 
-  it('offers to sign in when signed out, and shows nothing while the session loads', () => {
-    auth.useSession.mockReturnValue({ data: null, isPending: false })
-    render(<HomePage t={t} />)
+  it('offers to sign in when the API refuses, and shows nothing while it answers', async () => {
+    api.call.mockResolvedValueOnce({ ok: false, status: 401, code: 'UNAUTHORIZED' })
+    await renderHome()
     expect(screen.getByRole('link', { name: en['home.signIn'] }).getAttribute('href')).toBe('/sign-in')
     cleanup()
-    auth.useSession.mockReturnValue({ data: null, isPending: true })
+    api.call.mockReturnValueOnce(new Promise(() => undefined))
     const { container } = render(<HomePage t={t} />)
     expect(container.innerHTML).toBe('')
   })

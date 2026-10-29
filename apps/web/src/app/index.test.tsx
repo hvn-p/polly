@@ -2,20 +2,9 @@ import { act, cleanup, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { catalogues } from '../shared/i18n/index.ts'
 
-const auth = vi.hoisted(() => ({
-  useSession: vi.fn(),
-  signInEmail: vi.fn(),
-  consent: vi.fn(),
-}))
+const api = vi.hoisted(() => ({ call: vi.fn() }))
 
-vi.mock('../shared/auth/index.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../shared/auth/index.ts')>()),
-  authClient: {
-    useSession: auth.useSession,
-    signIn: { email: auth.signInEmail },
-    oauth2: { consent: auth.consent },
-  },
-}))
+vi.mock('../shared/api/index.ts', () => ({ api }))
 
 const en = catalogues.en
 let assigned: string[]
@@ -30,9 +19,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
-  auth.useSession.mockReset()
-  auth.signInEmail.mockReset()
-  auth.consent.mockReset()
+  api.call.mockReset()
 })
 
 describe('application entry', () => {

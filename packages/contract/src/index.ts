@@ -33,8 +33,9 @@ export function createApiClient({
   fetch = globalThis.fetch,
 }: {
   baseUrl: string
-  // The bearer token of each call, obtained when the call is made.
-  token: () => Promise<string>
+  // The bearer token of each call, obtained when the call is made; none for a
+  // browser, whose session cookie the same-origin request carries.
+  token?: () => Promise<string>
   fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 }): ApiClient {
   // Built with the client, so a module that only reads the contract's tables
@@ -45,7 +46,8 @@ export function createApiClient({
   return {
     call: async (name, ...[body]) => {
       const { method, path } = OPERATIONS[name]
-      const headers: Record<string, string> = { authorization: `Bearer ${await token()}` }
+      const headers: Record<string, string> =
+        token === undefined ? {} : { authorization: `Bearer ${await token()}` }
       if (body !== undefined) {
         headers['content-type'] = 'application/json'
       }

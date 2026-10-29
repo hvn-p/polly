@@ -2,6 +2,110 @@
   "openapi": "3.1.0",
   "info": { "title": "api", "version": "0" },
   "paths": {
+    "/api/sign-in": {
+      "post": {
+        "operationId": "signIn",
+        "x-access": "public",
+        "x-refusals": ["INVALID_EMAIL_OR_PASSWORD"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "minLength": 3, "maxLength": 254 },
+                  "password": { "type": "string", "minLength": 8, "maxLength": 128 },
+                  "oauthQuery": { "type": "string", "maxLength": 4096 }
+                },
+                "required": ["email", "password"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "next": { "type": "string", "minLength": 1, "maxLength": 2048 } },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "code": { "type": "string", "enum": ["INVALID_EMAIL_OR_PASSWORD"] } },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/consent": {
+      "post": {
+        "operationId": "consent",
+        "x-access": "learner",
+        "x-refusals": ["UNAUTHORIZED", "INVALID_OAUTH_REQUEST"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accept": { "type": "boolean" },
+                  "oauthQuery": { "type": "string", "maxLength": 4096 }
+                },
+                "required": ["accept", "oauthQuery"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "next": { "type": "string", "minLength": 1, "maxLength": 2048 } },
+                  "required": ["next"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["UNAUTHORIZED", "INVALID_OAUTH_REQUEST"] }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "operationId": "getMe",
@@ -14,8 +118,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": { "learnerId": { "type": "string", "minLength": 1, "maxLength": 64 } },
-                  "required": ["learnerId"],
+                  "properties": {
+                    "learnerId": { "type": "string", "minLength": 1, "maxLength": 64 },
+                    "name": { "type": "string", "minLength": 1, "maxLength": 256 }
+                  },
+                  "required": ["learnerId", "name"],
                   "additionalProperties": false
                 }
               }
@@ -161,8 +268,41 @@
     "schemas": {
       "Learner": {
         "type": "object",
-        "properties": { "learnerId": { "type": "string", "minLength": 1, "maxLength": 64 } },
-        "required": ["learnerId"],
+        "properties": {
+          "learnerId": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "required": ["learnerId", "name"],
+        "additionalProperties": false
+      },
+      "SignInRequest": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string", "minLength": 3, "maxLength": 254 },
+          "password": { "type": "string", "minLength": 8, "maxLength": 128 },
+          "oauthQuery": { "type": "string", "maxLength": 4096 }
+        },
+        "required": ["email", "password"],
+        "additionalProperties": false
+      },
+      "SignedIn": {
+        "type": "object",
+        "properties": { "next": { "type": "string", "minLength": 1, "maxLength": 2048 } },
+        "additionalProperties": false
+      },
+      "ConsentRequest": {
+        "type": "object",
+        "properties": {
+          "accept": { "type": "boolean" },
+          "oauthQuery": { "type": "string", "maxLength": 4096 }
+        },
+        "required": ["accept", "oauthQuery"],
+        "additionalProperties": false
+      },
+      "Consented": {
+        "type": "object",
+        "properties": { "next": { "type": "string", "minLength": 1, "maxLength": 2048 } },
+        "required": ["next"],
         "additionalProperties": false
       },
       "EventCodeBinding": {

@@ -12,7 +12,7 @@ async function whoamiAnswers(server: TestServer): Promise<void> {
   const { email, password, learnerId } = await createLearner(server)
   const token = await apiAccessToken(server, email, password)
   const me = await fetch(`${server.url}/api/me`, { headers: { authorization: `Bearer ${token}` } })
-  expect(await me.json()).toEqual({ learnerId })
+  expect(await me.json()).toEqual({ learnerId, name: 'learner' })
 }
 
 describe('the listen address', () => {
