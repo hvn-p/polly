@@ -184,6 +184,29 @@ describe('the matrix', () => {
     expect(side().textContent).toContain('Allowed on a condition')
   })
 
+  it('cuts a long module name in its headers, the full name in their title', () => {
+    const report = fixture()
+    report.modules.push({
+      id: 'packages/back/src/flows/submit-placeholder-analysis',
+      tier: 'flows',
+      package: '@shop/back',
+      files: ['packages/back/src/flows/submit-placeholder-analysis/index.ts'],
+    })
+    render(<App feed={feedOf({ report })} />)
+    const full = 'back/flows/submit-placeholder-analysis'
+    const headers = [
+      ...document.querySelectorAll('table.m th.th-mod button, table.m th.ch-mod button'),
+    ].filter((button) => button.getAttribute('title') === full)
+    expect(headers.map((button) => button.textContent)).toEqual([
+      'back/flows/submit-placeholder-…',
+      'back/flows/submit-placeholder-…',
+    ])
+    expect(screen.getAllByTitle('back/flows/sell').map((button) => button.textContent)).toEqual([
+      'back/flows/sell',
+      'back/flows/sell',
+    ])
+  })
+
   it('follows the pointer with a band on its row and its column', () => {
     render(<App feed={feedOf({})} />)
     fireEvent.pointerOver(cell('api', 'database'))

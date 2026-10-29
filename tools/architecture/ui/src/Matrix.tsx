@@ -26,6 +26,12 @@ const MAX_ZOOM = 3
 const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z))
 // Below this zoom, module names no longer fit their cell and are hidden.
 const isTiny = (zoom: number) => zoom * 25 - 9 < 8
+// A module name in a header holds at most this many characters, so no name widens the
+// row headers' column: in the monospace font, with its station, it fills the 240px the
+// styles allow. Generous: Polly's flows all fit whole but the longest two.
+const HEADER_CHARS = 31
+const headerLabel = (label: string) =>
+  label.length > HEADER_CHARS ? `${label.slice(0, HEADER_CHARS - 1)}…` : label
 
 // The overview's colours, one per cell class.
 const OVERVIEW: Record<string, string> = {
@@ -533,7 +539,7 @@ function Heads({ tree, items, folds, foldGroup, foldTier, onSelect }: HeadsProps
                 title={labelOf(model, c.id ?? '')}
                 onClick={() => onSelect({ kind: 'module', id: c.id ?? '' })}
               >
-                <span>{labelOf(model, c.id ?? '')}</span>
+                <span>{headerLabel(labelOf(model, c.id ?? ''))}</span>
               </button>
             </th>
           ),
@@ -629,7 +635,7 @@ function Rows({
                       onClick={() => onSelect({ kind: 'module', id: row.id ?? '' })}
                     >
                       <span className="stn" style={{ color: model.colour[row.tier] }} />
-                      {labelOf(model, row.id ?? '')}
+                      {headerLabel(labelOf(model, row.id ?? ''))}
                     </button>
                   </th>
                 )}

@@ -770,12 +770,14 @@ details.link summary::-webkit-details-marker {
   height: calc(132px * var(--zh));
   vertical-align: bottom;
   width: calc(26px * var(--z));
+  font-family: var(--mono);
   font-size: var(--lab);
   line-height: 1;
 }
 .m .th-mod {
+  font-family: var(--mono);
   font-size: var(--lab);
-  max-width: calc(230px * var(--zh));
+  max-width: calc(240px * var(--zh));
 }
 .crumbs .here {
   color: var(--ink);
@@ -830,6 +832,7 @@ details.link summary::-webkit-details-marker {
 .m .agg-label {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
+  font-family: var(--sans);
   font-weight: 600;
   color: var(--ink);
   padding-bottom: 6px;
@@ -1092,7 +1095,7 @@ details.link summary::-webkit-details-marker {
   min-height: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: calc(230px * var(--zh));
+  max-width: calc(240px * var(--zh));
 }
 .m .ch-mod a {
   display: block;
@@ -1383,6 +1386,7 @@ details.link .imp {
   background: #ecebe60d;
 }
 .m .th-mod.agg {
+  font-family: var(--sans);
   font-weight: 600;
   color: var(--ink);
 }
