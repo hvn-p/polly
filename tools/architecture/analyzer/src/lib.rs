@@ -176,7 +176,8 @@ fn head(root: &Path) -> Option<String> {
     (out.status.success() && !name.is_empty()).then_some(name)
 }
 
-/// The module imports of a git reference, read from a copy of its tree.
+/// The module imports of a git reference, read from a copy of its tree with the rules of
+/// the tree at `root`.
 pub(crate) fn base_pairs(root: &Path, reference: &str) -> Result<Base, String> {
     let copy = std::env::temp_dir().join(format!("architecture-base-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&copy);
@@ -192,8 +193,16 @@ pub(crate) fn base_pairs(root: &Path, reference: &str) -> Result<Base, String> {
         ])
         .output()
         .map_err(|e| e.to_string())?;
-    let result = if archive.status.success() {
-        Tree::load(&copy).map(|tree| pairs(&tree.graph(None).edges))
+    // Read with today's rules, so both graphs name the same modules, and a base
+    // from before the rules file can still be compared. A base from before the
+    // workspace imports nothing.
+    let result = if archive.status.success() && !copy.join("pnpm-workspace.yaml").exists() {
+        Ok(BTreeSet::new())
+    } else if archive.status.success() {
+        std::fs::copy(root.join(RULES_FILE), copy.join(RULES_FILE))
+            .map_err(|e| format!("{RULES_FILE}: {e}"))
+            .and_then(|_| Tree::load(&copy))
+            .map(|tree| pairs(&tree.graph(None).edges))
     } else {
         Err(format!(
             "cannot read {reference}: {}",

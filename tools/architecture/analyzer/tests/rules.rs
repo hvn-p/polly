@@ -358,3 +358,46 @@ fn the_json_report_names_what_the_branch_adds_and_removes_against_its_base() {
         ])
     );
 }
+
+#[test]
+fn a_base_is_read_with_the_tree_s_rules_even_when_it_has_none() {
+    let tree = Tree::valid();
+    git(&tree, &["init", "-q", "-b", "main"]);
+    git(&tree, &["add", "-A"]);
+    git(&tree, &["rm", "-q", "--cached", "architecture.rules.json"]);
+    git(&tree, &["commit", "-q", "-m", "before the rules"]);
+    tree.write(
+        "apps/api/src/routes.ts",
+        "import { seed } from '@t/back'\nexport const serve = seed\n",
+    );
+    let (code, out) = run(&tree, &["json", "--base", "main"]);
+    assert_eq!(code, 0, "{out}");
+    let report: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(
+        report["base"]["added"],
+        serde_json::json!([["apps/api/src", "packages/back/src/flows/seed"]])
+    );
+}
+
+#[test]
+fn a_base_from_before_the_workspace_imports_nothing() {
+    let tree = Tree::valid();
+    git(&tree, &["init", "-q", "-b", "main"]);
+    tree.write("README.md", "before the workspace\n");
+    git(&tree, &["add", "README.md"]);
+    git(&tree, &["commit", "-q", "-m", "first"]);
+    let (code, out) = run(&tree, &["json", "--base", "main"]);
+    assert_eq!(code, 0, "{out}");
+    let report: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(report["base"]["removed"], serde_json::json!([]));
+    assert_eq!(
+        report["base"]["added"].as_array().unwrap().len(),
+        report["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| (e["from"].to_string(), e["to"].to_string()))
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+    );
+}

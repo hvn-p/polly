@@ -203,7 +203,8 @@ fn answer(request: tiny_http::Request, state: &Mutex<State>, ui: Option<&Path>, 
             match file.and_then(|f| std::fs::read(&f).ok().map(|bytes| (f, bytes))) {
                 Some((path, bytes)) => request.respond(
                     Response::from_data(bytes)
-                        .with_header(header("Content-Type", content_type(&path))),
+                        .with_header(header("Content-Type", content_type(&path)))
+                        .with_header(header("Cache-Control", "no-cache")),
                 ),
                 None => request.respond(not_found()),
             }

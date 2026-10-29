@@ -104,6 +104,12 @@ fn serves_the_view_the_report_and_its_updates() {
     std::thread::sleep(Duration::from_millis(100));
 
     assert_eq!(body(&address, "/"), (200, "<h1>view</h1>".to_string()));
+    // A rebuilt view is read at the next load, never from the browser's cache.
+    let (_, headers, _) = get(&address, "/");
+    assert!(
+        headers.to_lowercase().contains("cache-control: no-cache"),
+        "{headers}"
+    );
     let (status, headers, _) = get(&address, "/assets/app.js");
     assert_eq!(status, 200);
     assert!(
