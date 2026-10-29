@@ -100,6 +100,8 @@ jobs:
       - run: pnpm exec vitest run --coverage
       - run: pnpm run test:repo
 
+  # A required check: it always reports, and skips its steps when the pull
+  # request leaves the compute service's sources as they are on its base.
   compute:
     runs-on: ubuntu-latest
     defaults:
@@ -107,13 +109,26 @@ jobs:
         working-directory: services/compute
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-      - run: uv sync --locked
-      - run: uv run ruff check
-      - run: uv run ruff format --check
-      - run: uv run mypy src tests
-      - run: uv run pytest
+        with:
+          fetch-depth: 0
+      - id: sources
+        run: git diff --quiet "origin/$GITHUB_BASE_REF...HEAD" -- . || echo "changed=true" >> "$GITHUB_OUTPUT"
+      - if: steps.sources.outputs.changed == 'true'
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - if: steps.sources.outputs.changed == 'true'
+        run: uv sync --locked
+      - if: steps.sources.outputs.changed == 'true'
+        run: uv run ruff check
+      - if: steps.sources.outputs.changed == 'true'
+        run: uv run ruff format --check
+      - if: steps.sources.outputs.changed == 'true'
+        run: uv run mypy src tests
+      - if: steps.sources.outputs.changed == 'true'
+        run: uv run pytest
 
+  # A required check: the repository's architecture is checked on every pull
+  # request; the analyzer is built and tested only when the pull request
+  # changes it, its committed schema included.
   analyzer:
     runs-on: ubuntu-latest
     defaults:
@@ -121,13 +136,27 @@ jobs:
         working-directory: tools/architecture/analyzer
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: sources
+        run: |
+          git diff --quiet "origin/$GITHUB_BASE_REF...HEAD" -- . ../npm/launcher/architecture.rules.schema.json \
+            || echo "changed=true" >> "$GITHUB_OUTPUT"
       # rust-toolchain.toml pins the toolchain, which rustup installs on first use.
-      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+      - if: steps.sources.outputs.changed == 'true'
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-llvm-cov@0.9.1
-      - run: cargo fmt --check
-      - run: cargo clippy --all-targets --locked -- -D warnings
-      - run: cargo llvm-cov --locked --fail-under-lines 90
+      - if: steps.sources.outputs.changed == 'true'
+        run: cargo fmt --check
+      - if: steps.sources.outputs.changed == 'true'
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - if: steps.sources.outputs.changed == 'true'
+        run: cargo llvm-cov --locked --fail-under-lines 90
+      # The release build the architecture check below runs, as lint:architecture
+      # runs a worktree's build; without one it runs the pinned package.
+      - if: steps.sources.outputs.changed == 'true'
+        run: cargo build --locked --release
       # The repository's architecture against architecture.rules.json: imports
       # resolve through the installed packages.
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -137,7 +166,23 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         working-directory: .
-      - run: cargo run --locked --release --quiet -- check --root ../../..
+      - run: pnpm run lint:architecture
+        working-directory: .
+
+  # The analyzer's tests on macOS, whose file watching differs from Linux's.
+  analyzer-macos:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: tools/architecture/analyzer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: sources
+        run: git diff --quiet "origin/$GITHUB_BASE_REF...HEAD" -- . || echo "changed=true" >> "$GITHUB_OUTPUT"
+      - if: steps.sources.outputs.changed == 'true'
+        run: cargo test --locked
 
   secrets:
     runs-on: ubuntu-latest
