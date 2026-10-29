@@ -15,7 +15,7 @@ export interface DownOptions {
 
 // Garage never lets a deleted key id exist again: the next dev:up generates a
 // new key instead of reusing this one. The worker goes back to fake mode, so
-// the next dev:up never starts the real worker without dev:worker's check.
+// the next dev:up starts no compute service.
 function resetConfiguration(worktree: Worktree): void {
   const kept = readFileSync(worktree.envFile, 'utf8')
     .split('\n')
@@ -42,6 +42,9 @@ export async function down({ root, infra, out }: DownOptions): Promise<void> {
       await infra.supervisor.stop(state.supervisor)
     }
     const resources = resourcesOf(env)
+    if (state.compute !== undefined) {
+      await infra.compute.release(state.compute, resources.identity)
+    }
     await infra.postgres.release(resources.database.names)
     await infra.garage.release(resources.bucket)
     resetConfiguration(worktree)

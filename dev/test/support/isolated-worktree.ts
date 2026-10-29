@@ -27,7 +27,7 @@ export function isolatedWorktreeInfrastructure(shared: Shared, supervisors: numb
     garage: garageAdmin(shared),
     ports: listeningPorts(),
     application: {
-      ...apiApplication(fake.realWorkerLock),
+      ...apiApplication(),
       processes: () => [
         { name: 'api', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], cwd: '/' },
       ],

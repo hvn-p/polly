@@ -2,6 +2,7 @@
 // dependencies installed: compose, Postgres, Garage, portless, the port table.
 
 export { type ComposeInfrastructure, composeInfrastructure, run, sharedInfrastructure } from './compose.ts'
+export { computeServices } from './compute.ts'
 export { garageAdmin } from './garage.ts'
 export { listeningPorts } from './listening.ts'
 export { portless, portlessRoutes } from './portless.ts'

@@ -1,9 +1,8 @@
 // The real infrastructure of the machine, as the dev commands use it.
 
-import { tmpdir, userInfo } from 'node:os'
 import { join } from 'node:path'
-import { workerProcess } from './commands/index.ts'
 import {
+  computeServices,
   garageAdmin,
   listeningPorts,
   portlessRoutes,
@@ -21,7 +20,7 @@ const migrationsCli = join(codeRoot, 'packages/migrations/src/cli.ts')
 
 // The database's and the API's command lines, and the processes of a worktree
 // (the API, the front-end dev server and the worker), run on its configuration.
-export function apiApplication(realWorkerLock: string): Application {
+export function apiApplication(): Application {
   const cli = (path: string, command: string, env: Record<string, string>) =>
     run(process.execPath, [path, command], { env: { ...process.env, ...env } })
   return {
@@ -31,7 +30,7 @@ export function apiApplication(realWorkerLock: string): Application {
     seed: async (env) => {
       await cli(apiCli, 'seed-demo', env)
     },
-    processes: (env) => [
+    processes: () => [
       {
         name: 'api',
         command: process.execPath,
@@ -51,35 +50,28 @@ export function apiApplication(realWorkerLock: string): Application {
         cwd: join(codeRoot, 'apps/web'),
       },
       // POLLY_WORKER_MODE, from the worktree's configuration, picks the
-      // analyzer; in real mode the worker holds the machine's real-worker lock.
-      workerProcess(env, realWorkerLock, {
+      // analyzer.
+      {
         name: 'worker',
         command: process.execPath,
         args: ['--watch', join(codeRoot, 'apps/worker/src/main.ts')],
         cwd: codeRoot,
-      }),
+      },
     ],
   }
 }
 
-// Machine-wide, and gone at reboot like the processes holding it.
-const realWorkerLock = join(
-  process.env['XDG_RUNTIME_DIR'] ?? join(tmpdir(), `polly-dev-${userInfo().uid}`),
-  'polly-dev',
-  'real-worker.lock',
-)
-
 export function realInfrastructure(): Infrastructure {
   const shared = sharedInfrastructure()
   return {
-    realWorkerLock,
+    compute: computeServices(shared),
     prerequisites,
     shared,
     postgres: postgresAdmin(shared),
     garage: garageAdmin(shared),
     routes: portlessRoutes(),
     ports: listeningPorts(),
-    application: apiApplication(realWorkerLock),
+    application: apiApplication(),
     supervisor: processSupervisor(),
   }
 }

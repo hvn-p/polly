@@ -90,10 +90,30 @@ export interface Supervisor {
   stop: (state: SupervisorState) => Promise<void>
 }
 
+export interface ComputeService {
+  url: string
+  // Whether this use started it.
+  started: boolean
+  // The fingerprints of the other services running on the machine.
+  others: string[]
+}
+
+// The machine's compute services: one container per fingerprint of
+// services/compute, shared by the worktrees whose sources have it.
+export interface ComputeServices {
+  // The fingerprint of a worktree's services/compute: a hash of its files.
+  fingerprintOf: (root: string) => Promise<string>
+  // The fingerprint's running service, started when needed from its image,
+  // built from the sources of the worktree at `sources` when missing
+  // (UNKNOWN_COMPUTE_VERSION without them). The worktree joins its users.
+  use: (fingerprint: string, identity: string, sources?: string) => Promise<ComputeService>
+  // The worktree leaves the fingerprint's users; the service stops once none
+  // remains.
+  release: (fingerprint: string, identity: string) => Promise<void>
+}
+
 export interface Infrastructure {
-  // The machine-wide lock the real worker holds while it runs; its content
-  // names the worktree holding it.
-  realWorkerLock: string
+  compute: ComputeServices
   prerequisites: Prerequisites
   shared: SharedInfrastructure
   postgres: PostgresAdmin

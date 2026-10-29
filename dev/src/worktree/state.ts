@@ -14,6 +14,8 @@ export interface WorktreeState {
   route?: string
   role?: string
   garageKeyId?: string
+  // The fingerprint of the compute service the real worker uses.
+  compute?: string
 }
 
 export function readState(worktree: Worktree): WorktreeState {

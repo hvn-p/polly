@@ -20,7 +20,7 @@ import {
   worktreeAt,
   writeState,
 } from '../worktree/index.ts'
-import { realWorkerHolder, setMode } from './worker.ts'
+import { setEnv, useCompute } from './worker.ts'
 
 const template = join(import.meta.dirname, '..', '..', 'env.template')
 
@@ -127,16 +127,13 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
       await infra.routes.add(resources.route, webPort)
     }
     let supervisor = state.supervisor
+    let compute = state.compute
     if (supervisor === undefined || !running) {
       if (env['POLLY_WORKER_MODE'] === 'real') {
-        // As dev:worker real: one real worker on the machine.
-        const holder = await realWorkerHolder(infra.realWorkerLock)
-        if (holder !== undefined && holder !== resources.identity) {
-          env = setMode(worktree, 'fake')
-          out(
-            `worker: fake, the real worker runs for ${holder || 'another worktree'}; nr dev:worker real once it is free`,
-          )
-        }
+        // As dev:worker real, on the service the worktree last chose.
+        const used = await useCompute(root, infra, resources.identity, out, compute)
+        env = setEnv(worktree, used.env)
+        compute = used.fingerprint
       }
       supervisor = await infra.supervisor.start({ root, processes: infra.application.processes(env), env })
     }
@@ -145,6 +142,7 @@ export async function up({ root, prerequisites, infrastructure, out }: UpOptions
       route: resources.route,
       role: resources.database.names.role,
       garageKeyId: bucket.accessKeyId,
+      ...(compute === undefined ? {} : { compute }),
     })
     out(required(env, 'PUBLIC_URL'))
   } finally {

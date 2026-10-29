@@ -10,27 +10,40 @@ export const fakeAnalyzer: Analyzer = {
   analyze: async (recordingId) => ({ recordingId, score: 0.75, analyzer: 'fake', modelLoaded: false }),
 }
 
-export function computeAnalyzer({
-  baseUrl,
-  fetch = globalThis.fetch,
-}: {
+interface ComputeService {
   baseUrl: string
   fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>
-}): Analyzer {
-  return {
-    analyze: async (recordingId) => {
-      const { method, path } = OPERATIONS.analyze
-      const body: Operations['analyze']['body'] = { recordingId }
-      const response = await fetch(new URL(path, baseUrl), {
-        method,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!response.ok) {
-        throw new Error(`COMPUTE_FAILED: ${method} ${path} answered ${response.status}`)
-      }
-      const analysis = (await response.json()) as Operations['analyze']['response']
-      return { ...analysis, analyzer: 'model' }
-    },
+}
+
+// Calls one operation of the compute service and reads its answer.
+async function call<N extends keyof Operations>(
+  { baseUrl, fetch = globalThis.fetch }: ComputeService,
+  name: N,
+  body: Operations[N]['body'],
+): Promise<Operations[N]['response']> {
+  const { method, path } = OPERATIONS[name]
+  const response = await fetch(new URL(path, baseUrl), {
+    method,
+    ...(body === undefined
+      ? {}
+      : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+  })
+  if (!response.ok) {
+    throw new Error(`COMPUTE_FAILED: ${method} ${path} answered ${response.status}`)
   }
+  return (await response.json()) as Operations[N]['response']
+}
+
+export function computeAnalyzer(service: ComputeService): Analyzer {
+  return {
+    analyze: async (recordingId) => ({
+      ...(await call(service, 'analyze', { recordingId })),
+      analyzer: 'model',
+    }),
+  }
+}
+
+// The fingerprint of the sources the service's image was built from.
+export async function computeFingerprint(service: ComputeService): Promise<string> {
+  return (await call(service, 'version', undefined)).fingerprint
 }

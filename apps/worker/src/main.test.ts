@@ -1,6 +1,6 @@
 import { fakeAnalyzer } from '@polly/analysis'
 import { describe, expect, it } from 'vitest'
-import { analyzerFor } from './main.ts'
+import { analyzerFor, checkComputeVersion } from './main.ts'
 
 describe("the worker's analyzer", () => {
   it('C29: is the fake one by default', () => {
@@ -20,5 +20,25 @@ describe("the worker's analyzer", () => {
       invalid: 'POLLY_COMPUTE_URL',
     })
     expect(analyzerFor({ POLLY_WORKER_MODE: 'slow' })).toEqual({ invalid: 'POLLY_WORKER_MODE' })
+  })
+})
+
+describe("the compute service's version", () => {
+  it('is reported as unknown, without stopping the worker, when the service does not answer', async () => {
+    const lines: unknown[][] = []
+    const log = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: (...line: unknown[]) => lines.push(line),
+      error: () => undefined,
+      child: () => log,
+    }
+    await checkComputeVersion({ POLLY_COMPUTE_URL: 'http://127.0.0.1:1' }, log)
+    expect(lines).toEqual([
+      [
+        'the compute service did not report its version',
+        expect.objectContaining({ url: 'http://127.0.0.1:1' }),
+      ],
+    ])
   })
 })

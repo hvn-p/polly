@@ -1,15 +1,63 @@
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { Refusal } from '@polly/platform'
 import type { UpOptions } from '../../src/commands/up.ts'
-import type { Infrastructure, SupervisorState } from '../../src/ports/index.ts'
+import type { ComputeServices, Infrastructure, SupervisorState } from '../../src/ports/index.ts'
 
 export interface FakeInfrastructure extends Infrastructure {
+  compute: FakeCompute
   calls: string[]
   missingPrerequisite: string | undefined
   routeTable: Map<string, number>
   heldPorts: Map<number, string>
   runningSupervisors: Set<number>
+}
+
+export interface FakeCompute extends ComputeServices {
+  calls: string[]
+  // The fingerprint of each worktree's sources; fp-main when not set.
+  fingerprints: Map<string, string>
+  // The worktrees using each running service.
+  users: Map<string, Set<string>>
+  images: Set<string>
+  urlOf: (fingerprint: string) => string
+}
+
+// The machine's compute services, shared by the worktrees a test gives it to.
+export function fakeCompute(): FakeCompute {
+  const fake: FakeCompute = {
+    calls: [],
+    fingerprints: new Map(),
+    users: new Map(),
+    images: new Set(),
+    urlOf: (fingerprint) => `http://127.0.0.1:8000/${fingerprint}`,
+    fingerprintOf: async (root) => fake.fingerprints.get(root) ?? 'fp-main',
+    use: async (fingerprint, identity, sources) => {
+      const running = fake.users.get(fingerprint)
+      const users = running ?? new Set<string>()
+      if (running === undefined) {
+        if (sources === undefined && !fake.images.has(fingerprint)) {
+          throw new Refusal('UNKNOWN_COMPUTE_VERSION', `no image of the compute service ${fingerprint}`)
+        }
+        fake.calls.push(`compute.start ${fingerprint}`)
+        fake.images.add(fingerprint)
+        fake.users.set(fingerprint, users)
+      }
+      users.add(identity)
+      return {
+        url: fake.urlOf(fingerprint),
+        started: running === undefined,
+        others: [...fake.users.keys()].filter((other) => other !== fingerprint),
+      }
+    },
+    release: async (fingerprint, identity) => {
+      const users = fake.users.get(fingerprint)
+      users?.delete(identity)
+      if (users?.size === 0) {
+        fake.calls.push(`compute.stop ${fingerprint}`)
+        fake.users.delete(fingerprint)
+      }
+    },
+  }
+  return fake
 }
 
 // Records every call as `<adapter>.<method> <argument>`, and keeps just
@@ -23,7 +71,7 @@ export function fakeInfrastructure(): FakeInfrastructure {
     routeTable: new Map(),
     heldPorts: new Map(),
     runningSupervisors: new Set(),
-    realWorkerLock: join(mkdtempSync(join(tmpdir(), 'real-worker-')), 'real-worker.lock'),
+    compute: fakeCompute(),
     prerequisites: { missing: async () => fake.missingPrerequisite },
     shared: {
       postgresPort: 55432,

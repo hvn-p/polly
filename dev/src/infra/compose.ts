@@ -24,6 +24,7 @@ export interface ComposeSettings {
 
 export interface ComposeInfrastructure extends SharedInfrastructure {
   project: string
+  machineDirectory: string
   postgresPort: number
   garagePort: number
   // Runs a command in a service's container and returns its stdout.
@@ -103,6 +104,7 @@ export function composeInfrastructure(settings: ComposeSettings): ComposeInfrast
   }
   return {
     project: settings.project,
+    machineDirectory: settings.machineDirectory,
     postgresPort: settings.postgresPort,
     garagePort: settings.garagePort,
     ensureRunning: async () => {

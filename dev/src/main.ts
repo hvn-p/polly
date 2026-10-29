@@ -44,9 +44,24 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
         return 0
       case 'agent':
         return await agent({ root: io.cwd, args: argv.slice(1), out: io.stderr })
-      case 'worker':
-        await worker({ root: io.cwd, infra: await infrastructure(io), mode: argv[1] ?? '', out: io.stdout })
+      case 'worker': {
+        const [mode = '', ...options] = argv.slice(1)
+        const [flag, compute] = options
+        if (options.length > 0 && (flag !== '--compute' || compute === undefined || options.length > 2)) {
+          throw new Refusal(
+            'UNKNOWN_WORKER_MODE',
+            `${options.join(' ')}; the modes are real [--compute <fingerprint>] and fake`,
+          )
+        }
+        await worker({
+          root: io.cwd,
+          infra: await infrastructure(io),
+          mode,
+          ...(compute === undefined ? {} : { compute }),
+          out: io.stdout,
+        })
         return 0
+      }
       case 'e2e':
         await e2e({ root: io.cwd, infra: await infrastructure(io), scenario: argv[1] ?? '', out: io.stdout })
         return 0

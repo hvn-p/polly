@@ -1,91 +1,70 @@
-// dev:worker real|fake: restarts the worktree's worker in the given mode. The
-// real worker loads heavy models, so one worktree at a time runs it: its
-// process holds a machine-wide lock, released by the kernel when it dies.
+// dev:worker real [--compute <fingerprint>] | fake: restarts the worktree's
+// worker with the given analyzer. In real mode it calls the machine's compute
+// service for the worktree's fingerprint of services/compute, or the one
+// given, started when needed.
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname } from 'node:path'
-import { setTimeout as sleep } from 'node:timers/promises'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { Refusal } from '@polly/platform'
-import { lock, tryLock } from '../machine/index.ts'
-import type { Infrastructure, SupervisedProcess, SupervisorState } from '../ports/index.ts'
+import { lock } from '../machine/index.ts'
+import type { ComputeService, Infrastructure, SupervisorState } from '../ports/index.ts'
 import { readEnv, readState, required, type Worktree, worktreeAt, writeState } from '../worktree/index.ts'
 
 const MODES = ['real', 'fake']
-// How long the restarted real worker gets to take its lock.
-const REAL_WORKER_WAIT_MS = 10_000
 
-// The worker as the supervisor runs it: in real mode, under the real worker's
-// lock, writing the worktree's identity in it. A busy lock makes it exit.
-export function workerProcess(
-  env: Record<string, string>,
-  lock: string,
-  worker: SupervisedProcess,
-): SupervisedProcess {
-  if (env['POLLY_WORKER_MODE'] !== 'real') {
-    return worker
+// Writes the values into .env.local, adding the keys it lacks, and returns
+// the configuration as it now is.
+export function setEnv(worktree: Worktree, values: Record<string, string>): Record<string, string> {
+  let content = readFileSync(worktree.envFile, 'utf8')
+  for (const [key, value] of Object.entries(values)) {
+    const line = new RegExp(`^${key}=.*$`, 'm')
+    content = line.test(content)
+      ? content.replace(line, `${key}=${value}`)
+      : `${content.replace(/\n?$/, '\n')}${key}=${value}\n`
   }
-  return {
-    ...worker,
-    command: 'flock',
-    args: [
-      '-n',
-      lock,
-      'sh',
-      '-c',
-      'printf %s "$POLLY_WORKTREE_ID" > "$0" && exec "$@"',
-      lock,
-      worker.command,
-      ...worker.args,
-    ],
-  }
-}
-
-export function setMode(worktree: Worktree, mode: string): Record<string, string> {
-  const content = readFileSync(worktree.envFile, 'utf8')
-  writeFileSync(worktree.envFile, content.replace(/^POLLY_WORKER_MODE=.*$/m, `POLLY_WORKER_MODE=${mode}`))
+  writeFileSync(worktree.envFile, content)
   return readEnv(worktree) ?? {}
 }
 
-// The worktree holding the real worker's lock, once a holder has written it;
-// undefined while the lock is free.
-export async function realWorkerHolder(lockFile: string): Promise<string | undefined> {
-  const free = await tryLock(lockFile)
-  if (free !== undefined) {
-    await free.release()
-    return undefined
+// The compute service of a worktree in real mode: the one of its own
+// fingerprint unless it names another. Says when the worker calls another
+// version than the worktree's sources, or when the worktree runs a service of
+// its own.
+export async function useCompute(
+  root: string,
+  infra: Infrastructure,
+  identity: string,
+  out: (line: string) => void,
+  fingerprint?: string,
+): Promise<{ fingerprint: string; service: ComputeService; env: Record<string, string> }> {
+  const own = await infra.compute.fingerprintOf(root)
+  const target = fingerprint ?? own
+  const service = await infra.compute.use(target, identity, target === own ? root : undefined)
+  if (target !== own) {
+    out(`COMPUTE_VERSION_MISMATCH: the worker calls the compute service ${target}; this worktree's is ${own}`)
+  } else if (service.started && service.others.length > 0) {
+    out(
+      `compute: this worktree runs its own service, ${own}, built from its sources; the machine also runs ${service.others.join(', ')}`,
+    )
   }
-  return readFileSync(lockFile, 'utf8').trim()
-}
-
-// Waits for the restarted real worker to hold its lock. Another worktree may
-// take it between the check and the restart: its name is returned then.
-async function realWorkerTakenBy(lockFile: string, identity: string): Promise<string | undefined> {
-  const deadline = Date.now() + REAL_WORKER_WAIT_MS
-  let other: string | undefined
-  while (Date.now() < deadline) {
-    const holder = await realWorkerHolder(lockFile)
-    if (holder === identity) {
-      return undefined
-    }
-    // A holder seen twice is not a stale name the new holder has yet to replace.
-    if (holder !== undefined && holder !== '' && holder === other) {
-      return holder
-    }
-    other = holder
-    await sleep(100)
+  return {
+    fingerprint: target,
+    service,
+    env: { POLLY_COMPUTE_URL: service.url, POLLY_COMPUTE_FINGERPRINT: own },
   }
-  return other || 'another worktree'
 }
 
 export async function worker({
   root,
   infra,
   mode,
+  compute,
   out,
 }: {
   root: string
   infra: Infrastructure
   mode: string
+  // The fingerprint of the compute service to call, in real mode.
+  compute?: string
   out: (line: string) => void
 }): Promise<void> {
   if (!MODES.includes(mode)) {
@@ -104,36 +83,23 @@ export async function worker({
     if (state.supervisor === undefined || !infra.supervisor.isRunning(state.supervisor)) {
       throw new Refusal('WORKTREE_NOT_RUNNING', "this worktree's Polly is not running; run nr dev:up")
     }
-    const busy = (holder: string) =>
-      new Refusal(
-        'REAL_WORKER_BUSY',
-        `the real worker runs for ${holder}; run nr dev:worker fake there first`,
-      )
-    if (mode === 'real') {
-      mkdirSync(dirname(infra.realWorkerLock), { recursive: true })
-      const holder = await realWorkerHolder(infra.realWorkerLock)
-      if (holder !== undefined && holder !== identity) {
-        throw busy(holder || 'another worktree')
-      }
+    const used = mode === 'real' ? await useCompute(root, infra, identity, out, compute) : undefined
+    const updated = setEnv(worktree, { ...used?.env, POLLY_WORKER_MODE: mode })
+    if (state.compute !== undefined && state.compute !== used?.fingerprint) {
+      await infra.compute.release(state.compute, identity)
     }
-    const restart = async (current: SupervisorState, updated: Record<string, string>) => {
-      await infra.supervisor.stop(current)
-      const supervisor = await infra.supervisor.start({
-        root,
-        processes: infra.application.processes(updated),
-        env: updated,
-      })
-      writeState(worktree, { ...readState(worktree), supervisor })
-      return supervisor
-    }
-    const supervisor = await restart(state.supervisor, setMode(worktree, mode))
-    if (mode === 'real') {
-      const other = await realWorkerTakenBy(infra.realWorkerLock, identity)
-      if (other !== undefined) {
-        await restart(supervisor, setMode(worktree, 'fake'))
-        throw busy(other)
-      }
-    }
+    await infra.supervisor.stop(state.supervisor)
+    const supervisor: SupervisorState = await infra.supervisor.start({
+      root,
+      processes: infra.application.processes(updated),
+      env: updated,
+    })
+    const { compute: _, ...rest } = readState(worktree)
+    writeState(worktree, {
+      ...rest,
+      supervisor,
+      ...(used === undefined ? {} : { compute: used.fingerprint }),
+    })
     out(`worker: ${mode}`)
   } finally {
     await held.release()

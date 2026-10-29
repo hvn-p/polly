@@ -14,12 +14,16 @@ export type ValidationError = {
   ctx?: Record<string, unknown>
 }
 
+export type Version = { fingerprint: string }
+
 export interface Operations {
   analyze: { body: AnalysisRequest; response: Analysis }
+  version: { body: undefined; response: Version }
 }
 
 export const OPERATIONS = {
   analyze: { method: 'POST', path: '/analyses', refusals: [] },
+  version: { method: 'GET', path: '/version', refusals: [] },
 } as const
 
 export const REFUSAL_CODES = [] as const

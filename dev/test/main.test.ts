@@ -36,6 +36,29 @@ describe('dev command line', () => {
     expect(stderr).toEqual([expect.stringMatching(/^UNKNOWN_WORKER_MODE: /)])
   })
 
+  it('points the real worker at the compute service --compute names', async () => {
+    const infra = fakeInfrastructure()
+    infra.compute.images.add('fp-other')
+    const { stdout, io: options } = io(temporaryRepository(), infra)
+    await run(['up'], options)
+    expect(await run(['worker', 'real', '--compute', 'fp-other'], options)).toBe(0)
+    expect(stdout.slice(1)).toEqual([
+      expect.stringMatching(/^COMPUTE_VERSION_MISMATCH: .*fp-other/),
+      'worker: real',
+    ])
+  })
+
+  it('refuses a worker option other than --compute and its fingerprint', async () => {
+    const { stderr, io: options } = io(temporaryRepository())
+    await run(['up'], options)
+    expect(await run(['worker', 'real', '--compute'], options)).toBe(1)
+    expect(await run(['worker', 'real', '--turbo', 'x'], options)).toBe(1)
+    expect(stderr).toEqual([
+      expect.stringMatching(/^UNKNOWN_WORKER_MODE: .*--compute <fingerprint>/),
+      expect.stringMatching(/^UNKNOWN_WORKER_MODE: .*--compute <fingerprint>/),
+    ])
+  })
+
   it('uses the real infrastructure when none is given, touching nothing on a worktree never set up', async () => {
     const stdout: string[] = []
     const status = await run(['down'], {

@@ -1,22 +1,17 @@
-import { type ChildProcess, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Readable } from 'node:stream'
 import { afterAll, describe, expect, it } from 'vitest'
 import { down } from '../src/commands/down.ts'
 import { up } from '../src/commands/up.ts'
-import { worker, workerProcess } from '../src/commands/worker.ts'
+import { worker } from '../src/commands/worker.ts'
 import { parseEnv } from '../src/config/index.ts'
-import { tryLock } from '../src/machine/flock.ts'
 import type { Infrastructure } from '../src/ports/index.ts'
-import { groupMembers, processSupervisor } from '../src/supervisor/index.ts'
-import { fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
+import { processSupervisor } from '../src/supervisor/index.ts'
+import { type FakeCompute, fakeCompute, fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
 import { temporaryRepository } from './support/repository.ts'
-import { until } from './support/until.ts'
 
-const realWorkerLock = join(mkdtempSync(join(tmpdir(), 'real-worker-')), 'real-worker.lock')
 const supervisors: number[] = []
 
 afterAll(async () => {
@@ -25,22 +20,18 @@ afterAll(async () => {
   }
 })
 
-// Faked infrastructure, but a real supervisor running a stand-in worker under
-// the real worker's lock.
-function infrastructure(): Infrastructure {
+// Faked infrastructure, the machine's compute services shared by the
+// worktrees of a test, and a real supervisor running a stand-in worker.
+function infrastructure(compute: FakeCompute): Infrastructure & { calls: string[] } {
   const supervisor = processSupervisor()
+  const fake = fakeInfrastructure()
   return {
-    ...fakeInfrastructure(),
-    realWorkerLock,
+    ...fake,
+    compute,
     application: {
-      ...fakeInfrastructure().application,
-      processes: (env) => [
-        workerProcess(env, realWorkerLock, {
-          name: 'worker',
-          command: process.execPath,
-          args: ['-e', 'setInterval(() => {}, 1000)'],
-          cwd: '/',
-        }),
+      ...fake.application,
+      processes: () => [
+        { name: 'worker', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], cwd: '/' },
       ],
     },
     supervisor: {
@@ -54,148 +45,155 @@ function infrastructure(): Infrastructure {
   }
 }
 
-const out = () => undefined
-
-async function worktree(branch: string) {
+async function worktree(branch: string, compute: FakeCompute, fingerprint = 'fp-main') {
   const root = temporaryRepository(branch)
-  const infra = infrastructure()
-  await up({ root, ...loaded(infra), out })
-  const identity = parseEnv(readFileSync(join(root, '.env.local'), 'utf8')).get('POLLY_WORKTREE_ID') ?? ''
+  compute.fingerprints.set(root, fingerprint)
+  const infra = infrastructure(compute)
+  await up({ root, ...loaded(infra), out: () => undefined })
+  const identity = envOf(root).get('POLLY_WORKTREE_ID') ?? ''
   return { root, infra, identity }
 }
 
-async function lockHeld(): Promise<boolean> {
-  const lock = await tryLock(realWorkerLock)
-  await lock?.release()
-  return lock === undefined
+function envOf(root: string): Map<string, string> {
+  return parseEnv(readFileSync(join(root, '.env.local'), 'utf8'))
 }
 
-// Another worktree's real worker: one process holding the lock, its name
-// written in it, so killing that process frees the lock.
-function holdRealWorker(): ChildProcess {
-  return spawn('sh', [
-    '-c',
-    'exec 9>"$0" && flock 9 && printf other > "$0" && echo held && exec sleep 30',
-    realWorkerLock,
-  ])
-}
-
-function modeOf(root: string): string | undefined {
-  return parseEnv(readFileSync(join(root, '.env.local'), 'utf8')).get('POLLY_WORKER_MODE')
+function stopSupervisor(root: string, infra: Infrastructure): Promise<void> {
+  const { supervisor } = JSON.parse(readFileSync(join(root, '.dev/state.json'), 'utf8')) as {
+    supervisor: { pid: number }
+  }
+  return infra.supervisor.stop(supervisor)
 }
 
 describe('dev:worker', { timeout: 30_000 }, () => {
-  it('C30, C31, C32: one real worker on the machine; a dead holder frees it', async () => {
-    const a = await worktree('feature/real-a')
-    const b = await worktree('feature/real-b')
+  it('C30: two worktrees with the same compute-service code reach the machine one service', async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/same-a', compute)
+    const b = await worktree('feature/same-b', compute)
+    const lines: string[] = []
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: (line) => lines.push(line) })
+    await worker({ root: b.root, infra: b.infra, mode: 'real', out: (line) => lines.push(line) })
 
-    await worker({ root: a.root, infra: a.infra, mode: 'real', out })
-    expect(modeOf(a.root)).toBe('real')
-    await until(lockHeld)
-    await until(() => readFileSync(realWorkerLock, 'utf8') === a.identity)
+    expect(compute.calls).toEqual(['compute.start fp-main'])
+    expect(envOf(a.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-main'))
+    expect(envOf(b.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-main'))
+    expect(envOf(b.root).get('POLLY_COMPUTE_FINGERPRINT')).toBe('fp-main')
+    expect(envOf(b.root).get('POLLY_WORKER_MODE')).toBe('real')
+    expect(lines).toEqual(['worker: real', 'worker: real'])
+  })
 
-    await expect(worker({ root: b.root, infra: b.infra, mode: 'real', out })).rejects.toMatchObject({
-      code: 'REAL_WORKER_BUSY',
-      message: expect.stringContaining(a.identity),
+  it('C31: a worktree whose compute-service code differs runs its own service, and says so', async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/own-a', compute)
+    const b = await worktree('feature/own-b', compute, 'fp-b')
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined })
+    const lines: string[] = []
+    await worker({ root: b.root, infra: b.infra, mode: 'real', out: (line) => lines.push(line) })
+
+    expect(compute.calls).toEqual(['compute.start fp-main', 'compute.start fp-b'])
+    expect(envOf(b.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-b'))
+    expect(lines).toEqual([
+      expect.stringMatching(/^compute: this worktree runs its own service, fp-b, .*fp-main/),
+      'worker: real',
+    ])
+  })
+
+  it('C31: dev:up of a worktree left in real mode starts its service, and says when it is its own', async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/up-a', compute)
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined })
+    const b = await worktree('feature/up-b', compute, 'fp-b')
+    const envFile = join(b.root, '.env.local')
+    writeFileSync(
+      envFile,
+      readFileSync(envFile, 'utf8').replace(/^POLLY_WORKER_MODE=.*$/m, 'POLLY_WORKER_MODE=real'),
+    )
+    await stopSupervisor(b.root, b.infra)
+    const lines: string[] = []
+    await up({ root: b.root, ...loaded(b.infra), out: (line) => lines.push(line) })
+
+    expect(compute.calls).toEqual(['compute.start fp-main', 'compute.start fp-b'])
+    expect(envOf(b.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-b'))
+    expect(lines).toContainEqual(expect.stringMatching(/^compute: this worktree runs its own service, fp-b/))
+  })
+
+  it('C32: pointed on purpose at another version, the worker runs, and the command warns naming both', async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/version-a', compute)
+    const b = await worktree('feature/version-b', compute, 'fp-b')
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined })
+    const lines: string[] = []
+    await worker({
+      root: b.root,
+      infra: b.infra,
+      mode: 'real',
+      compute: 'fp-main',
+      out: (line) => lines.push(line),
     })
-    expect(modeOf(b.root)).toBe('fake')
 
-    const state = JSON.parse(readFileSync(join(a.root, '.dev/state.json'), 'utf8')) as {
-      supervisor: { pid: number }
-    }
-    for (const pid of groupMembers(state.supervisor.pid)) {
-      if (pid !== state.supervisor.pid) {
-        process.kill(pid, 'SIGKILL')
-      }
-    }
-    await until(async () => !(await lockHeld()), 1500)
-    await worker({ root: b.root, infra: b.infra, mode: 'real', out })
-    await until(() => readFileSync(realWorkerLock, 'utf8') === b.identity)
-
-    await worker({ root: b.root, infra: b.infra, mode: 'fake', out })
-    expect(modeOf(b.root)).toBe('fake')
-    await until(async () => !(await lockHeld()))
-    await worker({ root: a.root, infra: a.infra, mode: 'fake', out })
+    expect(compute.calls).toEqual(['compute.start fp-main'])
+    expect(envOf(b.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-main'))
+    expect(envOf(b.root).get('POLLY_COMPUTE_FINGERPRINT')).toBe('fp-b')
+    expect(lines).toEqual([
+      expect.stringMatching(/^COMPUTE_VERSION_MISMATCH: .*fp-main.*fp-b/),
+      'worker: real',
+    ])
   })
 
-  it('C33: dev:down on the worktree holding the real worker frees it', async () => {
-    const a = await worktree('feature/real-down')
-    await worker({ root: a.root, infra: a.infra, mode: 'real', out })
-    await until(lockHeld)
-    await down({ root: a.root, infra: a.infra, out })
-    expect(await lockHeld()).toBe(false)
+  it('refuses a version whose service the machine cannot start, and leaves the worker as it was', async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/version-unknown', compute)
+    await expect(
+      worker({ root: a.root, infra: a.infra, mode: 'real', compute: 'fp-gone', out: () => undefined }),
+    ).rejects.toMatchObject({ code: 'UNKNOWN_COMPUTE_VERSION', message: expect.stringContaining('fp-gone') })
+    expect(envOf(a.root).get('POLLY_WORKER_MODE')).toBe('fake')
   })
 
-  it('C19: dev:down puts the worker back in fake mode, so the next dev:up runs the fake worker', async () => {
-    const a = await worktree('feature/real-reset')
-    await worker({ root: a.root, infra: a.infra, mode: 'real', out })
-    await until(lockHeld)
-    await down({ root: a.root, infra: a.infra, out })
-    expect(modeOf(a.root)).toBe('fake')
-    await up({ root: a.root, ...loaded(a.infra), out })
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    expect(await lockHeld()).toBe(false)
+  it("C33: dev:down on a worktree running its own service stops it; the machine's shared one is untouched", async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/down-a', compute)
+    const b = await worktree('feature/down-b', compute, 'fp-b')
+    const c = await worktree('feature/down-c', compute)
+    for (const { root, infra } of [a, b, c]) {
+      await worker({ root, infra, mode: 'real', out: () => undefined })
+    }
+    await down({ root: b.root, infra: b.infra, out: () => undefined })
+    await down({ root: a.root, infra: a.infra, out: () => undefined })
+
+    expect(compute.calls).toEqual(['compute.start fp-main', 'compute.start fp-b', 'compute.stop fp-b'])
+    expect([...compute.users.keys()]).toEqual(['fp-main'])
   })
 
-  it('C31: refuses when another worktree takes the real worker between the check and the restart', async () => {
-    const a = await worktree('feature/real-race')
-    let holder: ChildProcess | undefined
-    const start = a.infra.supervisor.start
-    a.infra.supervisor.start = async (options) => {
-      if (holder === undefined) {
-        holder = holdRealWorker()
-        await once(holder.stdout as Readable, 'data')
-      }
-      return start(options)
-    }
-    try {
-      await expect(worker({ root: a.root, infra: a.infra, mode: 'real', out })).rejects.toMatchObject({
-        code: 'REAL_WORKER_BUSY',
-        message: expect.stringContaining('other'),
-      })
-      expect(modeOf(a.root)).toBe('fake')
-    } finally {
-      holder?.kill()
-    }
+  it('back to fake, the worktree no longer uses its service, which stops once no worktree does', async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/fake-again', compute)
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined })
+    await worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined })
+    expect(compute.calls).toEqual(['compute.start fp-main', 'compute.stop fp-main'])
+    expect(envOf(a.root).get('POLLY_WORKER_MODE')).toBe('fake')
   })
 
-  it('C31: dev:up of a worktree left in real mode runs the fake worker while another holds the real one, and says so', async () => {
-    const holder = holdRealWorker()
-    try {
-      await once(holder.stdout as Readable, 'data')
-      const a = await worktree('feature/real-up')
-      const envFile = join(a.root, '.env.local')
-      writeFileSync(
-        envFile,
-        readFileSync(envFile, 'utf8').replace(/^POLLY_WORKER_MODE=.*$/m, 'POLLY_WORKER_MODE=real'),
-      )
-      const { supervisor } = JSON.parse(readFileSync(join(a.root, '.dev/state.json'), 'utf8')) as {
-        supervisor: { pid: number }
-      }
-      await a.infra.supervisor.stop(supervisor)
-      const lines: string[] = []
-      await up({ root: a.root, ...loaded(a.infra), out: (line) => lines.push(line) })
-      expect(modeOf(a.root)).toBe('fake')
-      expect(lines).toContainEqual(expect.stringMatching(/worker: fake.*real worker runs for other/))
-      await new Promise((resolve) => setTimeout(resolve, 300))
-      expect(readFileSync(realWorkerLock, 'utf8')).toBe('other')
-    } finally {
-      holder.kill()
-    }
+  it('C19: dev:down puts the worker back in fake mode, so the next dev:up starts no compute service', async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/real-reset', compute)
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined })
+    await down({ root: a.root, infra: a.infra, out: () => undefined })
+    expect(envOf(a.root).get('POLLY_WORKER_MODE')).toBe('fake')
+    await up({ root: a.root, ...loaded(a.infra), out: () => undefined })
+    expect(compute.calls).toEqual(['compute.start fp-main', 'compute.stop fp-main'])
   })
 
   it('refuses on a worktree whose Polly is not running, and starts nothing', async () => {
-    const a = await worktree('feature/worker-down')
-    const { supervisor } = JSON.parse(readFileSync(join(a.root, '.dev/state.json'), 'utf8')) as {
-      supervisor: { pid: number }
-    }
-    await a.infra.supervisor.stop(supervisor)
+    const a = await worktree('feature/worker-down', fakeCompute())
+    await stopSupervisor(a.root, a.infra)
     let started = false
     a.infra.supervisor.start = async () => {
       started = true
-      return supervisor
+      return { pid: 0 }
     }
-    await expect(worker({ root: a.root, infra: a.infra, mode: 'fake', out })).rejects.toMatchObject({
+    await expect(
+      worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined }),
+    ).rejects.toMatchObject({
       code: 'WORKTREE_NOT_RUNNING',
       message: expect.stringContaining('nr dev:up'),
     })
@@ -203,7 +201,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
   })
 
   it('waits for a dev:up running in the worktree before it restarts the worker', async () => {
-    const a = await worktree('feature/worker-wait')
+    const a = await worktree('feature/worker-wait', fakeCompute())
     const holder = spawn('flock', [join(a.root, '.dev/up.lock'), 'sh', '-c', 'echo held; sleep 1'])
     await once(holder.stdout, 'data')
     const released = once(holder, 'exit').then(() => Date.now())
@@ -213,13 +211,15 @@ describe('dev:worker', { timeout: 30_000 }, () => {
       startedAt = Date.now()
       return start(options)
     }
-    await worker({ root: a.root, infra: a.infra, mode: 'fake', out })
+    await worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined })
     expect(startedAt).toBeGreaterThanOrEqual(await released)
   })
 
   it('refuses a mode other than real or fake', async () => {
-    const a = await worktree('feature/mode')
-    await expect(worker({ root: a.root, infra: a.infra, mode: 'turbo', out })).rejects.toMatchObject({
+    const a = await worktree('feature/mode', fakeCompute())
+    await expect(
+      worker({ root: a.root, infra: a.infra, mode: 'turbo', out: () => undefined }),
+    ).rejects.toMatchObject({
       code: 'UNKNOWN_WORKER_MODE',
     })
   })

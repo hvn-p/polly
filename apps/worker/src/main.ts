@@ -4,7 +4,7 @@
 // interrupted by the worker's death resumes when a worker starts again.
 
 import { DBOS } from '@dbos-inc/dbos-sdk'
-import { computeAnalyzer, fakeAnalyzer } from '@polly/analysis'
+import { computeAnalyzer, computeFingerprint, fakeAnalyzer } from '@polly/analysis'
 import { type Analyzer, runPlaceholderAnalysis } from '@polly/back'
 import { createLogger } from '@polly/logging'
 import { type Logger, readConfigOf } from '@polly/platform'
@@ -57,6 +57,25 @@ export function analyzerFor(
     : { invalid: 'POLLY_COMPUTE_URL' }
 }
 
+// Warns when the compute service runs another version of the code than the
+// worktree's services/compute: comparing two versions is legitimate, testing
+// one without knowing is not.
+export async function checkComputeVersion(
+  env: Record<string, string | undefined>,
+  log: Logger,
+): Promise<void> {
+  const baseUrl = env['POLLY_COMPUTE_URL'] ?? ''
+  const worktree = env['POLLY_COMPUTE_FINGERPRINT'] ?? 'unversioned'
+  try {
+    const service = await computeFingerprint({ baseUrl })
+    if (service !== worktree) {
+      log.warn('COMPUTE_VERSION_MISMATCH', { worktree, service })
+    }
+  } catch (error) {
+    log.warn('the compute service did not report its version', { url: baseUrl, error })
+  }
+}
+
 if (process.argv[1] === import.meta.filename) {
   const log = createLogger({ name: 'polly-worker' })
   const chosen = analyzerFor(process.env)
@@ -66,6 +85,9 @@ if (process.argv[1] === import.meta.filename) {
   }
   try {
     const config = readConfigOf(process.env, ['DATABASE_URL'])
+    if (process.env['POLLY_WORKER_MODE'] === 'real') {
+      await checkComputeVersion(process.env, log)
+    }
     await startWorker({ databaseUrl: config.DATABASE_URL, analyzer: chosen.analyzer, log })
   } catch (error) {
     log.error('the worker stopped', { error })

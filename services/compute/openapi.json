@@ -43,6 +43,25 @@
           }
         }
       }
+    },
+    "/version": {
+      "get": {
+        "summary": "Version",
+        "description": "Report the fingerprint of the sources the service's image was built from.",
+        "operationId": "version",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -135,6 +154,21 @@
         "type": "object",
         "required": ["loc", "msg", "type"],
         "title": "ValidationError"
+      },
+      "Version": {
+        "properties": {
+          "fingerprint": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Fingerprint"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": ["fingerprint"],
+        "title": "Version",
+        "description": "The version of the service's code."
       }
     }
   }
