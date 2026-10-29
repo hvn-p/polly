@@ -9,7 +9,11 @@ const HTTP_STATUS: Record<string, number> = {
   INVALID_EVENT_CODE: 400,
   UNAUTHORIZED: 401,
   EVENT_CODE_REVOKED: 403,
-  NOT_FOUND: 404,
+}
+
+// A path no route serves: no refusal of the contract, so no code.
+export function notFoundResponse(): Response {
+  return new Response(null, { status: 404 })
 }
 
 export function refusalResponse(refusal: Refusal): Response {

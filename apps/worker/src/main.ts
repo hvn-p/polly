@@ -6,6 +6,7 @@
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import { computeAnalyzer, computeFingerprint, fakeAnalyzer } from '@polly/analysis'
 import { type Analyzer, runPlaceholderAnalysis } from '@polly/back'
+import { connect, waitForSchemaCurrent } from '@polly/database'
 import { createLogger } from '@polly/logging'
 import { type Logger, readConfigOf } from '@polly/platform'
 import { PLACEHOLDER_ANALYSIS } from '@polly/queue'
@@ -88,6 +89,10 @@ if (process.argv[1] === import.meta.filename) {
     if (process.env['POLLY_WORKER_MODE'] === 'real') {
       await checkComputeVersion(process.env, log)
     }
+    // The workflows read Polly's tables: nothing runs before they exist.
+    const db = connect(config.DATABASE_URL)
+    await waitForSchemaCurrent(db, { retryMs: 2000, onBehind: (message) => log.warn(message) })
+    await db.destroy()
     await startWorker({ databaseUrl: config.DATABASE_URL, analyzer: chosen.analyzer, log })
   } catch (error) {
     log.error('the worker stopped', { error })

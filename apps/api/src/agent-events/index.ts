@@ -10,6 +10,7 @@ import type { Clock } from '@polly/platform'
 import { Refusal } from '@polly/platform'
 import type { z } from 'zod'
 import type { refusalCode } from '../contracts/agent-events.ts'
+import { operations } from '../contracts/api.ts'
 import type { Guard, RouteRegistry } from '../routes.ts'
 
 const BINDING_CHECK_MS = 1_000
@@ -36,10 +37,11 @@ function frame(event: string, data: unknown): string {
 }
 
 export function registerAgentEventRoute(registry: RouteRegistry, codes: EventCodeStore, clock: Clock): void {
+  const { agentEvents } = operations
   registry.add({
-    method: 'GET',
-    path: '/api/agent-events',
-    access: 'event-code',
+    method: agentEvents.method,
+    path: agentEvents.path,
+    access: agentEvents.access,
     handle: (request, { codeHash }) => {
       const encoder = new TextEncoder()
       const stream = new ReadableStream<Uint8Array>({

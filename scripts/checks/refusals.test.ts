@@ -16,11 +16,10 @@ function fixture(files: Record<string, string>): string {
 }
 
 const valid = {
-  'entry/refusals.ts':
-    'export const refusalResponse = (r) => Response.json({ code: r.code }, { status: 403 })\n',
-  'entry/access.ts': 'return new Response(null, { status: 204 })\n',
-  'entry/agent-events/index.ts': "throw new Refusal('EVENT_CODE_REVOKED', 'revoked')\n",
-  'entry/routes.test.ts': "Response.json({ code: 'UNAUTHORIZED' }, { status: 401 })\n",
+  'refusals.ts': 'export const refusalResponse = (r) => Response.json({ code: r.code }, { status: 403 })\n',
+  'access.ts': 'return new Response(null, { status: 204 })\n',
+  'agent-events/index.ts': "throw new Refusal('EVENT_CODE_REVOKED', 'revoked')\n",
+  'routes.test.ts': "Response.json({ code: 'UNAUTHORIZED' }, { status: 401 })\n",
 }
 
 describe('refusals guard', () => {
@@ -28,18 +27,17 @@ describe('refusals guard', () => {
     expect(checkRepository(repositoryRoot)).toEqual([])
   })
 
-  it('accepts refusals thrown, translated in entry/refusals.ts only', () => {
+  it('accepts refusals thrown, translated in refusals.ts only', () => {
     expect(checkRefusals(fixture(valid))).toEqual([])
   })
 
   it('refuses a route that builds its own refusal response, naming the fix', () => {
     const root = fixture({
       ...valid,
-      'entry/agent-events/index.ts':
-        "return Response.json({ code: 'EVENT_CODE_REVOKED' }, { status: 403 })\n",
+      'agent-events/index.ts': "return Response.json({ code: 'EVENT_CODE_REVOKED' }, { status: 403 })\n",
     })
     expect(checkRefusals(root)).toEqual([
-      expect.stringMatching(/^entry\/agent-events\/index\.ts:1: .*throw a Refusal.*entry\/refusals\.ts/),
+      expect.stringMatching(/^agent-events\/index\.ts:1: .*throw a Refusal.*refusals\.ts/),
     ])
   })
 

@@ -1,15 +1,11 @@
 // The contract of the agent-event stream between the API and the event
 // listener (the plugin's monitor): the event code, the events, and the
-// refusals. Its other consumers read the JSON Schema generated from it
-// (nr contracts).
+// refusals, part of the API's contract (nr contracts).
 
+import { EVENT_CODE_LENGTH, EVENT_CODE_PATTERN } from '@polly/kernel'
 import { z } from 'zod'
 
-// 32 random bytes, base64url: exactly 43 characters.
-export const eventCode = z
-  .string()
-  .length(43)
-  .regex(/^[A-Za-z0-9_-]{43}$/)
+export const eventCode = z.string().length(EVENT_CODE_LENGTH).regex(EVENT_CODE_PATTERN)
 
 export const testEvent = z.object({ type: z.literal('test') })
 

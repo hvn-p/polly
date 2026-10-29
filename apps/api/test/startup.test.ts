@@ -2,7 +2,7 @@ import { assertSchemaCurrent, connect, type Database } from '@polly/database'
 import { identityOptions } from '@polly/identity'
 import { getMigrations as getAuthMigrations } from 'better-auth/db/migration'
 import { afterAll, describe, expect, inject, it } from 'vitest'
-import { startServer, startWhenSchemaCurrent } from '../src/entry/main.ts'
+import { startServer } from '../src/main.ts'
 import { testConfig } from './support/config.ts'
 import { captureLog } from './support/log.ts'
 
@@ -42,29 +42,5 @@ describe('migrations and schema check', () => {
         log: captureLog().log,
       }),
     ).rejects.toThrow(/SCHEMA_BEHIND/)
-  })
-})
-
-describe('waiting for the schema', () => {
-  it('C20: refuses to serve while the database is behind, then serves once it matches the code', async () => {
-    const behind: string[] = []
-    // The fixture's expectation goes once "dev:up has migrated": the server's
-    // view of the schema then matches, with no write to the shared test database.
-    const options: Parameters<typeof startWhenSchemaCurrent>[0] = {
-      config: testConfig(),
-      hostname: '127.0.0.1',
-      port: 0,
-      lastMigration: '9998_fixture_migrated_later',
-      log: captureLog().log,
-      retryMs: 20,
-      onBehind: (message) => behind.push(message),
-    }
-    const starting = startWhenSchemaCurrent(options)
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    expect(behind).toEqual([expect.stringMatching(/^SCHEMA_BEHIND: 9998_fixture_migrated_later/)])
-    delete options.lastMigration
-    const server = await starting
-    expect((await fetch(`${server.url}/.well-known/oauth-protected-resource/mcp`)).status).toBe(200)
-    await server.close()
   })
 })

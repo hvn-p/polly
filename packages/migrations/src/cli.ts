@@ -1,6 +1,6 @@
-// The migrations' command line, run by dev:up on a worktree's database, by the
-// tests' setups and by the deployment: `node packages/migrations/src/cli.ts
-// migrate`, with DATABASE_URL set.
+// The migrations' command line, run by dev:up on a worktree's database and by
+// the deployment, from its build: `node packages/migrations/dist/cli.js
+// migrate`, with DATABASE_URL set. The tests' setups call migrate() directly.
 
 import { connect } from './connect.ts'
 import { migrate } from './migrate.ts'

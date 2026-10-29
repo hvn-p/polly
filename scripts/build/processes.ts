@@ -20,8 +20,8 @@ export interface Process {
 }
 
 export const PROCESSES: Process[] = [
-  { name: 'api', entry: 'apps/api/src/entry/main.ts', output: 'apps/api/dist/main.js' },
-  { name: 'api-cli', entry: 'apps/api/src/entry/cli.ts', output: 'apps/api/dist/cli.js' },
+  { name: 'api', entry: 'apps/api/src/main.ts', output: 'apps/api/dist/main.js' },
+  { name: 'api-cli', entry: 'apps/api/src/cli.ts', output: 'apps/api/dist/cli.js' },
   { name: 'mcp', entry: 'apps/mcp/src/main.ts', output: 'apps/mcp/dist/main.js' },
   { name: 'worker', entry: 'apps/worker/src/main.ts', output: 'apps/worker/dist/main.js' },
   { name: 'migrations', entry: 'packages/migrations/src/cli.ts', output: 'packages/migrations/dist/cli.js' },

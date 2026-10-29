@@ -7,7 +7,7 @@
       "group": "server",
       "name": "Routes & workflows",
       "criterion": "One process each. Parse, authorize, call one flow, answer. Its main.ts, the composition root, alone wires the adapters.",
-      "paths": ["apps/api/src", "apps/api/src/entry", "apps/mcp/src", "apps/worker/src"],
+      "paths": ["apps/api/src", "apps/mcp/src", "apps/worker/src"],
       "mayImport": [
         "flows",
         {
@@ -16,12 +16,7 @@
         },
         {
           "tier": "adapters",
-          "onlyFrom": [
-            "apps/*/src/main.ts",
-            "apps/*/src/cli.ts",
-            "apps/api/src/entry/main.ts",
-            "apps/api/src/entry/cli.ts"
-          ]
+          "onlyFrom": ["apps/*/src/main.ts", "apps/*/src/cli.ts"]
         },
         "kernel",
         "socle",

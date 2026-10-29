@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { operations } from '../src/entry/contracts/api.ts'
+import { operations } from '../src/contracts/api.ts'
 import { createLearner, exchangeToken, mcpAccessToken } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
 

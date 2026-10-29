@@ -1,6 +1,6 @@
-import { type Logger, Refusal } from '@polly/platform'
+import type { Logger } from '@polly/platform'
 import { Hono } from 'hono'
-import { refusalResponse } from './refusals.ts'
+import { notFoundResponse } from './refusals.ts'
 import type { RouteRegistry } from './routes.ts'
 
 // The HTTP application: only the registry's routes, each behind its access
@@ -24,6 +24,6 @@ export function createApp(registry: RouteRegistry, log: Logger): Hono {
     const handle = registry.handler(route)
     app.on(route.method, route.path, (context) => handle(context.req.raw))
   }
-  app.notFound((context) => refusalResponse(new Refusal('NOT_FOUND', `no route for ${context.req.path}`)))
+  app.notFound(() => notFoundResponse())
   return app
 }

@@ -1,6 +1,6 @@
 // Writes each contract between two processes from its single Zod source
-// (constitution principle VIII): a JSON Schema document for every consumer,
-// or an OpenAPI document and its TypeScript client. The compute service writes
+// (constitution principle VIII): an OpenAPI document and its TypeScript
+// client. The compute service writes
 // its OpenAPI itself, in Python. `nr contracts` regenerates them;
 // scripts/checks/contracts.mjs fails when a copy differs from its source.
 
@@ -27,7 +27,6 @@ export interface Contract {
   // Path of the Zod source, from the repository root.
   source: string
   load: () => Promise<Record<string, ZodType>>
-  jsonSchema: string[]
   // An API contract: its operations, its OpenAPI document and its client types.
   operations?: () => Promise<Record<string, Operation>>
   // Or the text of an OpenAPI document another language writes.
@@ -58,10 +57,9 @@ export function fromSource(source: string): Contract['load'] {
 export const CONTRACTS: Contract[] = [
   {
     name: 'api',
-    source: 'apps/api/src/entry/contracts/api.ts',
-    load: fromSource('apps/api/src/entry/contracts/api.ts'),
-    operations: operationsFromSource('apps/api/src/entry/contracts/api.ts'),
-    jsonSchema: [],
+    source: 'apps/api/src/contracts/api.ts',
+    load: fromSource('apps/api/src/contracts/api.ts'),
+    operations: operationsFromSource('apps/api/src/contracts/api.ts'),
     openapi: 'packages/contract/openapi.json',
     client: 'packages/contract/src/generated.ts',
   },
@@ -69,7 +67,6 @@ export const CONTRACTS: Contract[] = [
     name: 'compute',
     source: 'services/compute/src/polly_compute/app.py',
     load: async () => ({}),
-    jsonSchema: [],
     document: async () => computeDocument(),
     openapi: 'services/compute/openapi.json',
     client: 'packages/analysis/src/generated.ts',
@@ -286,18 +283,7 @@ export function clientModule(source: string, document: Record<string, unknown>):
 
 export async function render(contract: Contract): Promise<Map<string, string>> {
   const schemas = await contract.load()
-  const definitions = Object.fromEntries(
-    Object.entries(schemas).map(([name, schema]) => {
-      const { $schema: _, ...definition } = z.toJSONSchema(schema)
-      return [name, definition]
-    }),
-  )
-  const document = `${JSON.stringify(
-    { $schema: 'https://json-schema.org/draft/2020-12/schema', title: contract.name, $defs: definitions },
-    null,
-    2,
-  )}\n`
-  const files = new Map(contract.jsonSchema.map((path) => [path, document]))
+  const files = new Map<string, string>()
   if (contract.operations !== undefined) {
     const api = openApiDocument(contract.name, schemas, await contract.operations())
     if (contract.openapi !== undefined) {

@@ -6,7 +6,7 @@
 // starts once nr dev:up has migrated it.
 
 import { isIP } from 'node:net'
-import { assertSchemaCurrent, connect, PostgresStore, SchemaBehind } from '@polly/database'
+import { assertSchemaCurrent, connect, PostgresStore, waitForSchemaCurrent } from '@polly/database'
 import {
   apiResource,
   authenticator,
@@ -76,29 +76,6 @@ export async function startServer({
   }
 }
 
-// Starts the server once the database matches the code. While it is behind,
-// nothing is served: the refusal is reported once, and the check runs again,
-// so the server comes up by itself once dev:up has migrated.
-export async function startWhenSchemaCurrent(
-  options: ServerOptions & { retryMs: number; onBehind: (message: string) => void },
-): Promise<RunningServer> {
-  let reported = false
-  for (;;) {
-    try {
-      return await startServer(options)
-    } catch (error) {
-      if (!(error instanceof SchemaBehind)) {
-        throw error
-      }
-      if (!reported) {
-        options.onBehind(error.message)
-        reported = true
-      }
-      await new Promise((resolve) => setTimeout(resolve, options.retryMs))
-    }
-  }
-}
-
 if (process.argv[1] === import.meta.filename) {
   const log = createLogger({ name: 'polly-api' })
   const hostname = process.env['POLLY_API_HOST'] ?? ''
@@ -112,14 +89,11 @@ if (process.argv[1] === import.meta.filename) {
     process.exit(1)
   }
   try {
-    const server = await startWhenSchemaCurrent({
-      config: readConfig(process.env),
-      hostname,
-      port,
-      retryMs: 2000,
-      log,
-      onBehind: (message) => log.warn(message),
-    })
+    const config = readConfig(process.env)
+    const db = connect(config.DATABASE_URL)
+    await waitForSchemaCurrent(db, { retryMs: 2000, onBehind: (message) => log.warn(message) })
+    await db.destroy()
+    const server = await startServer({ config, hostname, port, log })
     log.info('API listening', { url: server.url })
   } catch (error) {
     log.error('the API stopped', { error })

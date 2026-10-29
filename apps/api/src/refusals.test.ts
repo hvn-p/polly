@@ -8,7 +8,6 @@ describe('refusal translation', () => {
       ['UNAUTHORIZED', 401],
       ['INVALID_EVENT_CODE', 400],
       ['EVENT_CODE_REVOKED', 403],
-      ['NOT_FOUND', 404],
       ['EVENT_CODE_ALREADY_BOUND', 409],
     ] as const) {
       const response = refusalResponse(new Refusal(code, 'why'))

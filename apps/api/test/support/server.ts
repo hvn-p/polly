@@ -3,7 +3,7 @@ import { createIdentity, type Identity } from '@polly/identity'
 import { startMcpServer } from '@polly/mcp'
 import type { Config } from '@polly/platform'
 import { afterAll } from 'vitest'
-import { type RunningServer, type ServerOptions, startServer } from '../../src/entry/main.ts'
+import { type RunningServer, type ServerOptions, startServer } from '../../src/main.ts'
 import { testConfig } from './config.ts'
 import { captureLog } from './log.ts'
 

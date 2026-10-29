@@ -1,5 +1,5 @@
 // The API's command line, run by dev:up on a worktree's database once it is
-// migrated: `node apps/api/src/entry/cli.ts seed-demo`.
+// migrated, from its build: `node apps/api/dist/cli.js seed-demo`.
 
 import { DEMO_ACCOUNT, seedDemoAccount } from '@polly/back'
 import { connect } from '@polly/database'

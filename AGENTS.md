@@ -89,7 +89,7 @@ only those two and these channels: any other issue or PR is asked for.
   own OpenAPI), `plugin/` (the Claude Code plugin), `dev/` (each worktree's local Polly:
   read `dev/README.md` before running or validating anything locally).
 - A contract between two processes is changed in its source (the Zod schemas under
-  `apps/api/src/entry/contracts/`, or the compute service's code), then regenerated with
+  `apps/api/src/contracts/`, or the compute service's code), then regenerated with
   `nr contracts`.
 - A unit test (no process, database or network) sits next to its file as
   `<name>.test.ts`. An integration test, and its support, goes in its package's

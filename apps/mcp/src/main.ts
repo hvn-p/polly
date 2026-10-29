@@ -67,7 +67,7 @@ export async function startMcpServer(options: McpOptions): Promise<RunningMcp> {
   const answer = async (request: Request): Promise<Response> => {
     const { pathname } = new URL(request.url)
     if (pathname !== '/mcp') {
-      return notFound(pathname)
+      return notFound()
     }
     const bearer = request.headers.get('authorization') ?? ''
     const apiToken = bearer.startsWith('Bearer ') ? await exchangeToken(exchange, bearer.slice(7)) : undefined

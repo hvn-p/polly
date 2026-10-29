@@ -1,7 +1,7 @@
 // The MCP server's refusals, the one place each is built: an API refusal as a
 // tool error starting with its code, which the agent acts on; a request whose
 // token does not exchange as the 401 whose WWW-Authenticate header points the
-// client at the OAuth flow; any other path as not found.
+// client at the OAuth flow; any other path as not found, with no body.
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import type { Outcome } from '@polly/contract'
@@ -29,6 +29,7 @@ export function unauthorized(publicUrl: string): Response {
   )
 }
 
-export function notFound(path: string): Response {
-  return Response.json({ code: 'NOT_FOUND', reason: `no route for ${path}` }, { status: 404 })
+// No refusal of the contract, so no code.
+export function notFound(): Response {
+  return new Response(null, { status: 404 })
 }

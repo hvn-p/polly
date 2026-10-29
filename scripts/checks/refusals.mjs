@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Checks that each process builds its refusals in one place (constitution
 // principle VIII): the API's routes and access rules throw a Refusal, which
-// entry/refusals.ts alone turns into an HTTP response; the MCP server's
+// refusals.ts alone turns into an HTTP response; the MCP server's
 // refusals (an API refusal, an unauthorized request) are built by its
 // refusals.ts alone, and its tools are registered through tools.ts, which
 // applies that translation.
@@ -23,7 +23,7 @@ const TEST_FILE = /\.test\.(ts|tsx|mts|js|mjs)$/
  */
 
 /** @type {Layout} */
-export const API_LAYOUT = { translations: 'entry/refusals.ts', toolRegistration: 'entry/refusals.ts' }
+export const API_LAYOUT = { translations: 'refusals.ts', toolRegistration: 'refusals.ts' }
 
 /** @type {Record<string, Layout>} */
 export const PROCESSES = {

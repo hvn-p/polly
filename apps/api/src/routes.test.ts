@@ -80,11 +80,11 @@ describe('route registry', () => {
     expect((await app.request('/api/broken')).status).toBe(500)
   })
 
-  it('denies by default: an unregistered path answers 404', async () => {
+  it('denies by default: an unregistered path answers 404, with no code outside the contract', async () => {
     const app = createApp(new RouteRegistry(guards), quiet)
     const response = await app.request('/api/anything')
     expect(response.status).toBe(404)
-    expect(await response.json()).toMatchObject({ code: 'NOT_FOUND' })
+    expect(await response.text()).toBe('')
   })
 
   it('lists the registered routes with their access rule, for the route walk', () => {

@@ -8,12 +8,16 @@ import { CONTRACTS, type Contract, generate, type Operation, render } from './ge
 
 const repositoryRoot = join(import.meta.dirname, '..', '..')
 
-const event = { Event: z.object({ type: z.literal('test') }) }
+const event = z.object({ type: z.literal('test') })
 const contract: Contract = {
   name: 'events',
   source: 'api/events.ts',
-  load: async () => event,
-  jsonSchema: ['plugin/events.schema.json', 'web/events.schema.json'],
+  load: async () => ({ Event: event }),
+  operations: async () => ({
+    getEvent: { method: 'GET', path: '/events', access: 'public', response: event, refusals: [] },
+  }),
+  openapi: 'web/openapi.json',
+  client: 'plugin/generated.ts',
 }
 
 const json = (name: string) => ({
@@ -51,7 +55,6 @@ const compute: Contract = {
   name: 'compute',
   source: 'compute/app.py',
   load: async () => ({}),
-  jsonSchema: [],
   document: async () => JSON.stringify(computeDocument),
   openapi: 'compute/openapi.json',
   client: 'analysis/src/generated.ts',
@@ -62,19 +65,6 @@ function freshRoot(): string {
 }
 
 describe('contract generation', () => {
-  it('writes one JSON Schema document per contract, a definition per schema', async () => {
-    const files = await render(contract)
-    const document = JSON.parse(files.get('plugin/events.schema.json') ?? '')
-    expect(document.title).toBe('events')
-    expect(document.$defs.Event).toEqual({
-      type: 'object',
-      properties: { type: { type: 'string', const: 'test' } },
-      required: ['type'],
-      additionalProperties: false,
-    })
-    expect(files.get('web/events.schema.json')).toBe(files.get('plugin/events.schema.json'))
-  })
-
   it('writes an OpenAPI document another language publishes, and its client, references named', async () => {
     const files = await render(compute)
     expect(JSON.parse(files.get('compute/openapi.json') ?? '')).toEqual(computeDocument)
@@ -122,7 +112,6 @@ const api: Contract = {
       refusals: ['EVENT_CODE_REVOKED'],
     },
   }),
-  jsonSchema: [],
   openapi: 'contract/openapi.json',
   client: 'contract/src/generated.ts',
 }
@@ -189,12 +178,10 @@ describe('contract guard', () => {
   it('C65: fails naming the contract when a generated copy was edited by hand', async () => {
     const root = freshRoot()
     await generate(root, [contract])
-    const path = join(root, 'web/events.schema.json')
+    const path = join(root, 'web/openapi.json')
     writeFileSync(path, readFileSync(path, 'utf8').replace('"test"', '"edited"'))
     expect(await checkContracts(root, [contract])).toEqual([
-      expect.stringMatching(
-        /^events: web\/events\.schema\.json differs from api\/events\.ts; run nr contracts/,
-      ),
+      expect.stringMatching(/^events: web\/openapi\.json differs from api\/events\.ts; run nr contracts/),
     ])
   })
 
@@ -230,8 +217,8 @@ describe('contract guard', () => {
     }
     expect(await checkContracts(root, [changed])).toHaveLength(2)
     expect(await checkContracts(freshRoot(), [contract])).toEqual([
-      expect.stringContaining('plugin/events.schema.json is missing'),
-      expect.stringContaining('web/events.schema.json is missing'),
+      expect.stringContaining('web/openapi.json is missing'),
+      expect.stringContaining('plugin/generated.ts is missing'),
     ])
   })
 })

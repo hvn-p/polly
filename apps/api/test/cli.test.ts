@@ -1,5 +1,5 @@
 import { describe, expect, inject, it } from 'vitest'
-import { runCli } from '../src/entry/cli.ts'
+import { runCli } from '../src/cli.ts'
 import { testConfig } from './support/config.ts'
 import { captureLog } from './support/log.ts'
 
