@@ -63,7 +63,8 @@ consent covers only those two and that channel: any other issue or PR is asked f
 - **Separate React front end and Hono 4 API**, in a pnpm monorepo. The API is also the
   MCP's OAuth authorization server, through Better Auth (`mcp` and `cimd` plugins),
   which polly's code only reaches through its extension points.
-- **TypeScript 7 only**, type-checked by `tsc`: Node strips the types and Vite builds the
+- **TypeScript 7 only**, type-checked by `tsc`. esbuild bundles every Node process, which
+  runs from its build in development as in production (`nr build`); Vite builds the
   front end.
 - **Biome** for lint and format.
 - **Boundaries**: Zod schemas, an OpenAPI contract generated from them, a generated
@@ -72,29 +73,23 @@ consent covers only those two and that channel: any other issue or PR is asked f
 - **Postgres**: the shared instance of the pikmine platform, reached only through
   `DATABASE_URL`, queried with Kysely and changed by versioned Kysely migrations.
 - **MCP server**: the official SDK v2 (`@modelcontextprotocol/server`), stateless.
-- **Audio analysis** is a separate Python service, on CPU. No analysis runs inside an
-  HTTP request: the API answers at once and the result arrives through the event
-  stream.
+- **Audio analysis** runs in a Python compute service, on CPU, called by the worker. No
+  analysis runs inside an HTTP request: the API answers at once and the result arrives
+  through the event stream.
 
 ## Layout
 
-- The API (`apps/api/src`) is split into tiers, each importing only those below it:
-  `entry` (Hono routes, SSE, MCP, composition root), `flows` (one use case per file,
-  DBOS workflows included), `domains`, `reference` (read-only language packs, identity),
-  `kernel` (ids, language code, score, clock; no domain rule).
-- The domains are `learner-memory`, `session-log`, `catalogue`, `evaluation` and
-  `audio`. No domain imports another, no flow imports another, and a module is imported
-  through its index file only. `nr lint` enforces this against `architecture.rules.json`.
+- Every directory belongs to a tier of `architecture.rules.json`, which gives its
+  criterion, what it may import and the fix for a breach; `nr lint` checks the repository
+  against it. A file that fits no tier stops the work: ask before adding a tier.
 - A domain that needs another domain's data declares a port it owns, and a flow feeds
   it. Domains share events only through the session log: no in-process event bus.
-- The front end (`apps/web`) follows the Feature-Sliced Design layers.
-- Outside the apps: `services/compute` (Python audio analysis, behind its own OpenAPI), `languages/<code>/`
-  (language packs as neutral data, read by the API and the worker),
-  `packages/database` (the migrations and the schema check, shared by the API
-  and the worker), `plugin/` (the Claude Code plugin), `dev/` (each worktree's local Polly: read
-  `dev/README.md` before running or validating anything locally).
-- A contract between two processes is changed in its Zod source under
-  `apps/api/src/entry/contracts/`, then regenerated with `nr contracts`.
+- Outside `apps/` and `packages/`: `services/compute` (Python audio analysis, behind its
+  own OpenAPI), `plugin/` (the Claude Code plugin), `dev/` (each worktree's local Polly:
+  read `dev/README.md` before running or validating anything locally).
+- A contract between two processes is changed in its source (the Zod schemas under
+  `apps/api/src/entry/contracts/`, or the compute service's code), then regenerated with
+  `nr contracts`.
 - A unit test (no process, database or network) sits next to its file as
   `<name>.test.ts`. An integration test, and its support, goes in its package's
   `test/`. End-to-end scenarios run through `nr dev:e2e`, never Vitest.
