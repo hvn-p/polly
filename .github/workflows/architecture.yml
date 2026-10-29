@@ -2,14 +2,12 @@
 # main (a pull request that changes it builds it only): builds it for each platform, bumps the patch of the version last
 # published, then publishes the platform packages and the launcher. npm trusts
 # this workflow (trusted publishing), so no token is stored and provenance is
-# added; NPM_TOKEN serves only the first publication, before npm can trust it.
+# added.
 name: Architecture release
 
 on:
   push:
-    # TEMPORARY: 4-worktree-dev-env publishes the first version, before npm can
-    # trust this workflow; removed once it has.
-    branches: [main, 4-worktree-dev-env]
+    branches: [main]
     paths: ["tools/architecture/**", ".github/workflows/architecture.yml"]
   pull_request:
     paths: ["tools/architecture/**", ".github/workflows/architecture.yml"]
@@ -65,8 +63,6 @@ jobs:
         with:
           path: binaries
       - name: Publish the next version
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           name=$(node -p "require('./tools/architecture/npm/launcher/package.json').name")
           published=$(npm view "$name" version 2>/dev/null || true)

@@ -422,7 +422,7 @@
       "typescript",
       "vitest",
       "esbuild",
-      "@polly/architecture"
+      "@hvn-p/architecture"
     ],
     "fix": "The root manifest holds only the whole project's tools: declare the dependency in the package that imports it."
   }

@@ -16,7 +16,7 @@
     "contracts": "node scripts/contracts/generate.ts",
     "bundles": "node scripts/build/bundles.ts",
     "lint": "biome check --error-on-warnings . && pnpm run lint:architecture",
-    "lint:architecture": "cargo run --quiet --release --manifest-path tools/architecture/analyzer/Cargo.toml -- check",
+    "lint:architecture": "architecture check",
     "lint:fix": "biome check --write .",
     "typecheck": "tsc -p scripts && pnpm -r --no-bail run typecheck",
     "test": "vitest run && pnpm run test:repo",
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.2",
+    "@hvn-p/architecture": "0.1.0",
     "@types/node": "24.19.2",
     "@vitest/coverage-v8": "5.0.5",
     "esbuild": "0.28.2",
