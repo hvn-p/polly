@@ -423,3 +423,53 @@ fn a_base_from_before_the_workspace_imports_nothing() {
             .len()
     );
 }
+
+/// Runs `json --base <reference>` on a committed tree, with `tar` replaced by `script`.
+fn with_tar(reference: &str, script: &str) -> (Option<i32>, String) {
+    let tree = Tree::valid();
+    git(&tree, &["init", "-q", "-b", "main"]);
+    git(&tree, &["add", "-A"]);
+    git(&tree, &["commit", "-q", "-m", "base"]);
+    let bin = Tree::empty();
+    bin.write("tar", script);
+    let shim = bin.path().join("tar");
+    let mut mode = std::fs::metadata(&shim).unwrap().permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o755);
+    std::fs::set_permissions(&shim, mode).unwrap();
+    let path = format!(
+        "{}:{}",
+        bin.path().display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_architecture-analyzer"))
+        .args(["json", "--base", reference])
+        .env("PATH", path)
+        .current_dir(tree.path())
+        .output()
+        .unwrap();
+    (
+        output.status.code(),
+        String::from_utf8(output.stderr).unwrap(),
+    )
+}
+
+#[test]
+fn a_missing_base_fails_naming_it_whatever_tar_makes_of_no_archive() {
+    // A tar that takes an empty input for an empty archive, as bsdtar does.
+    let (code, err) = with_tar("no-such-branch", "#!/bin/sh\ncat > /dev/null\n");
+    assert_eq!(code, Some(2), "{err}");
+    assert!(err.contains("no-such-branch"), "{err}");
+}
+
+#[test]
+fn a_base_tar_cannot_extract_fails_naming_it() {
+    let (code, err) = with_tar(
+        "main",
+        "#!/bin/sh\ncat > /dev/null\necho 'no space left' >&2\nexit 1\n",
+    );
+    assert_eq!(code, Some(2), "{err}");
+    assert!(
+        err.contains("main") && err.contains("no space left"),
+        "{err}"
+    );
+}

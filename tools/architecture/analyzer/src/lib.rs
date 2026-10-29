@@ -176,39 +176,70 @@ fn head(root: &Path) -> Option<String> {
     (out.status.success() && !name.is_empty()).then_some(name)
 }
 
+/// Writes the tree of a git reference into `copy`: `git archive` piped to `tar`, each
+/// checked, since some tars take an empty input for an empty archive.
+fn extract(root: &Path, reference: &str, copy: &Path) -> Result<(), String> {
+    use std::process::{Command, Stdio};
+
+    let failed = |command: &str, e: &dyn std::fmt::Display| {
+        format!("cannot read {reference}: {command}: {e}")
+    };
+    let mut archive = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["archive", reference])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| failed("git", &e))?;
+    let input = archive
+        .stdout
+        .take()
+        .ok_or_else(|| failed("git", &"no output"))?;
+    let tar = Command::new("tar")
+        .arg("-x")
+        .arg("-C")
+        .arg(copy)
+        .stdin(input)
+        .stderr(Stdio::piped())
+        .output();
+    let archived = archive.wait_with_output();
+    let (tar, archived) = (
+        tar.map_err(|e| failed("tar", &e))?,
+        archived.map_err(|e| failed("git", &e))?,
+    );
+    if !archived.status.success() {
+        return Err(failed(
+            "git archive",
+            &String::from_utf8_lossy(&archived.stderr).trim(),
+        ));
+    }
+    if !tar.status.success() {
+        return Err(failed("tar", &String::from_utf8_lossy(&tar.stderr).trim()));
+    }
+    Ok(())
+}
+
 /// The module imports of a git reference, read from a copy of its tree with the rules of
 /// the tree at `root`.
 pub(crate) fn base_pairs(root: &Path, reference: &str) -> Result<Base, String> {
     let copy = std::env::temp_dir().join(format!("architecture-base-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&copy);
     std::fs::create_dir_all(&copy).map_err(|e| e.to_string())?;
-    let archive = std::process::Command::new("sh")
-        .arg("-c")
-        .arg("git -C \"$1\" archive \"$2\" | tar -x -C \"$3\"")
-        .args([
-            "sh",
-            &root.to_string_lossy(),
-            reference,
-            &copy.to_string_lossy(),
-        ])
-        .output()
-        .map_err(|e| e.to_string())?;
+    let archive = extract(root, reference, &copy);
     // Read with today's rules, so both graphs name the same modules, and a base
     // from before the rules file can still be compared. A base from before the
     // workspace imports nothing.
-    let result = if archive.status.success() && !copy.join("pnpm-workspace.yaml").exists() {
-        Ok(BTreeSet::new())
-    } else if archive.status.success() {
-        std::fs::copy(root.join(RULES_FILE), copy.join(RULES_FILE))
-            .map_err(|e| format!("{RULES_FILE}: {e}"))
-            .and_then(|_| Tree::load(&copy))
-            .map(|tree| pairs(&tree.graph(None).edges))
-    } else {
-        Err(format!(
-            "cannot read {reference}: {}",
-            String::from_utf8_lossy(&archive.stderr).trim()
-        ))
-    };
+    let result = archive.and_then(|()| {
+        if copy.join("pnpm-workspace.yaml").exists() {
+            std::fs::copy(root.join(RULES_FILE), copy.join(RULES_FILE))
+                .map_err(|e| format!("{RULES_FILE}: {e}"))
+                .and_then(|_| Tree::load(&copy))
+                .map(|tree| pairs(&tree.graph(None).edges))
+        } else {
+            Ok(BTreeSet::new())
+        }
+    });
     let _ = std::fs::remove_dir_all(&copy);
     result.map(|pairs| Base {
         reference: reference.to_string(),
