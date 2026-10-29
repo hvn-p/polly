@@ -15,6 +15,7 @@ import { AGENT_BROWSER } from '../machine/index.ts'
 import { redactEventCodes } from './redact.ts'
 import type { Scenario } from './scenario.ts'
 import { drivenSession } from './session.ts'
+import { plain, shellQuoted } from './terminal.ts'
 
 const ALLOWED_TOOLS = ['Skill', 'mcp__plugin_polly_polly__whoami', 'mcp__plugin_polly_polly__start_lesson']
 const SCENARIO_TIMEOUT_MS = 240_000
@@ -33,18 +34,9 @@ function capture(command: string, args: readonly string[], env: NodeJS.ProcessEn
 }
 
 // Strips terminal escapes from what a pseudo-terminal printed.
-function plain(text: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: terminal escapes are control characters.
-  return text.replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, '').replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
-}
-
-function quote(argument: string): string {
-  return `'${argument.replaceAll("'", "'\\''")}'`
-}
-
 // A command run in a pseudo-terminal, with its output accumulated.
 function inTerminal(command: string[], env: NodeJS.ProcessEnv, cwd: string) {
-  const child = spawn('script', ['-qfec', command.map(quote).join(' '), '/dev/null'], {
+  const child = spawn('script', ['-qfec', command.map(shellQuoted).join(' '), '/dev/null'], {
     cwd,
     env,
     stdio: ['pipe', 'pipe', 'pipe'],

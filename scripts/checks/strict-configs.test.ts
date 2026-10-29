@@ -97,6 +97,36 @@ describe('strict-configs guard', () => {
     expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('disallow_untyped_defs')])
   })
 
+  it('refuses a ruff extend-ignore, under the linter or the tool', () => {
+    for (const relaxed of [
+      pyproject.replace('select = ["ALL"]', 'select = ["ALL"]\nextend-ignore = ["E501"]'),
+      pyproject.replace('[tool.ruff.lint]', 'extend-ignore = ["E501"]\n\n[tool.ruff.lint]'),
+    ]) {
+      const root = fixture({ 'tsconfig.base.json': base, 'svc/pyproject.toml': relaxed })
+      expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('ruff extend-ignore is not allowed')])
+    }
+  })
+
+  it('refuses mypy ignore_errors, and a per-module override', () => {
+    const ignoring = pyproject.replace('strict = true', 'strict = true\nignore_errors = true')
+    const overriding = `${pyproject}\n[[tool.mypy.overrides]]\nmodule = "polly_compute.app"\nstrict = false\n`
+    for (const [relaxed, named] of [
+      [ignoring, 'ignore_errors'],
+      [overriding, 'overrides'],
+    ] as const) {
+      const root = fixture({ 'tsconfig.base.json': base, 'svc/pyproject.toml': relaxed })
+      expect(checkStrictConfigs(root)).toEqual([expect.stringContaining(`tool.mypy.${named}`)])
+    }
+  })
+
+  it('refuses a Biome configuration whose linter is disabled', () => {
+    const root = fixture({
+      'tsconfig.base.json': base,
+      'biome.json': JSON.stringify({ ...biome, linter: { ...biome.linter, enabled: false } }),
+    })
+    expect(checkStrictConfigs(root)).toEqual(['biome.json: linter.enabled must not be false'])
+  })
+
   it('refuses a Biome rule turned off, or down to info, without a recorded reason', () => {
     const root = fixture({
       'tsconfig.base.json': base,

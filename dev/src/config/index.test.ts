@@ -60,6 +60,15 @@ describe('worktree configuration', () => {
     expect(env.get('POLLY_WORKER_MODE')).toBe('real')
   })
 
+  it('C14: completes a file without a final newline, its last value kept whole', async () => {
+    const existing = 'POLLY_WORKTREE_ID=recorded\nPOLLY_WORKER_MODE=real'
+    const completed = await completeEnv(template, existing, { branch: 'main', ...generators })
+    expect(completed.startsWith(`${existing}\n`)).toBe(true)
+    const env = parseEnv(completed)
+    expect(env.get('POLLY_WORKER_MODE')).toBe('real')
+    expect(env.get('POLLY_ENV')).toBe('local')
+  })
+
   it('changes nothing when every key is present', async () => {
     const fresh = await completeEnv(template, '', { branch: 'main', ...generators })
     expect(await completeEnv(template, fresh, { branch: 'other', ...generators })).toBe(fresh)

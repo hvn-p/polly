@@ -13,4 +13,8 @@ describe('sign-in form bounds', () => {
     expect(signInProblem('a@b', '1234567')).toBe('signIn.passwordInvalid')
     expect(signInProblem('a@b', 'x'.repeat(129))).toBe('signIn.passwordInvalid')
   })
+
+  it('names an email without @, whatever its length', () => {
+    expect(signInProblem('demo.polly.localhost', '12345678')).toBe('signIn.emailInvalid')
+  })
 })
