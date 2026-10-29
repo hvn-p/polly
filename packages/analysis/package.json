@@ -9,6 +9,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
-    "@polly/back": "workspace:*"
+    "@polly/back": "workspace:*",
+    "zod": "4.6.7"
   }
 }

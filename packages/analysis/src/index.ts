@@ -3,7 +3,8 @@
 // OpenAPI.
 
 import type { Analyzer } from '@polly/back'
-import { OPERATIONS, type Operations } from './generated.ts'
+import { z } from 'zod'
+import { OPERATIONS, type Operations, RESPONSES } from './generated.ts'
 
 // Returns a predefined result through the real path, and loads no model.
 export const fakeAnalyzer: Analyzer = {
@@ -15,7 +16,13 @@ interface ComputeService {
   fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 }
 
-// Calls one operation of the compute service and reads its answer.
+// Each operation's response schema, built once.
+const VALIDATORS = Object.fromEntries(
+  Object.entries(RESPONSES).map(([name, schema]) => [name, z.fromJSONSchema(schema)]),
+)
+
+// Calls one operation of the compute service and reads its answer, checked
+// against its schema.
 async function call<N extends keyof Operations>(
   { baseUrl, fetch = globalThis.fetch }: ComputeService,
   name: N,
@@ -31,7 +38,11 @@ async function call<N extends keyof Operations>(
   if (!response.ok) {
     throw new Error(`COMPUTE_FAILED: ${method} ${path} answered ${response.status}`)
   }
-  return (await response.json()) as Operations[N]['response']
+  const answer: unknown = await response.json().catch(() => undefined)
+  if (!(VALIDATORS[name]?.safeParse(answer).success ?? false)) {
+    throw new Error(`COMPUTE_FAILED: ${method} ${path} answered outside its contract`)
+  }
+  return answer as Operations[N]['response']
 }
 
 export function computeAnalyzer(service: ComputeService): Analyzer {

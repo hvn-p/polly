@@ -356,6 +356,9 @@ importers:
       '@polly/back':
         specifier: workspace:*
         version: link:../back
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
 
   packages/back:
     dependencies:
@@ -366,7 +369,11 @@ importers:
         specifier: workspace:*
         version: link:../platform
 
-  packages/contract: {}
+  packages/contract:
+    dependencies:
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
 
   packages/database:
     dependencies:

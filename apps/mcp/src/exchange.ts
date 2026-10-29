@@ -3,6 +3,11 @@
 // its confidential client. A token the identity does not accept exchanges to
 // nothing.
 
+import { z } from 'zod'
+
+// The part of a token response (RFC 6749 §5.1) the server uses.
+const tokenResponse = z.object({ access_token: z.string().min(1).max(8192) })
+
 const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange'
 const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
 export const MCP_CLIENT_ID = 'polly-mcp'
@@ -13,12 +18,14 @@ export interface ExchangeSettings {
   // The API as a resource: the audience of the exchanged token.
   apiResource: string
   clientSecret: string
+  fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 }
 
 export async function exchangeToken(
   settings: ExchangeSettings,
   subjectToken: string,
 ): Promise<string | undefined> {
+  const { fetch = globalThis.fetch } = settings
   const response = await fetch(new URL('/api/auth/oauth2/token', settings.apiUrl), {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -34,6 +41,6 @@ export async function exchangeToken(
   if (!response.ok) {
     return undefined
   }
-  const { access_token: token } = (await response.json()) as { access_token?: unknown }
-  return typeof token === 'string' ? token : undefined
+  const answer = tokenResponse.safeParse(await response.json().catch(() => undefined))
+  return answer.success ? answer.data.access_token : undefined
 }

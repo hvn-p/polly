@@ -33,6 +33,19 @@ describe('API client', () => {
     expect(calls[0]?.body).toBeNull()
   })
 
+  it('reads a success whose value breaks its schema as UNEXPECTED, never as the value', async () => {
+    for (const malformed of [{ learnerId: 42 }, {}, { learnerId: 'l'.repeat(65) }]) {
+      const { fetch } = recordingFetch(Response.json(malformed))
+      const api = createApiClient({ baseUrl: 'http://x', token: async () => 't', fetch })
+      expect(await api.call('getMe')).toEqual({
+        ok: false,
+        status: 200,
+        code: 'UNEXPECTED',
+        reason: 'the answer does not match the contract',
+      })
+    }
+  })
+
   it('reads a refusal by its code, and an answer outside the contract as UNEXPECTED', async () => {
     const refused = recordingFetch(
       Response.json({ code: 'EVENT_CODE_REVOKED', reason: 'draw a new one' }, { status: 403 }),

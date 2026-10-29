@@ -19,6 +19,13 @@ describe('the compute analyzer', () => {
       'COMPUTE_FAILED: POST /analyses answered 422',
     )
   })
+
+  it('fails when the service answers a result its contract does not describe', async () => {
+    const fetch = async () => Response.json({ recordingId: 'rec-1', score: 'high', modelLoaded: true })
+    await expect(computeAnalyzer({ baseUrl: 'http://127.0.0.1:1', fetch }).analyze('rec-1')).rejects.toThrow(
+      'COMPUTE_FAILED: POST /analyses answered outside its contract',
+    )
+  })
 })
 
 describe("the compute service's version", () => {

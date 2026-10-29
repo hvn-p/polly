@@ -1,7 +1,9 @@
 // The API's client for its interfaces: each operation of the generated contract,
-// called with a bearer token, its value or its refusal read back by code.
+// called with a bearer token, its value checked against its schema or its
+// refusal read back by code.
 
-import { OPERATIONS, type Operations, REFUSAL_CODES, type RefusalCode } from './generated.ts'
+import { z } from 'zod'
+import { OPERATIONS, type Operations, REFUSAL_CODES, RESPONSES, type RefusalCode } from './generated.ts'
 
 export * from './generated.ts'
 
@@ -35,6 +37,11 @@ export function createApiClient({
   token: () => Promise<string>
   fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 }): ApiClient {
+  // Built with the client, so a module that only reads the contract's tables
+  // (the plugin's monitor) bundles no schema library.
+  const validators = Object.fromEntries(
+    Object.entries(RESPONSES).map(([name, schema]) => [name, z.fromJSONSchema(schema)]),
+  )
   return {
     call: async (name, ...[body]) => {
       const { method, path } = OPERATIONS[name]
@@ -51,6 +58,14 @@ export function createApiClient({
         | { code?: unknown; reason?: unknown }
         | undefined
       if (response.ok) {
+        if (!(validators[name]?.safeParse(read).success ?? false)) {
+          return {
+            ok: false,
+            status: response.status,
+            code: 'UNEXPECTED',
+            reason: 'the answer does not match the contract',
+          }
+        }
         return { ok: true, value: read as Operations[typeof name]['response'] }
       }
       if (!isRefusalCode(read?.code)) {
