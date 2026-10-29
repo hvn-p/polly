@@ -4,9 +4,61 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::{RULES_FILE, Tree, base_pairs, graph, read, workspace};
+use serde::Serialize;
+
+use crate::{Base, RULES_FILE, Report, Tree, Violation, base_pairs, graph, pairs, read, workspace};
+
+/// A report the watch sends, with what changed since the one before.
+#[derive(Debug, Clone)]
+pub struct Update {
+    /// The analysis now.
+    pub report: Report,
+    /// What changed since the previous report; none for the first.
+    pub change: Option<Change>,
+}
+
+/// One change to the architecture, as the session's history keeps it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Change {
+    /// When, in milliseconds since the Unix epoch.
+    pub at: u64,
+    /// The files whose change caused it, relative to the root.
+    pub files: Vec<String>,
+    /// Module pairs imported now and not before.
+    pub added: Vec<(String, String)>,
+    /// Module pairs imported before and not now.
+    pub removed: Vec<(String, String)>,
+    /// Rules broken now and not before.
+    pub breaches: Vec<Violation>,
+    /// Rules broken before and not now.
+    pub fixed: Vec<Violation>,
+}
+
+impl Change {
+    fn between(before: &Report, after: &Report, files: Vec<String>) -> Self {
+        let (was, now) = (pairs(&before.edges), pairs(&after.edges));
+        let was_broken: BTreeSet<&Violation> = before.violations.iter().collect();
+        let now_broken: BTreeSet<&Violation> = after.violations.iter().collect();
+        Self {
+            at: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX)),
+            files,
+            added: now.difference(&was).cloned().collect(),
+            removed: was.difference(&now).cloned().collect(),
+            breaches: now_broken
+                .difference(&was_broken)
+                .map(|v| (*v).clone())
+                .collect(),
+            fixed: was_broken
+                .difference(&now_broken)
+                .map(|v| (*v).clone())
+                .collect(),
+        }
+    }
+}
 
 /// Files whose change reloads everything.
 const RELOADS: [&str; 3] = [RULES_FILE, "package.json", "pnpm-workspace.yaml"];
@@ -93,12 +145,12 @@ fn source(changed: Sender<PathBuf>) -> Result<Source, String> {
     })
 }
 
-/// Watches the tree at `root`, sending a report as JSON at start and after every change
-/// to the architecture, until `reports` is dropped.
+/// Watches the tree at `root`, sending a report at start and after every change to the
+/// architecture, until `reports` is dropped.
 ///
 /// # Errors
 /// When the tree cannot be read or watched.
-pub fn watch(root: &Path, base: Option<&str>, reports: Sender<String>) -> Result<(), String> {
+pub fn watch(root: &Path, base: Option<&str>, reports: Sender<Update>) -> Result<(), String> {
     let root = root
         .canonicalize()
         .map_err(|e| format!("{}: {e}", root.display()))?;
@@ -154,14 +206,19 @@ fn may_hold_sources(tree: &Tree, dir: &str) -> bool {
 
 fn run(
     mut tree: Tree,
-    base: Option<&(String, BTreeSet<(String, String)>)>,
+    base: Option<&Base>,
     changed: &Receiver<PathBuf>,
     mut source: Source,
-    reports: &Sender<String>,
+    reports: &Sender<Update>,
 ) {
     let resolver = graph::resolver();
-    let mut last = serde_json::to_string(&tree.report(&resolver, base)).unwrap_or_default();
-    if reports.send(last.clone()).is_err() {
+    let mut last = tree.report(&resolver, base);
+    let mut last_json = serde_json::to_string(&last).unwrap_or_default();
+    let first = Update {
+        report: last.clone(),
+        change: None,
+    };
+    if reports.send(first).is_err() {
         return;
     }
     while let Ok(first) = changed.recv() {
@@ -176,23 +233,31 @@ fn run(
                 Err(RecvTimeoutError::Disconnected) => return,
             }
         }
-        if !apply(&mut tree, &paths, &mut source) {
+        let files = apply(&mut tree, &paths, &mut source);
+        if files.is_empty() {
             continue;
         }
         resolver.clear_cache();
-        let report = serde_json::to_string(&tree.report(&resolver, base)).unwrap_or_default();
-        if report != last {
+        let report = tree.report(&resolver, base);
+        let json = serde_json::to_string(&report).unwrap_or_default();
+        if json != last_json {
+            let change = Change::between(&last, &report, files);
+            last_json = json;
             last = report;
-            if reports.send(last.clone()).is_err() {
+            let update = Update {
+                report: last.clone(),
+                change: Some(change),
+            };
+            if reports.send(update).is_err() {
                 return;
             }
         }
     }
 }
 
-/// Applies the changed paths to the tree; whether its imports or exports changed.
-fn apply(tree: &mut Tree, paths: &BTreeSet<PathBuf>, source: &mut Source) -> bool {
-    let mut changed = false;
+/// Applies the changed paths to the tree; the files whose imports or exports changed.
+fn apply(tree: &mut Tree, paths: &BTreeSet<PathBuf>, source: &mut Source) -> Vec<String> {
+    let mut changed = vec![];
     for path in paths {
         let Ok(relative) = path.strip_prefix(&tree.root) else {
             continue;
@@ -202,7 +267,7 @@ fn apply(tree: &mut Tree, paths: &BTreeSet<PathBuf>, source: &mut Source) -> boo
         if RELOADS.contains(&name.as_str()) {
             if let Ok(reloaded) = Tree::load(&tree.root) {
                 *tree = reloaded;
-                return true;
+                return vec![file];
             }
             continue;
         }
@@ -216,8 +281,8 @@ fn apply(tree: &mut Tree, paths: &BTreeSet<PathBuf>, source: &mut Source) -> boo
             workspace::walk(&tree.root, &file, &tree.rules.ignore, &mut found);
             for added in found {
                 if let Some(parsed) = read(&tree.root, &added) {
-                    tree.parsed.insert(added, parsed);
-                    changed = true;
+                    tree.parsed.insert(added.clone(), parsed);
+                    changed.push(added);
                 }
             }
             continue;
@@ -228,10 +293,10 @@ fn apply(tree: &mut Tree, paths: &BTreeSet<PathBuf>, source: &mut Source) -> boo
         let parsed = read(&tree.root, &file);
         if tree.parsed.get(&file) != parsed.as_ref() {
             match parsed {
-                Some(p) => tree.parsed.insert(file, p),
+                Some(p) => tree.parsed.insert(file.clone(), p),
                 None => tree.parsed.remove(&file),
             };
-            changed = true;
+            changed.push(file);
         }
     }
     changed

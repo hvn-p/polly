@@ -6,13 +6,13 @@ mod support;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use architecture_analyzer::watch;
+use architecture_analyzer::{Update, watch};
 use support::Tree;
 
-fn pushed(rx: &mpsc::Receiver<String>, within: Duration) -> Option<serde_json::Value> {
+fn pushed(rx: &mpsc::Receiver<Update>, within: Duration) -> Option<serde_json::Value> {
     rx.recv_timeout(within)
         .ok()
-        .map(|json| serde_json::from_str(&json).unwrap())
+        .map(|update| serde_json::to_value(&update.report).unwrap())
 }
 
 #[test]
@@ -28,6 +28,50 @@ fn c66_a_forbidden_import_is_pushed_within_a_second() {
     );
     let next = pushed(&rx, Duration::from_secs(1)).expect("a graph within 1 s");
     assert_eq!(next["violations"][0]["rule"], "only-from");
+}
+
+#[test]
+fn each_change_says_what_it_changed() {
+    let tree = Tree::valid();
+    let (tx, rx) = mpsc::channel();
+    watch(tree.path(), None, tx).unwrap();
+    let first = rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the first graph");
+    assert!(first.change.is_none());
+    tree.write(
+        "apps/api/src/routes.ts",
+        "import { connect } from '@t/database'\nexport const serve = connect\n",
+    );
+    let change = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("a graph within 1 s")
+        .change
+        .expect("what changed");
+    assert_eq!(change.files, ["apps/api/src/routes.ts"]);
+    assert!(change.at > 0);
+    assert_eq!(change.added, []);
+    assert!(
+        change
+            .removed
+            .contains(&("apps/api/src".to_string(), "packages/kernel".to_string())),
+        "{:?}",
+        change.removed
+    );
+    assert_eq!(change.breaches[0].rule, "only-from");
+    assert_eq!(change.fixed, []);
+
+    tree.write(
+        "apps/api/src/routes.ts",
+        "export function serve(x: unknown): void {}\n",
+    );
+    let change = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("a graph within 1 s")
+        .change
+        .expect("what changed");
+    assert_eq!(change.fixed[0].rule, "only-from");
+    assert_eq!(change.breaches, []);
 }
 
 #[test]

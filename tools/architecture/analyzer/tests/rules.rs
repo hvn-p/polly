@@ -334,6 +334,7 @@ fn the_json_report_names_what_the_branch_adds_and_removes_against_its_base() {
     git(&tree, &["init", "-q", "-b", "main"]);
     git(&tree, &["add", "-A"]);
     git(&tree, &["commit", "-q", "-m", "base"]);
+    git(&tree, &["switch", "-q", "-c", "feature"]);
     tree.write(
         "apps/api/src/routes.ts",
         "import { seed } from '@t/back'\nexport const serve = seed\n",
@@ -342,7 +343,9 @@ fn the_json_report_names_what_the_branch_adds_and_removes_against_its_base() {
     assert_eq!(code, 0, "{out}");
     let report: serde_json::Value = serde_json::from_str(&out).unwrap();
     let base = &report["base"];
+    assert_eq!(report["name"], "fixture");
     assert_eq!(base["ref"], "main");
+    assert_eq!(base["head"], "feature");
     assert_eq!(
         base["added"],
         serde_json::json!([["apps/api/src", "packages/back/src/flows/seed"]])

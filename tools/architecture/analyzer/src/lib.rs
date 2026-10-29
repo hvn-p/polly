@@ -18,7 +18,7 @@ use serde::Serialize;
 pub use graph::{Edge, Module, Technology, Violation};
 pub use rules::Rules;
 pub use serve::serve;
-pub use watch::watch;
+pub use watch::{Change, Update, watch};
 
 /// The rules file, at the root.
 pub const RULES_FILE: &str = "architecture.rules.json";
@@ -27,6 +27,8 @@ pub const RULES_FILE: &str = "architecture.rules.json";
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Report {
+    /// The repository's name, from its root manifest.
+    pub name: Option<String>,
     /// The rules' tiers, top first.
     pub tiers: Vec<rules::Tier>,
     /// The modules.
@@ -47,6 +49,8 @@ pub struct BaseDiff {
     /// The base's git reference.
     #[serde(rename = "ref")]
     pub reference: String,
+    /// The branch checked out, when the tree is on one.
+    pub head: Option<String>,
     /// Module pairs imported here and not in the base.
     pub added: Vec<(String, String)>,
     /// Module pairs imported in the base and not here.
@@ -111,21 +115,24 @@ impl Tree {
         })
     }
 
-    pub fn report(
-        &self,
-        resolver: &oxc_resolver::Resolver,
-        base: Option<&(String, BTreeSet<(String, String)>)>,
-    ) -> Report {
+    pub fn report(&self, resolver: &oxc_resolver::Resolver, base: Option<&Base>) -> Report {
         let graph = self.graph(Some(resolver));
-        let base = base.map(|(reference, before)| {
+        let base = base.map(|base| {
             let now = pairs(&graph.edges);
             BaseDiff {
-                reference: reference.clone(),
-                added: now.difference(before).cloned().collect(),
-                removed: before.difference(&now).cloned().collect(),
+                reference: base.reference.clone(),
+                head: base.head.clone(),
+                added: now.difference(&base.pairs).cloned().collect(),
+                removed: base.pairs.difference(&now).cloned().collect(),
             }
         });
+        let name = self
+            .root_manifest
+            .as_deref()
+            .and_then(|m| serde_json::from_str::<serde_json::Value>(m).ok())
+            .and_then(|m| m.get("name")?.as_str().map(str::to_string));
         Report {
+            name,
             tiers: self.rules.tiers.clone(),
             modules: graph.modules,
             edges: graph.edges,
@@ -144,18 +151,33 @@ pub(crate) fn read(root: &Path, file: &str) -> Option<parse::Parsed> {
         .map(|source| parse::parse(&path, &source))
 }
 
-fn pairs(edges: &[Edge]) -> BTreeSet<(String, String)> {
+pub(crate) fn pairs(edges: &[Edge]) -> BTreeSet<(String, String)> {
     edges
         .iter()
         .map(|e| (e.from.clone(), e.to.clone()))
         .collect()
 }
 
+/// The base a tree is compared with.
+pub(crate) struct Base {
+    reference: String,
+    head: Option<String>,
+    pairs: BTreeSet<(String, String)>,
+}
+
+/// The branch checked out at `root`, if any.
+fn head(root: &Path) -> Option<String> {
+    let out = std::process::Command::new("git")
+        .args(["symbolic-ref", "--short", "-q", "HEAD"])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (out.status.success() && !name.is_empty()).then_some(name)
+}
+
 /// The module imports of a git reference, read from a copy of its tree.
-pub(crate) fn base_pairs(
-    root: &Path,
-    reference: &str,
-) -> Result<(String, BTreeSet<(String, String)>), String> {
+pub(crate) fn base_pairs(root: &Path, reference: &str) -> Result<Base, String> {
     let copy = std::env::temp_dir().join(format!("architecture-base-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&copy);
     std::fs::create_dir_all(&copy).map_err(|e| e.to_string())?;
@@ -179,7 +201,11 @@ pub(crate) fn base_pairs(
         ))
     };
     let _ = std::fs::remove_dir_all(&copy);
-    result.map(|p| (reference.to_string(), p))
+    result.map(|pairs| Base {
+        reference: reference.to_string(),
+        head: head(root),
+        pairs,
+    })
 }
 
 /// Analyzes the tree at `root`, and its difference with `base` when given.

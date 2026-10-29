@@ -2,8 +2,9 @@
 //!
 //! - `check`: prints every violation with its fix; exit 1 when any.
 //! - `json [--base <ref>]`: prints the report.
-//! - `watch [--port <n>] [--ui <dir>] [--base <ref>]`: serves the view and pushes each
-//!   change to the architecture; prints its address on its first line.
+//! - `watch [--port <n>] [--ui <dir>] [--base <ref>]`: serves the view, the analyzed
+//!   files and the session's history, and pushes each change to the architecture; prints
+//!   its address on its first line.
 //!
 //! Run from the repository root, or give it with `--root <dir>`.
 
@@ -71,7 +72,7 @@ fn run(options: Options) -> Result<ExitCode, String> {
         "watch" => {
             let (tx, rx) = mpsc::channel();
             watch(&options.root, options.base.as_deref(), tx)?;
-            let address = serve(options.port, options.ui, rx)?;
+            let address = serve(options.port, options.ui, options.root.clone(), rx)?;
             println!("{address}");
             loop {
                 std::thread::park();

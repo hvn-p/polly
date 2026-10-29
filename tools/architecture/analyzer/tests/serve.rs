@@ -7,7 +7,7 @@ use std::net::TcpStream;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use architecture_analyzer::serve;
+use architecture_analyzer::{Change, Module, Report, Update, Violation, serve};
 use support::Tree;
 
 fn get(address: &str, path: &str) -> (u16, String, BufReader<TcpStream>) {
@@ -46,14 +46,61 @@ fn body(address: &str, path: &str) -> (u16, String) {
     (status, body)
 }
 
+fn report(modules: &[(&str, &[&str])]) -> Report {
+    Report {
+        name: None,
+        tiers: vec![],
+        modules: modules
+            .iter()
+            .map(|(id, files)| Module {
+                id: (*id).to_string(),
+                tier: "t".to_string(),
+                package: "p".to_string(),
+                files: files.iter().map(|f| (*f).to_string()).collect(),
+            })
+            .collect(),
+        edges: vec![],
+        technologies: vec![],
+        violations: vec![],
+        base: None,
+    }
+}
+
+fn update(report: Report) -> Update {
+    Update {
+        report,
+        change: None,
+    }
+}
+
+fn read_event(events: &mut BufReader<TcpStream>) -> String {
+    let mut lines = vec![];
+    loop {
+        let mut line = String::new();
+        events.read_line(&mut line).unwrap();
+        if line.trim().is_empty() && !lines.is_empty() {
+            return lines.join("");
+        }
+        if !line.trim().is_empty() {
+            lines.push(line);
+        }
+    }
+}
+
 #[test]
 fn serves_the_view_the_report_and_its_updates() {
     let ui = Tree::empty();
     ui.write("index.html", "<h1>view</h1>")
         .write("assets/app.js", "1");
     let (tx, rx) = mpsc::channel();
-    let address = serve(0, Some(ui.path().to_path_buf()), rx).unwrap();
-    tx.send(r#"{"n":1}"#.to_string()).unwrap();
+    let address = serve(
+        0,
+        Some(ui.path().to_path_buf()),
+        ui.path().to_path_buf(),
+        rx,
+    )
+    .unwrap();
+    tx.send(update(report(&[("a", &[])]))).unwrap();
     std::thread::sleep(Duration::from_millis(100));
 
     assert_eq!(body(&address, "/"), (200, "<h1>view</h1>".to_string()));
@@ -63,10 +110,9 @@ fn serves_the_view_the_report_and_its_updates() {
         headers.to_lowercase().contains("text/javascript"),
         "{headers}"
     );
-    assert_eq!(
-        body(&address, "/graph.json?x=1"),
-        (200, r#"{"n":1}"#.to_string())
-    );
+    let (status, json) = body(&address, "/graph.json?x=1");
+    assert_eq!(status, 200);
+    assert!(json.contains(r#""id":"a""#), "{json}");
     assert_eq!(body(&address, "/../secret").0, 404);
     assert_eq!(body(&address, "/missing.css").0, 404);
 
@@ -76,35 +122,87 @@ fn serves_the_view_the_report_and_its_updates() {
         headers.to_lowercase().contains("text/event-stream"),
         "{headers}"
     );
-    let mut read_event = || {
-        let mut lines = vec![];
-        loop {
-            let mut line = String::new();
-            events.read_line(&mut line).unwrap();
-            if line.trim().is_empty() && !lines.is_empty() {
-                return lines.join("");
-            }
-            if !line.trim().is_empty()
-                && !line
-                    .chars()
-                    .all(|c| c.is_ascii_hexdigit() || c.is_whitespace())
-            {
-                lines.push(line);
-            }
-        }
-    };
+    let first = read_event(&mut events);
+    assert!(first.starts_with("event: graph\n"), "{first}");
+    assert!(first.contains(r#""id":"a""#), "{first}");
+    tx.send(update(report(&[("b", &[])]))).unwrap();
+    assert!(read_event(&mut events).contains(r#""id":"b""#));
+}
+
+#[test]
+fn serves_an_analyzed_file_and_nothing_else() {
+    let tree = Tree::empty();
+    tree.write("src/a.ts", "export const a = 1\n")
+        .write("src/b c.ts", "export const b = 2\n")
+        .write("secret.txt", "not analyzed");
+    let (tx, rx) = mpsc::channel();
+    let address = serve(0, None, tree.path().to_path_buf(), rx).unwrap();
+    tx.send(update(report(&[("src", &["src/a.ts", "src/b c.ts"])])))
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+
     assert_eq!(
-        read_event(),
-        "event: graph\r\ndata: {\"n\":1}\r\n".replace("\r\n", "\n")
+        body(&address, "/source/src/a.ts"),
+        (200, "export const a = 1\n".to_string())
     );
-    tx.send(r#"{"n":2}"#.to_string()).unwrap();
-    assert!(read_event().contains(r#"{"n":2}"#));
+    assert_eq!(
+        body(&address, "/source/src/b%20c.ts"),
+        (200, "export const b = 2\n".to_string())
+    );
+    assert_eq!(body(&address, "/source/secret.txt").0, 404);
+    assert_eq!(body(&address, "/source/src/../secret.txt").0, 404);
+    assert_eq!(body(&address, "/source/src/missing.ts").0, 404);
+    assert_eq!(body(&address, "/source/src/a%zz.ts").0, 404);
+    assert_eq!(body(&address, "/source/src/a%2").0, 404);
+    assert_eq!(body(&address, "/source/src/%ff.ts").0, 404);
+}
+
+#[test]
+fn keeps_the_session_history_and_pushes_each_change() {
+    let (tx, rx) = mpsc::channel();
+    let address = serve(0, None, std::env::temp_dir(), rx).unwrap();
+    tx.send(update(report(&[]))).unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(body(&address, "/history.json"), (200, "[]".to_string()));
+
+    let (_, _, mut events) = get(&address, "/events");
+    read_event(&mut events);
+    let breach = Violation {
+        rule: "tier".to_string(),
+        file: "a/x.ts".to_string(),
+        line: 3,
+        message: "m".to_string(),
+        fix: "f".to_string(),
+    };
+    tx.send(Update {
+        report: report(&[]),
+        change: Some(Change {
+            at: 1_000,
+            files: vec!["a/x.ts".to_string()],
+            added: vec![("a".to_string(), "b".to_string())],
+            removed: vec![],
+            breaches: vec![breach],
+            fixed: vec![],
+        }),
+    })
+    .unwrap();
+    let change = read_event(&mut events);
+    assert!(change.starts_with("event: change\n"), "{change}");
+    assert!(change.contains(r#""files":["a/x.ts"]"#), "{change}");
+    assert!(read_event(&mut events).starts_with("event: graph\n"));
+
+    let (status, history) = body(&address, "/history.json");
+    assert_eq!(status, 200);
+    let history: serde_json::Value = serde_json::from_str(&history).unwrap();
+    assert_eq!(history[0]["at"], 1_000);
+    assert_eq!(history[0]["added"][0], serde_json::json!(["a", "b"]));
+    assert_eq!(history[0]["breaches"][0]["rule"], "tier");
 }
 
 #[test]
 fn without_a_view_only_the_report_is_served() {
     let (_tx, rx) = mpsc::channel();
-    let address = serve(0, None, rx).unwrap();
+    let address = serve(0, None, std::env::temp_dir(), rx).unwrap();
     assert_eq!(body(&address, "/").0, 404);
     assert_eq!(body(&address, "/graph.json").0, 200);
 }
@@ -115,7 +213,7 @@ fn a_port_in_use_is_refused() {
     let port = listener.local_addr().unwrap().port();
     let (_tx, rx) = mpsc::channel();
     assert!(
-        serve(port, None, rx)
+        serve(port, None, std::env::temp_dir(), rx)
             .unwrap_err()
             .contains(&port.to_string())
     );
