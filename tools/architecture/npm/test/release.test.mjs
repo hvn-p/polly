@@ -32,6 +32,8 @@ describe('release', () => {
       const binary = join(directory, 'bin', 'architecture-analyzer')
       assert.equal(readFileSync(binary, 'utf8'), `binary for ${platform.key}`)
       assert.equal(statSync(binary).mode & 0o111, 0o111)
+      assert.equal(manifest.license, 'MIT')
+      assert.match(readFileSync(join(directory, 'LICENSE'), 'utf8'), /^MIT License/)
     }
     const launcher = JSON.parse(readFileSync(join(out, name.replace('/', '__'), 'package.json'), 'utf8'))
     assert.equal(launcher.version, '0.1.5')
@@ -40,5 +42,7 @@ describe('release', () => {
       Object.fromEntries(PLATFORMS.map(({ key }) => [`${name}-${key}`, '0.1.5'])),
     )
     assert.ok(statSync(join(out, name.replace('/', '__'), 'bin', 'architecture.js')).isFile())
+    assert.equal(launcher.license, 'MIT')
+    assert.match(readFileSync(join(out, name.replace('/', '__'), 'LICENSE'), 'utf8'), /^MIT License/)
   })
 })

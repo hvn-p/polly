@@ -2,6 +2,7 @@
   "name": "@hvn-p/architecture",
   "version": "0.0.0",
   "description": "Checks a repository's architecture against its rules file, and shows it live",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hvn-p/polly.git",

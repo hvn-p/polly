@@ -11,6 +11,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const LAUNCHER = join(import.meta.dirname, 'launcher')
+const LICENSE = join(import.meta.dirname, '..', 'LICENSE')
 
 // The platforms a binary is built for, with the Rust target CI builds it with.
 export const PLATFORMS = [
@@ -48,6 +49,7 @@ export function writePackages({ version, binaries, out }) {
     const binary = join(directory, 'bin', 'architecture-analyzer')
     cpSync(join(binaries, platform.key, 'architecture-analyzer'), binary)
     chmodSync(binary, 0o755)
+    cpSync(LICENSE, join(directory, 'LICENSE'))
     writeFileSync(
       join(directory, 'package.json'),
       `${JSON.stringify(
@@ -56,6 +58,7 @@ export function writePackages({ version, binaries, out }) {
           version,
           description: `${launcher.description} (${platform.key} binary)`,
           repository: launcher.repository,
+          license: launcher.license,
           os: [platform.os],
           cpu: [platform.cpu],
           files: ['bin'],
@@ -68,6 +71,7 @@ export function writePackages({ version, binaries, out }) {
   }
   const directory = directoryOf(launcher.name)
   cpSync(LAUNCHER, directory, { recursive: true })
+  cpSync(LICENSE, join(directory, 'LICENSE'))
   const optionalDependencies = Object.fromEntries(names.map((name) => [name, version]))
   writeFileSync(
     join(directory, 'package.json'),
