@@ -40,12 +40,11 @@ function tools(...names: string[]): string {
 }
 
 describe('driver tools probe', () => {
-  it('reports nothing missing when script and agent-browser answer', async () => {
-    expect(await probeDriverTools({ PATH: tools('script', 'agent-browser') })).toBeUndefined()
+  it('reports nothing missing when script answers: agent-browser comes with the project', async () => {
+    expect(await probeDriverTools({ PATH: tools('script') })).toBeUndefined()
   })
 
   it('names the missing tool', async () => {
-    expect(await probeDriverTools({ PATH: tools('agent-browser') })).toBe('script (util-linux)')
-    expect(await probeDriverTools({ PATH: tools('script') })).toBe('agent-browser')
+    expect(await probeDriverTools({ PATH: tools() })).toBe('script (util-linux)')
   })
 })

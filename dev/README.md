@@ -6,9 +6,12 @@ supervisor that runs the worktree's API, front-end dev server and worker.
 
 ## Prerequisites
 
-Linux with Docker and compose, `flock`, `ss` (iproute2), worktrunk, portless with its proxy
-running and its CA trusted, uv, Node 24 and pnpm. `nr dev:up` checks them and names
-what is missing.
+Linux or macOS (Windows through WSL) with Node 24 and Docker with compose; pnpm comes
+through Corepack (`corepack enable`), at the version `packageManager` fixes. Every other
+tool is a project dependency. One step is machine-wide: portless's proxy binds 443 and
+trusts its local CA, started once with `dev/node_modules/.bin/portless proxy start`.
+worktrunk runs `nr dev:up` and `nr dev:down` around a worktree's life. `nr dev:up` checks
+the prerequisites and names what is missing.
 
 ## Commands
 
@@ -20,7 +23,7 @@ Every command acts on the worktree it runs in.
 | `nr dev:down` | Stops the processes and releases the worktree's databases, bucket and route. |
 | `nr dev:url` | Prints the worktree's URL. |
 | `nr dev:worker real [--compute <fingerprint>]` / `nr dev:worker fake` | Restarts the worktree's worker with the machine's compute service for its fingerprint of `services/compute` (or the one named), or with the fake analyzer that loads none. Worktrees with the same fingerprint share one service; `nr dev:down` puts the worktree back in fake mode. |
-| `nr dev:e2e <scenario>` | Plays a scenario (`smoke`) in a driven Claude Code session against this worktree, then prints pass or fail and the transcript's path. Needs `claude` signed in, agent-browser and util-linux `script`; never runs in CI. |
+| `nr dev:e2e <scenario>` | Plays a scenario (`smoke`) in a driven Claude Code session against this worktree, then prints pass or fail and the transcript's path. Needs `claude` signed in and util-linux `script`; never runs in CI. |
 | `nr agent` | Starts Claude Code with this worktree's plugin, pointed at this worktree's server. |
 
 worktrunk runs `dev:up` when it creates a worktree and `dev:down` when it
@@ -57,7 +60,7 @@ portless's local CA:
 
 ```sh
 url=$(nr --silent dev:url)
-ab="agent-browser --ca-cert $HOME/.portless/ca.pem"
+ab="dev/node_modules/.bin/agent-browser --ca-cert $HOME/.portless/ca.pem"
 $ab open "$url/sign-in"
 $ab fill 'input[name=email]' demo@polly.localhost
 $ab fill 'input[name=password]' polly-demo-learner

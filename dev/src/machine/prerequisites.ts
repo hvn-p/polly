@@ -2,6 +2,7 @@
 
 import { execFile } from 'node:child_process'
 import type { Prerequisites } from '../ports/index.ts'
+import { PORTLESS } from './tools.ts'
 
 export type Exec = (command: string, args: readonly string[]) => Promise<{ ok: boolean; output: string }>
 
@@ -15,15 +16,11 @@ const execTool: Exec = (command, args) =>
     )
   })
 
+// What the machine provides besides Node 24; every other tool is a project
+// dependency, and pnpm comes through Corepack (research R21).
 const TOOLS: { name: string; command: string; args: string[] }[] = [
   { name: 'docker', command: 'docker', args: ['--version'] },
   { name: 'docker compose', command: 'docker', args: ['compose', 'version'] },
-  { name: 'flock', command: 'flock', args: ['--version'] },
-  // Finds which process holds a port (RESOURCE_CONFLICT names it).
-  { name: 'ss', command: 'ss', args: ['--version'] },
-  { name: 'portless', command: 'portless', args: ['--version'] },
-  { name: 'uv', command: 'uv', args: ['--version'] },
-  { name: 'pnpm', command: 'pnpm', args: ['--version'] },
 ]
 
 export async function probePrerequisites({
@@ -41,7 +38,8 @@ export async function probePrerequisites({
       return tool.name
     }
   }
-  const doctor = await exec('portless', ['doctor'])
+  // The proxy binds 443 and trusts its local CA: the one machine-level step.
+  const doctor = await exec(PORTLESS, ['doctor'])
   if (!/ok\s+Proxy is responding/.test(doctor.output) && !/^Proxy is responding/m.test(doctor.output)) {
     return 'the portless proxy (portless proxy start)'
   }

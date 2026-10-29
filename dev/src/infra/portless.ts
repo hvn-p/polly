@@ -2,6 +2,7 @@
 // to the front-end dev server. portless overwrites a route silently, so the
 // commands read the table before adding one.
 
+import { PORTLESS } from '../machine/index.ts'
 import type { RouteTable } from '../ports/index.ts'
 import { run } from './compose.ts'
 
@@ -11,7 +12,7 @@ const ROUTE = /^\s*https:\/\/(\S+)\.localhost\s+->\s+\S+:(\d+)/
 // `npx`, which these variables signal when a command runs under pnpm.
 export function portless(args: readonly string[]): Promise<string> {
   const { npm_command: _command, PNPM_SCRIPT_SRC_DIR: _source, ...env } = process.env
-  return run('portless', args, { env })
+  return run(PORTLESS, args, { env })
 }
 
 export function portlessRoutes(): RouteTable {

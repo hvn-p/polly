@@ -11,6 +11,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { DEMO_ACCOUNT } from '@polly/back'
+import { AGENT_BROWSER } from '../machine/index.ts'
 import { redactEventCodes } from './redact.ts'
 import type { Scenario } from './scenario.ts'
 import { drivenSession } from './session.ts'
@@ -93,7 +94,7 @@ async function signIn(root: string, env: Record<string, string>, out: (line: str
       '--ca-cert',
       join(homedir(), '.portless', 'ca.pem'),
     ]
-    const run = (...args: string[]) => capture('agent-browser', [...browser, ...args], process.env)
+    const run = (...args: string[]) => capture(AGENT_BROWSER, [...browser, ...args], process.env)
     await run('open', url)
     await run('wait', 'input[name=email]')
     await run('fill', 'input[name=email]', DEMO_ACCOUNT.email)

@@ -27,10 +27,10 @@ describe('command frame', () => {
   it('C6: refuses when a prerequisite is missing, naming it, and changes nothing', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    infra.missingPrerequisite = 'flock'
+    infra.missingPrerequisite = 'docker'
     await expect(up({ root, ...loaded(infra), out: output().write })).rejects.toMatchObject({
       code: 'MISSING_PREREQUISITE',
-      message: expect.stringContaining('flock'),
+      message: expect.stringContaining('docker'),
     })
     expect(infra.calls).toEqual([])
   })
@@ -88,13 +88,18 @@ describe('prerequisite probe', () => {
   })
 
   it('C6: names the first missing tool', async () => {
-    const exec = async (command: string) => (command === 'flock' ? { ok: false, output: '' } : present())
-    expect(await probePrerequisites({ exec, nodeVersion: '24.21.0' })).toBe('flock')
+    const exec = async (command: string) => (command === 'docker' ? { ok: false, output: '' } : present())
+    expect(await probePrerequisites({ exec, nodeVersion: '24.21.0' })).toBe('docker')
   })
 
-  it('C6: names ss, which finds the holder of a port', async () => {
-    const exec = async (command: string) => (command === 'ss' ? { ok: false, output: '' } : present())
-    expect(await probePrerequisites({ exec, nodeVersion: '24.21.0' })).toBe('ss')
+  it('asks the machine for Docker with compose and the portless proxy only, through the project portless', async () => {
+    const asked: string[] = []
+    const exec = async (command: string, args: readonly string[]) => {
+      asked.push([command.endsWith('/node_modules/.bin/portless') ? 'portless' : command, ...args].join(' '))
+      return present()
+    }
+    await probePrerequisites({ exec, nodeVersion: '24.21.0' })
+    expect(asked).toEqual(['docker --version', 'docker compose version', 'portless doctor'])
   })
 
   it('names docker compose, a stopped portless proxy, and an old Node', async () => {
@@ -102,7 +107,7 @@ describe('prerequisite probe', () => {
       command === 'docker' && args[0] === 'compose' ? { ok: false, output: '' } : present()
     expect(await probePrerequisites({ exec: noCompose, nodeVersion: '24.0.0' })).toBe('docker compose')
     const proxyDown = async (command: string) =>
-      command === 'portless' ? { ok: true, output: 'fail  Proxy is not responding' } : present()
+      command.endsWith('portless') ? { ok: true, output: 'fail  Proxy is not responding' } : present()
     expect(await probePrerequisites({ exec: proxyDown, nodeVersion: '24.0.0' })).toBe(
       'the portless proxy (portless proxy start)',
     )

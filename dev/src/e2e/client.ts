@@ -23,8 +23,6 @@ export function probeClaude(env: NodeJS.ProcessEnv = process.env): Promise<Clien
 const DRIVER_TOOLS = [
   // Gives Claude Code the pseudo-terminal its plugin monitors need.
   { name: 'script (util-linux)', command: 'script' },
-  // Plays the demo learner through the OAuth sign-in.
-  { name: 'agent-browser', command: 'agent-browser' },
 ]
 
 // The first tool the driver needs that does not answer; undefined when all do.
