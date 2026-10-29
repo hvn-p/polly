@@ -16,7 +16,7 @@
     "contracts": "node scripts/contracts/generate.ts",
     "bundles": "node scripts/build/bundles.ts",
     "lint": "biome check --error-on-warnings . && pnpm run lint:architecture",
-    "lint:architecture": "architecture check",
+    "lint:architecture": "node scripts/checks/architecture.mjs check",
     "lint:fix": "biome check --write .",
     "typecheck": "tsc -p scripts && pnpm -r --no-bail run typecheck",
     "test": "vitest run && pnpm run test:repo",
