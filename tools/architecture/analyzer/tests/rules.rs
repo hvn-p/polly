@@ -297,6 +297,17 @@ fn rules_naming_an_unknown_tier_are_refused() {
     assert!(error.contains("nowhere"), "{error}");
 }
 
+#[test]
+fn rules_defining_a_tier_twice_are_refused() {
+    let tree = Tree::valid();
+    tree.write(
+        "architecture.rules.json",
+        &support::RULES.replace("\"id\": \"adapters\"", "\"id\": \"domains\""),
+    );
+    let error = analyze(tree.path(), None).unwrap_err();
+    assert!(error.contains("tier domains is defined twice"), "{error}");
+}
+
 fn run(tree: &Tree, args: &[&str]) -> (i32, String) {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_architecture-analyzer"))
         .args(args)

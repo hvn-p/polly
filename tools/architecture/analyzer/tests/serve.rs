@@ -142,6 +142,31 @@ fn serves_the_view_the_report_and_its_updates() {
 }
 
 #[test]
+fn never_serves_a_file_outside_the_view() {
+    let tree = Tree::empty();
+    tree.write("view/index.html", "<h1>view</h1>")
+        .write("secret.txt", "outside the view");
+    let (_tx, rx) = mpsc::channel();
+    let address = serve(
+        0,
+        Some(tree.path().join("view")),
+        tree.path().to_path_buf(),
+        None,
+        rx,
+    )
+    .unwrap();
+    assert_eq!(body(&address, "/index.html").0, 200);
+    for path in [
+        "/../secret.txt",
+        "/assets/../../secret.txt",
+        "/%2e%2e/secret.txt",
+        "//secret.txt",
+    ] {
+        assert_eq!(body(&address, path).0, 404, "{path}");
+    }
+}
+
+#[test]
 fn serves_an_analyzed_file_and_nothing_else() {
     let tree = Tree::empty();
     tree.write("src/a.ts", "export const a = 1\n")

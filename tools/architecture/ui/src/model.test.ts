@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { axis, buildModel, cellOf, changeLines, labelOf, ruleOf, zoneOf } from './model.ts'
 import { fixture } from './test/fixture.ts'
+import type { Tier } from './types.ts'
 
 const model = buildModel(fixture())
 
@@ -123,6 +124,26 @@ describe('the matrix axis', () => {
     }
     expect(zoneOf(model, server, server)).toBe('same')
     expect(zoneOf(model, web, server)).toBe('no')
+  })
+
+  it('colours a folded group allowed to import another group by its most open rule', () => {
+    const folded = (mayImport: Tier['mayImport']) => {
+      const report = fixture()
+      report.tiers = report.tiers.map((t) => (t.id === 'web' ? { ...t, mayImport } : t))
+      const opened = buildModel(report)
+      const [server, web] = axis(opened, { groups: new Set(['server', 'web']), tiers: new Set() }).flatMap(
+        (g) => g.tiers.flatMap((t) => t.items),
+      )
+      if (server === undefined || web === undefined) {
+        throw new Error('missing groups')
+      }
+      return { opened, server, web }
+    }
+    const open = folded(['kernel', { tier: 'flows', onlyFrom: [], typesOnly: true }])
+    expect(zoneOf(open.opened, open.web, open.server)).toBe('ok')
+    expect(zoneOf(open.opened, open.server, open.web)).toBe('no')
+    const conditional = folded([{ tier: 'kernel', onlyFrom: [], typesOnly: true }])
+    expect(zoneOf(conditional.opened, conditional.web, conditional.server)).toBe('cond')
   })
 })
 
