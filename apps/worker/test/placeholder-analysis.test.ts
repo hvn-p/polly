@@ -5,39 +5,18 @@ import { DBOSClient } from '@dbos-inc/dbos-sdk'
 import { submitPlaceholderAnalysis } from '@polly/back'
 import { dbosAnalysisQueue } from '@polly/queue'
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it } from 'vitest'
-import {
-  placeholderAnalysisInput,
-  placeholderAnalysisResult,
-  placeholderAnalysisTask,
-} from '../src/entry/contracts/placeholder-analysis.ts'
 
-const workerProject = join(import.meta.dirname, '..', '..', '..', 'services', 'pron-worker')
-// The interpreter of the worker's synced environment, run directly: killing it
-// kills the worker itself, not a launcher in front of it.
-const python = join(workerProject, '.venv', 'bin', 'python')
+const main = join(import.meta.dirname, '..', 'src', 'main.ts')
+// The worker with its fake analyzer slowed down, so it can be killed in the
+// middle of a task; it says when it starts.
+const slowWorker = join(import.meta.dirname, 'support', 'slow-worker.ts')
 const workers: ChildProcess[] = []
 let client: DBOSClient
 
-// The fake analyzer, slowed down so the worker can be killed in the middle of
-// a task; it says when it starts.
-const SLOW_WORKER = `
-import time
-from pron_worker import analyzer
-fake = analyzer.FakeAnalyzer.analyze
-def slow(self, recording_id):
-    print(f"analyzing {recording_id}", flush=True)
-    time.sleep(60)
-    return fake(self, recording_id)
-analyzer.FakeAnalyzer.analyze = slow
-import runpy
-runpy.run_module("pron_worker", run_name="__main__")
-`
-
-// The real worker, in fake mode, on the worktree's test database; resolves
+// The worker process, in fake mode, on the worktree's test database; resolves
 // once it runs, with its output so far and to come.
 async function startWorker({ slow = false } = {}): Promise<{ worker: ChildProcess; output: () => string }> {
-  const worker = spawn(python, slow ? ['-c', SLOW_WORKER] : ['-m', 'pron_worker'], {
-    cwd: workerProject,
+  const worker = spawn(process.execPath, [slow ? slowWorker : main], {
     env: { ...process.env, DATABASE_URL: inject('testDatabaseUrl'), POLLY_WORKER_MODE: 'fake' },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -46,7 +25,7 @@ async function startWorker({ slow = false } = {}): Promise<{ worker: ChildProces
   await new Promise<void>((resolve, reject) => {
     const read = (chunk: Buffer) => {
       output += chunk.toString()
-      if (output.includes('DBOS launched')) {
+      if (output.includes('worker ready')) {
         resolve()
       }
     }
@@ -67,15 +46,6 @@ async function until(condition: () => boolean, timeoutMs: number): Promise<void>
   }
 }
 
-const { queueName, workflowName, applicationVersion } = placeholderAnalysisTask.shape
-const task = {
-  queueName: queueName.value,
-  workflowName: workflowName.value,
-  applicationVersion: applicationVersion.value,
-  input: placeholderAnalysisInput,
-  result: placeholderAnalysisResult,
-}
-
 beforeAll(async () => {
   client = await DBOSClient.create({ systemDatabaseUrl: inject('testDatabaseUrl'), applicationName: 'polly' })
 })
@@ -93,17 +63,17 @@ afterAll(async () => {
   await client?.destroy()
 })
 
-describe('placeholder analysis, across the API and the worker', { timeout: 120_000 }, () => {
+describe('placeholder analysis, across the queue and the worker', { timeout: 120_000 }, () => {
   it('C29, C46: the fake worker returns its predefined result through the workflow handle, loading no model', async () => {
     await startWorker()
-    const result = await submitPlaceholderAnalysis({ queue: dbosAnalysisQueue(client, task) }, 'recording-1')
+    const result = await submitPlaceholderAnalysis({ queue: dbosAnalysisQueue(client) }, 'recording-1')
     expect(result).toEqual({ recordingId: 'recording-1', score: 0.75, analyzer: 'fake', modelLoaded: false })
   })
 
   it('a worker killed in the middle of a task leaves exactly one result once a worker restarts', async () => {
     const startTime = new Date().toISOString()
     const slow = await startWorker({ slow: true })
-    const result = submitPlaceholderAnalysis({ queue: dbosAnalysisQueue(client, task) }, 'recording-killed')
+    const result = submitPlaceholderAnalysis({ queue: dbosAnalysisQueue(client) }, 'recording-killed')
     await until(() => slow.output().includes('analyzing recording-killed'), 60_000)
     slow.worker.kill('SIGKILL')
     await once(slow.worker, 'exit')

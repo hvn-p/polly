@@ -16,6 +16,47 @@ const contract: Contract = {
   jsonSchema: ['plugin/events.schema.json', 'web/events.schema.json'],
 }
 
+const json = (name: string) => ({
+  content: { 'application/json': { schema: { $ref: `#/components/schemas/${name}` } } },
+})
+const computeDocument = {
+  openapi: '3.1.0',
+  info: { title: 'compute', version: '0' },
+  paths: {
+    '/analyses': {
+      post: {
+        operationId: 'analyze',
+        requestBody: { required: true, ...json('AnalysisRequest') },
+        responses: { '200': json('Analysis'), '422': json('Detail') },
+      },
+    },
+  },
+  components: {
+    schemas: {
+      AnalysisRequest: {
+        type: 'object',
+        properties: { recordingId: { type: 'string', maxLength: 64 } },
+        required: ['recordingId'],
+      },
+      Analysis: {
+        type: 'object',
+        properties: { score: { type: 'number', minimum: 0, maximum: 1 } },
+        required: ['score'],
+      },
+      Detail: { type: 'object' },
+    },
+  },
+}
+const compute: Contract = {
+  name: 'compute',
+  source: 'compute/app.py',
+  load: async () => ({}),
+  jsonSchema: [],
+  document: async () => JSON.stringify(computeDocument),
+  openapi: 'compute/openapi.json',
+  client: 'analysis/src/generated.ts',
+}
+
 function freshRoot(): string {
   return mkdtempSync(join(tmpdir(), 'contracts-'))
 }
@@ -34,15 +75,15 @@ describe('contract generation', () => {
     expect(files.get('web/events.schema.json')).toBe(files.get('plugin/events.schema.json'))
   })
 
-  it('writes Python types through the Python renderer, from the same document', async () => {
-    const seen: string[] = []
-    const python: Contract = { ...contract, jsonSchema: ['a.json'], python: 'worker/events.py' }
-    const files = await render(python, async (schema) => {
-      seen.push(schema)
-      return '# generated\n'
-    })
-    expect(seen).toEqual([files.get('a.json')])
-    expect(files.get('worker/events.py')).toBe('# generated\n')
+  it('writes an OpenAPI document another language publishes, and its client, references named', async () => {
+    const files = await render(compute)
+    expect(JSON.parse(files.get('compute/openapi.json') ?? '')).toEqual(computeDocument)
+    const client = files.get('analysis/src/generated.ts') ?? ''
+    expect(client).toContain('export type AnalysisRequest = { recordingId: string }')
+    expect(client).toContain('export type Detail = Record<string, unknown>')
+    expect(client).toContain('analyze: { body: AnalysisRequest; response: Analysis }')
+    expect(client).toContain("analyze: { method: 'POST', path: '/analyses', refusals: [] }")
+    expect(client).not.toContain('Streams')
   })
 
   it('accepts the repository as it is', async () => {

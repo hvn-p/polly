@@ -221,9 +221,6 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
-      '@dbos-inc/dbos-sdk':
-        specifier: 5.3.0
-        version: 5.3.0
       '@modelcontextprotocol/client':
         specifier: 2.4.0
         version: 2.4.0
@@ -236,9 +233,6 @@ importers:
       '@polly/migrations':
         specifier: workspace:*
         version: link:../../packages/migrations
-      '@polly/queue':
-        specifier: workspace:*
-        version: link:../../packages/queue
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
@@ -304,6 +298,31 @@ importers:
         specifier: 8.3.5
         version: 8.3.5(@types/node@24.19.2)(yaml@2.9.1)
 
+  apps/worker:
+    dependencies:
+      '@dbos-inc/dbos-sdk':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@polly/analysis':
+        specifier: workspace:*
+        version: link:../../packages/analysis
+      '@polly/back':
+        specifier: workspace:*
+        version: link:../../packages/back
+      '@polly/logging':
+        specifier: workspace:*
+        version: link:../../packages/logging
+      '@polly/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+      '@polly/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
+    devDependencies:
+      '@polly/migrations':
+        specifier: workspace:*
+        version: link:../../packages/migrations
+
   dev:
     devDependencies:
       '@aws-sdk/client-s3':
@@ -324,6 +343,12 @@ importers:
       pg:
         specifier: 8.23.1
         version: 8.23.1
+
+  packages/analysis:
+    dependencies:
+      '@polly/back':
+        specifier: workspace:*
+        version: link:../back
 
   packages/back:
     dependencies:

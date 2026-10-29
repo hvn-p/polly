@@ -55,9 +55,9 @@ const RUFF_ALLOWED_IGNORES = new Set(['D203', 'D213', 'COM812', 'CPY001'])
 /** @type {Record<string, string>} */
 const RUFF_ALLOWED_FILE_IGNORES = { S101: 'tests/**' }
 
-// Paths ruff may skip, and why: the contracts generated from the API's Zod
-// sources (nr contracts), checked by mypy only.
-const RUFF_ALLOWED_EXCLUDES = new Set(['src/pron_worker/contracts'])
+// Paths ruff may skip, and why: none, no Python is generated.
+/** @type {Set<string>} */
+const RUFF_ALLOWED_EXCLUDES = new Set()
 
 // Biome rules that may be off, and why: noPropertyAccessFromIndexSignature
 // requires `env['KEY']`, which useLiteralKeys would rewrite to `env.KEY`.

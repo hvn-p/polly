@@ -88,7 +88,7 @@ consent covers only those two and that channel: any other issue or PR is asked f
 - A domain that needs another domain's data declares a port it owns, and a flow feeds
   it. Domains share events only through the session log: no in-process event bus.
 - The front end (`apps/web`) follows the Feature-Sliced Design layers.
-- Outside the apps: `services/pron-worker` (Python audio analysis), `languages/<code>/`
+- Outside the apps: `services/compute` (Python audio analysis, behind its own OpenAPI), `languages/<code>/`
   (language packs as neutral data, read by the API and the worker),
   `packages/database` (the migrations and the schema check, shared by the API
   and the worker), `plugin/` (the Claude Code plugin), `dev/` (each worktree's local Polly: read

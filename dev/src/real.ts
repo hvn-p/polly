@@ -54,17 +54,9 @@ export function apiApplication(realWorkerLock: string): Application {
       // analyzer; in real mode the worker holds the machine's real-worker lock.
       workerProcess(env, realWorkerLock, {
         name: 'worker',
-        command: 'uv',
-        args: [
-          'run',
-          '--quiet',
-          '--project',
-          join(codeRoot, 'services/pron-worker'),
-          'python',
-          '-m',
-          'pron_worker',
-        ],
-        cwd: join(codeRoot, 'services/pron-worker'),
+        command: process.execPath,
+        args: ['--watch', join(codeRoot, 'apps/worker/src/main.ts')],
+        cwd: codeRoot,
       }),
     ],
   }

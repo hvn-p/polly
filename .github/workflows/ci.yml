@@ -46,11 +46,12 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      # The contract guard renders the worker's Python types.
+      # The contract guard writes the compute service's OpenAPI with its synced
+      # environment.
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       - run: pnpm install --frozen-lockfile
       - run: uv sync --locked
-        working-directory: services/pron-worker
+        working-directory: services/compute
       - run: node scripts/checks/strict-configs.mjs
       - run: node scripts/checks/dependencies.mjs
       - run: node scripts/checks/pinned-actions.mjs
@@ -79,10 +80,10 @@ jobs:
           cache: pnpm
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       - run: pnpm install --frozen-lockfile
-      # The tests run the worker and render its contract types with the synced
+      # The contract tests write the compute service's OpenAPI with its synced
       # environment, and download nothing.
       - run: uv sync --locked
-        working-directory: services/pron-worker
+        working-directory: services/compute
       # The test database belongs to a role that is not a superuser, as a
       # worktree's does.
       - name: Create the test role and database
@@ -98,11 +99,11 @@ jobs:
       - run: pnpm exec vitest run --coverage
       - run: pnpm run test:repo
 
-  worker:
+  compute:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: services/pron-worker
+        working-directory: services/compute
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2

@@ -6,7 +6,7 @@ import { checkStrictConfigs } from './strict-configs.mjs'
 
 const repositoryRoot = join(import.meta.dirname, '..', '..')
 const base = readFileSync(join(repositoryRoot, 'tsconfig.base.json'), 'utf8')
-const pyproject = readFileSync(join(repositoryRoot, 'services/pron-worker/pyproject.toml'), 'utf8')
+const pyproject = readFileSync(join(repositoryRoot, 'services/compute/pyproject.toml'), 'utf8')
 const biome = JSON.parse(readFileSync(join(repositoryRoot, 'biome.json'), 'utf8')) as {
   files: { includes: string[] }
   linter: { rules: Record<string, unknown> }
@@ -137,13 +137,13 @@ describe('strict-configs guard', () => {
     expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('--error-on-warnings')])
   })
 
-  it('refuses a ruff exclusion other than the generated contracts', () => {
+  it('refuses a ruff exclusion', () => {
     const relaxed = pyproject.replace(
-      'extend-exclude = ["src/pron_worker/contracts"]',
-      'extend-exclude = ["src/pron_worker/contracts", "src/pron_worker/legacy"]',
+      'line-length = 110',
+      'line-length = 110\nextend-exclude = ["src/legacy"]',
     )
     const root = fixture({ 'tsconfig.base.json': base, 'svc/pyproject.toml': relaxed })
-    expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('src/pron_worker/legacy')])
+    expect(checkStrictConfigs(root)).toEqual([expect.stringContaining('src/legacy')])
   })
 
   it('refuses S101 outside the tests', () => {

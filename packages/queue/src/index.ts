@@ -1,36 +1,31 @@
 // The durable-task capacity: a task enqueued through DBOS for the worker that
-// runs it, its result read through its handle. The task's definition (queue,
-// workflow, version, input and result schemas) comes from its contract.
+// runs it, its result read through its handle.
 
 import type { DBOSClient } from '@dbos-inc/dbos-sdk'
-import type { AnalysisQueue } from '@polly/back'
+import type { AnalysisQueue, AnalysisResult } from '@polly/back'
 
-// What validates a value crossing the queue: a schema's parse.
-interface Parser<T> {
-  parse: (value: unknown) => T
-}
-
-export interface TaskDefinition<Input, Result> {
-  queueName: string
-  workflowName: string
+// Where the placeholder analysis runs: the API enqueues it there, the worker
+// registers its workflow there.
+export const PLACEHOLDER_ANALYSIS = {
+  queueName: 'pron-analysis',
+  workflowName: 'placeholder_analysis',
   // Set explicitly on both sides, so a task enqueued here is run by the worker
   // whatever their code hashes are.
-  applicationVersion: string
-  input: Parser<Input>
-  result: Parser<Result>
-}
+  applicationVersion: 'polly-skeleton-1',
+} as const
 
-export function dbosAnalysisQueue<Result>(
-  client: DBOSClient,
-  task: TaskDefinition<{ recordingId: string }, Result>,
-): AnalysisQueue<Result> {
+export function dbosAnalysisQueue(client: DBOSClient): AnalysisQueue {
   return {
     analyze: async (recordingId) => {
-      const handle = await client.enqueuePortable(
-        { queueName: task.queueName, workflowName: task.workflowName, appVersion: task.applicationVersion },
-        [task.input.parse({ recordingId })],
+      const handle = await client.enqueue<(recordingId: string) => Promise<AnalysisResult>>(
+        {
+          queueName: PLACEHOLDER_ANALYSIS.queueName,
+          workflowName: PLACEHOLDER_ANALYSIS.workflowName,
+          appVersion: PLACEHOLDER_ANALYSIS.applicationVersion,
+        },
+        recordingId,
       )
-      return task.result.parse(await handle.getResult())
+      return handle.getResult()
     },
   }
 }

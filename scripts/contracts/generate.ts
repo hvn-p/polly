@@ -1,6 +1,7 @@
 // Writes each contract between two processes from its single Zod source
 // (constitution principle VIII): a JSON Schema document for every consumer,
-// and Python types for the worker. `nr contracts` regenerates them;
+// or an OpenAPI document and its TypeScript client. The compute service writes
+// its OpenAPI itself, in Python. `nr contracts` regenerates them;
 // scripts/checks/contracts.mjs fails when a copy differs from its source.
 
 import { execFileSync } from 'node:child_process'
@@ -27,14 +28,13 @@ export interface Contract {
   source: string
   load: () => Promise<Record<string, ZodType>>
   jsonSchema: string[]
-  python?: string
   // An API contract: its operations, its OpenAPI document and its client types.
   operations?: () => Promise<Record<string, Operation>>
+  // Or the text of an OpenAPI document another language writes.
+  document?: () => Promise<string>
   openapi?: string
   client?: string
 }
-
-export type PythonRenderer = (jsonSchema: string) => Promise<string>
 
 const repositoryRoot = join(import.meta.dirname, '..', '..')
 
@@ -73,44 +73,37 @@ export const CONTRACTS: Contract[] = [
     jsonSchema: ['plugin/contracts/agent-events.schema.json'],
   },
   {
-    name: 'placeholder-analysis',
-    source: 'apps/api/src/entry/contracts/placeholder-analysis.ts',
-    load: fromSource('apps/api/src/entry/contracts/placeholder-analysis.ts'),
-    jsonSchema: ['services/pron-worker/contracts/placeholder-analysis.schema.json'],
-    python: 'services/pron-worker/src/pron_worker/contracts/placeholder_analysis.py',
+    name: 'compute',
+    source: 'services/compute/src/polly_compute/app.py',
+    load: async () => ({}),
+    jsonSchema: [],
+    document: async () => computeDocument(),
+    openapi: 'services/compute/openapi.json',
+    client: 'packages/analysis/src/generated.ts',
   },
 ]
 
-const workerProject = join(repositoryRoot, 'services/pron-worker')
+const computeProject = join(repositoryRoot, 'services/compute')
 
-export const renderPython: PythonRenderer = async (jsonSchema) =>
-  execFileSync(
+// The compute service's environment is synced beforehand (dev:up, a CI step):
+// writing its document downloads nothing.
+function computeDocument(): string {
+  return execFileSync(
     'uv',
     [
       'run',
       '--quiet',
-      // The worker's environment is synced beforehand (dev:up, a CI step):
-      // rendering downloads nothing.
       '--frozen',
       '--no-sync',
       '--project',
-      workerProject,
-      'datamodel-codegen',
-      '--input-file-type',
-      'jsonschema',
-      '--output-model-type',
-      'typing.TypedDict',
-      '--target-python-version',
-      '3.14',
-      '--use-standard-collections',
-      '--use-union-operator',
-      '--disable-timestamp',
-      '--use-double-quotes',
-      '--formatters',
-      'ruff-format',
+      computeProject,
+      'python',
+      '-m',
+      'polly_compute.openapi',
     ],
-    { input: jsonSchema, encoding: 'utf8', cwd: workerProject },
+    { encoding: 'utf8', cwd: computeProject },
   )
+}
 
 function jsonSchemaOf(schema: ZodType): Record<string, unknown> {
   const { $schema: _, ...definition } = z.toJSONSchema(schema)
@@ -183,6 +176,9 @@ export function typeOf(schema: unknown): string {
   if ('const' in node) {
     return JSON.stringify(node['const'])
   }
+  if (typeof node['$ref'] === 'string') {
+    return node['$ref'].split('/').at(-1) ?? 'unknown'
+  }
   if (Array.isArray(node['enum'])) {
     return node['enum'].map((value) => JSON.stringify(value)).join(' | ')
   }
@@ -204,6 +200,9 @@ export function typeOf(schema: unknown): string {
     case 'array':
       return `(${typeOf(node['items'])})[]`
     case 'object': {
+      if (node['properties'] === undefined) {
+        return 'Record<string, unknown>'
+      }
       const required = new Set((node['required'] as string[] | undefined) ?? [])
       const fields = Object.entries((node['properties'] as Record<string, unknown> | undefined) ?? {}).map(
         ([key, child]) => `${key}${required.has(key) ? '' : '?'}: ${typeOf(child)}`,
@@ -218,7 +217,7 @@ export function typeOf(schema: unknown): string {
 // An operation of the OpenAPI document, as openApiDocument writes it.
 interface DocumentOperation {
   operationId: string
-  'x-refusals': string[]
+  'x-refusals'?: string[]
   requestBody?: { content: Record<string, { schema: unknown }> }
   responses: Record<string, { content?: Record<string, { schema: unknown }> }>
 }
@@ -239,7 +238,7 @@ export function clientModule(source: string, document: Record<string, unknown>):
   )) {
     for (const [method, operation] of Object.entries(methods)) {
       const id = operation.operationId
-      const codes = operation['x-refusals']
+      const codes = operation['x-refusals'] ?? []
       for (const code of codes) {
         refusals.add(code)
       }
@@ -262,8 +261,10 @@ export function clientModule(source: string, document: Record<string, unknown>):
   }
   lines.push('export interface Operations {', ...operations, '}', '')
   lines.push('export const OPERATIONS = {', ...table, '} as const', '')
-  lines.push('export interface Streams {', ...streams, '}', '')
-  lines.push('export const STREAMS = {', ...streamTable, '} as const', '')
+  if (streams.length > 0) {
+    lines.push('export interface Streams {', ...streams, '}', '')
+    lines.push('export const STREAMS = {', ...streamTable, '} as const', '')
+  }
   lines.push(
     `export const REFUSAL_CODES = [${[...refusals]
       .sort()
@@ -275,10 +276,7 @@ export function clientModule(source: string, document: Record<string, unknown>):
   return lines.join('\n')
 }
 
-export async function render(
-  contract: Contract,
-  python: PythonRenderer = renderPython,
-): Promise<Map<string, string>> {
+export async function render(contract: Contract): Promise<Map<string, string>> {
   const schemas = await contract.load()
   const definitions = Object.fromEntries(
     Object.entries(schemas).map(([name, schema]) => {
@@ -292,9 +290,6 @@ export async function render(
     2,
   )}\n`
   const files = new Map(contract.jsonSchema.map((path) => [path, document]))
-  if (contract.python !== undefined) {
-    files.set(contract.python, await python(document))
-  }
   if (contract.operations !== undefined) {
     const api = openApiDocument(contract.name, schemas, await contract.operations())
     if (contract.openapi !== undefined) {
@@ -302,6 +297,15 @@ export async function render(
     }
     if (contract.client !== undefined) {
       files.set(contract.client, formatted(contract.client, clientModule(contract.source, api)))
+    }
+  }
+  if (contract.document !== undefined) {
+    const text = await contract.document()
+    if (contract.openapi !== undefined) {
+      files.set(contract.openapi, formatted(contract.openapi, text))
+    }
+    if (contract.client !== undefined) {
+      files.set(contract.client, formatted(contract.client, clientModule(contract.source, JSON.parse(text))))
     }
   }
   return files
