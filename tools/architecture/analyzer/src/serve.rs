@@ -11,11 +11,11 @@ use tiny_http::{Header, Response, Server};
 
 use crate::{Change, Update};
 
-/// The latest report, the files it was drawn from, the changes since the start, and the
-/// open event streams.
+/// The latest report, none before the first analysis; the files it was drawn from; the
+/// changes since the start; and the open event streams.
 #[derive(Default)]
 struct State {
-    report: String,
+    report: Option<String>,
     sources: BTreeSet<String>,
     history: Vec<Change>,
     streams: Vec<Sender<String>>,
@@ -32,7 +32,7 @@ impl State {
             .chain(report.technologies.iter().map(|t| t.file.clone()))
             .chain(report.violations.iter().map(|v| v.file.clone()))
             .collect();
-        self.report = serde_json::to_string(report).unwrap_or_default();
+        let report = serde_json::to_string(report).unwrap_or_default();
         let mut events = vec![];
         if let Some(change) = update.change {
             events.push(event(
@@ -41,7 +41,8 @@ impl State {
             ));
             self.history.push(change);
         }
-        events.push(event("graph", &self.report));
+        events.push(event("graph", &report));
+        self.report = Some(report);
         self.streams
             .retain(|s| events.iter().all(|e| s.send(e.clone()).is_ok()));
     }
@@ -156,7 +157,11 @@ fn answer(request: tiny_http::Request, state: &Mutex<State>, ui: Option<&Path>, 
     }
     let _ = match url.as_str() {
         "/graph.json" => {
-            let report = state.lock().map(|s| s.report.clone()).unwrap_or_default();
+            let report = state
+                .lock()
+                .ok()
+                .and_then(|s| s.report.clone())
+                .unwrap_or_default();
             request.respond(json(report))
         }
         "/history.json" => {
@@ -170,12 +175,19 @@ fn answer(request: tiny_http::Request, state: &Mutex<State>, ui: Option<&Path>, 
             // Written by hand: tiny_http buffers a streamed body until 8 KB.
             let (tx, rx) = mpsc::channel();
             if let Ok(mut state) = state.lock() {
-                let _ = tx.send(event("graph", &state.report));
+                // Before the first analysis, the stream waits for it.
+                if let Some(report) = &state.report {
+                    let _ = tx.send(event("graph", report));
+                }
                 state.streams.push(tx);
             }
             let mut writer = request.into_writer();
             let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
-            if writer.write_all(head.as_bytes()).is_ok() {
+            if writer
+                .write_all(head.as_bytes())
+                .and_then(|()| writer.flush())
+                .is_ok()
+            {
                 for event in rx {
                     if writer
                         .write_all(event.as_bytes())

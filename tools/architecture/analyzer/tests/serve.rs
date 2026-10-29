@@ -206,6 +206,18 @@ fn keeps_the_session_history_and_pushes_each_change() {
 }
 
 #[test]
+fn a_client_connecting_before_the_first_analysis_waits_for_it() {
+    let (tx, rx) = mpsc::channel();
+    let address = serve(0, None, std::env::temp_dir(), rx).unwrap();
+    let (status, _, mut events) = get(&address, "/events");
+    assert_eq!(status, 200);
+    tx.send(update(report(&[("a", &[])]))).unwrap();
+    let first = read_event(&mut events);
+    assert!(first.starts_with("event: graph\n"), "{first}");
+    assert!(first.contains(r#""id":"a""#), "{first}");
+}
+
+#[test]
 fn without_a_view_only_the_report_is_served() {
     let (_tx, rx) = mpsc::channel();
     let address = serve(0, None, std::env::temp_dir(), rx).unwrap();
