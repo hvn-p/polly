@@ -15,8 +15,11 @@ import type { Application, Infrastructure } from './ports/index.ts'
 import { processSupervisor } from './supervisor/index.ts'
 
 const codeRoot = join(import.meta.dirname, '..', '..')
-const apiCli = join(codeRoot, 'apps/api/src/entry/cli.ts')
-const migrationsCli = join(codeRoot, 'packages/migrations/src/cli.ts')
+// Every Node process runs from its build (scripts/build/processes.ts), which
+// nr dev:* writes before the command runs.
+const apiCli = join(codeRoot, 'apps/api/dist/cli.js')
+const migrationsCli = join(codeRoot, 'packages/migrations/dist/cli.js')
+const build = join(codeRoot, 'scripts/build/processes.ts')
 
 // The database's and the API's command lines, and the processes of a worktree
 // (the API, the front-end dev server and the worker), run on its configuration.
@@ -31,16 +34,24 @@ export function apiApplication(): Application {
       await cli(apiCli, 'seed-demo', env)
     },
     processes: () => [
+      // Rebuilds the processes below on each change; node --watch restarts
+      // each on its new build.
+      {
+        name: 'build',
+        command: process.execPath,
+        args: [build, '--watch', 'api', 'mcp', 'worker'],
+        cwd: codeRoot,
+      },
       {
         name: 'api',
         command: process.execPath,
-        args: ['--watch', join(codeRoot, 'apps/api/src/entry/main.ts')],
+        args: ['--watch', join(codeRoot, 'apps/api/dist/main.js')],
         cwd: codeRoot,
       },
       {
         name: 'mcp',
         command: process.execPath,
-        args: ['--watch', join(codeRoot, 'apps/mcp/src/main.ts')],
+        args: ['--watch', join(codeRoot, 'apps/mcp/dist/main.js')],
         cwd: codeRoot,
       },
       {
@@ -54,7 +65,7 @@ export function apiApplication(): Application {
       {
         name: 'worker',
         command: process.execPath,
-        args: ['--watch', join(codeRoot, 'apps/worker/src/main.ts')],
+        args: ['--watch', join(codeRoot, 'apps/worker/dist/main.js')],
         cwd: codeRoot,
       },
     ],

@@ -7,12 +7,12 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev:up": "node dev/src/main.ts up",
-    "dev:down": "node dev/src/main.ts down",
-    "dev:worker": "node dev/src/main.ts worker",
-    "dev:e2e": "node dev/src/main.ts e2e",
-    "dev:url": "node dev/src/main.ts url",
-    "agent": "node dev/src/main.ts agent",
+    "dev:up": "pnpm install --frozen-lockfile && node scripts/build/processes.ts && node dev/dist/main.js up",
+    "dev:down": "node scripts/build/processes.ts && node dev/dist/main.js down",
+    "dev:worker": "node scripts/build/processes.ts && node dev/dist/main.js worker",
+    "dev:e2e": "node scripts/build/processes.ts && node dev/dist/main.js e2e",
+    "dev:url": "node scripts/build/processes.ts && node dev/dist/main.js url",
+    "agent": "node scripts/build/processes.ts && node dev/dist/main.js agent",
     "contracts": "node scripts/contracts/generate.ts",
     "bundles": "node scripts/build/bundles.ts",
     "lint": "biome check --error-on-warnings .",
@@ -20,7 +20,8 @@
     "typecheck": "tsc -p scripts && pnpm -r --no-bail run typecheck",
     "test": "vitest run && pnpm run test:repo",
     "test:repo": "node --test 'speckit/extensions/*/test/*.test.mjs'",
-    "generate": "pnpm --filter @polly/migrations run generate"
+    "generate": "pnpm --filter @polly/migrations run generate",
+    "build": "node scripts/build/processes.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.2",

@@ -9,7 +9,8 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import type { Supervisor } from '../ports/index.ts'
 import { SUPERVISOR_MARK } from './mark.ts'
 
-const supervisorMain = join(import.meta.dirname, 'main.ts')
+// Its build, written by scripts/build/processes.ts.
+const supervisorMain = join(import.meta.dirname, '..', '..', 'dist', 'supervisor.js')
 
 // The state and process group of a live (not zombie) process, read from /proc.
 function liveProcess(pid: string): { group: number } | undefined {
@@ -64,7 +65,7 @@ function supervisorGroup(pid: number): boolean {
 // graceMs: how long the processes get to stop on SIGTERM before SIGKILL.
 export function processSupervisor({ graceMs = 10_000 }: { graceMs?: number } = {}): Supervisor {
   return {
-    // A PID can be reused: it is the supervisor only if it runs supervisor/main.ts.
+    // A PID can be reused: it is the supervisor only if its group carries its mark.
     isRunning: ({ pid }) => runsSupervisor(pid),
     start: async ({ root, processes, env }) => {
       const directory = join(root, '.dev')

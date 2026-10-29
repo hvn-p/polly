@@ -1,4 +1,5 @@
-// Entry point of the dev commands: `node dev/src/main.ts <command> [args]`.
+// Entry point of the dev commands, run from its build by the nr dev:* scripts:
+// `node dev/dist/main.js <command> [args]`.
 // A refusal prints `<CODE>: <message>` and exits 1; an unexpected failure
 // exits 2.
 

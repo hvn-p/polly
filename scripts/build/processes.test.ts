@@ -1,0 +1,71 @@
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { bundleProcess, PROCESSES, pathsOf } from './processes.ts'
+
+const repositoryRoot = join(import.meta.dirname, '..', '..')
+
+function fixture(files: Record<string, string>): string {
+  const root = mkdtempSync(join(tmpdir(), 'build-'))
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(join(root, path, '..'), { recursive: true })
+    writeFileSync(join(root, path), content)
+  }
+  return root
+}
+
+describe('building a Node process', () => {
+  it("bundles the workspace's code and leaves the installed packages to node_modules", async () => {
+    const out = mkdtempSync(join(tmpdir(), 'build-out-'))
+    const mcp = PROCESSES.find(({ name }) => name === 'mcp')
+    await bundleProcess({ entry: join(repositoryRoot, mcp?.entry ?? ''), outfile: join(out, 'main.js') })
+    const bundle = readFileSync(join(out, 'main.js'), 'utf8')
+    expect(bundle).not.toMatch(/from ["']@polly\//)
+    expect(bundle).toMatch(/from ["']@modelcontextprotocol\/server["']/)
+  })
+
+  it('bundles nothing of dev/ into a deployed process, and leaves its paths alone', async () => {
+    const out = mkdtempSync(join(tmpdir(), 'build-out-'))
+    for (const target of PROCESSES.filter(({ development }) => development === undefined)) {
+      const inputs = await bundleProcess({ ...pathsOf(target), outfile: join(out, `${target.name}.js`) })
+      expect(inputs.filter((input) => input.startsWith('dev/'))).toEqual([])
+      expect(readFileSync(join(out, `${target.name}.js`), 'utf8')).not.toContain('__sourcePath')
+    }
+  })
+
+  it('keeps each module of a dev command on its source directory, and only the entry on the bundle', async () => {
+    const root = fixture({
+      'src/lib/where.ts': [
+        'export const here = import.meta.dirname',
+        'export const file = import.meta.filename',
+        'export const main = process.argv[1] === import.meta.filename',
+      ].join('\n'),
+      'src/main.ts': [
+        "import { file, here, main } from './lib/where.ts'",
+        'process.stdout.write(JSON.stringify({ here, file, main, entry: process.argv[1] === import.meta.filename }))',
+      ].join('\n'),
+    })
+    const outfile = join(root, 'dist', 'main.js')
+    await bundleProcess({ entry: join(root, 'src', 'main.ts'), outfile, development: true })
+    expect(JSON.parse(execFileSync(process.execPath, [outfile], { encoding: 'utf8' }))).toEqual({
+      here: join(root, 'src', 'lib'),
+      file: join(root, 'src', 'lib', 'where.ts'),
+      main: false,
+      entry: true,
+    })
+  })
+
+  it('names every process the supervisor and the dev commands run, each with its output', () => {
+    expect(PROCESSES.map(({ name, output }) => `${name} ${output}`)).toEqual([
+      'api apps/api/dist/main.js',
+      'api-cli apps/api/dist/cli.js',
+      'mcp apps/mcp/dist/main.js',
+      'worker apps/worker/dist/main.js',
+      'migrations packages/migrations/dist/cli.js',
+      'dev dev/dist/main.js',
+      'dev-supervisor dev/dist/supervisor.js',
+    ])
+  })
+})

@@ -4,5 +4,6 @@ export default defineProject({
   test: {
     name: 'dev',
     setupFiles: ['../vitest.setup.ts'],
+    globalSetup: ['./test/global-setup.ts'],
   },
 })

@@ -2,7 +2,8 @@
 // the worktree's processes, writes each one's output to .dev/logs/<name>.log,
 // restarts a process that exits, and stops them all on SIGTERM.
 //
-// Started by the supervisor adapter: node supervisor/main.ts <spec.json>
+// Started by the supervisor adapter from its build: node dev/dist/supervisor.js
+// <spec.json>
 
 import { type ChildProcess, spawn } from 'node:child_process'
 import { mkdirSync, openSync, readFileSync } from 'node:fs'
