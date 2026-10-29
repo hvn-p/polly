@@ -190,15 +190,12 @@ fn watch_dirs(source: &mut Source, tree: &Tree, dir: &str) -> Result<(), String>
 
 /// Whether a directory is a package, inside one, or on the way to one.
 fn may_hold_sources(tree: &Tree, dir: &str) -> bool {
-    let globs = std::fs::read_to_string(tree.root.join("pnpm-workspace.yaml"))
-        .map(|y| workspace::package_globs(&y))
-        .unwrap_or_default();
     let depth = dir.split('/').count();
     tree.packages.iter().any(|p| {
         p.dir == dir
             || dir.starts_with(&format!("{}/", p.dir))
             || p.dir.starts_with(&format!("{dir}/"))
-    }) || globs.iter().any(|g| {
+    }) || tree.globs.iter().any(|g| {
         g.split('/').count() >= depth
             && crate::glob::matches(&g.split('/').take(depth).collect::<Vec<_>>().join("/"), dir)
     })
@@ -300,4 +297,26 @@ fn apply(tree: &mut Tree, paths: &BTreeSet<PathBuf>, source: &mut Source) -> Vec
         }
     }
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn which_directories_may_hold_sources_comes_from_the_globs_read_at_load() {
+        // No file on disk: the globs are the ones the tree was loaded with.
+        let tree = Tree {
+            root: PathBuf::from("/nonexistent"),
+            rules: crate::Rules::parse(r#"{ "tiers": [] }"#).unwrap(),
+            globs: vec!["apps/*".to_string()],
+            packages: vec![],
+            parsed: std::collections::BTreeMap::new(),
+            root_manifest: None,
+        };
+        assert!(may_hold_sources(&tree, "apps"));
+        assert!(may_hold_sources(&tree, "apps/api"));
+        assert!(!may_hold_sources(&tree, "apps/api/src/deep/er"));
+        assert!(!may_hold_sources(&tree, "docs"));
+    }
 }

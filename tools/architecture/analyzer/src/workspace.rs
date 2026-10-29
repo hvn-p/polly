@@ -48,16 +48,14 @@ pub fn package_globs(yaml: &str) -> Vec<String> {
     globs
 }
 
-/// The workspace's packages.
+/// The workspace's packages, from the globs of its `packages` list.
 ///
 /// # Errors
-/// When `pnpm-workspace.yaml` or a manifest is unreadable.
-pub fn packages(root: &Path) -> Result<Vec<Package>, String> {
-    let yaml = std::fs::read_to_string(root.join("pnpm-workspace.yaml"))
-        .map_err(|e| format!("pnpm-workspace.yaml: {e}"))?;
+/// When a manifest is unreadable.
+pub fn packages(root: &Path, globs: &[String]) -> Result<Vec<Package>, String> {
     let mut found = vec![];
-    for pattern in package_globs(&yaml) {
-        for dir in directories(root, &pattern) {
+    for pattern in globs {
+        for dir in directories(root, pattern) {
             let manifest = root.join(&dir).join("package.json");
             if manifest.is_file() {
                 found.push(package(&dir, &read_json(&manifest)?));

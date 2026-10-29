@@ -61,6 +61,8 @@ pub struct BaseDiff {
 pub(crate) struct Tree {
     pub root: PathBuf,
     pub rules: Rules,
+    /// The globs of `pnpm-workspace.yaml`'s packages.
+    pub globs: Vec<String>,
     pub packages: Vec<workspace::Package>,
     pub parsed: BTreeMap<String, parse::Parsed>,
     pub root_manifest: Option<String>,
@@ -75,7 +77,10 @@ impl Tree {
         let root = &root
             .canonicalize()
             .map_err(|e| format!("{}: {e}", root.display()))?;
-        let packages = workspace::packages(root)?;
+        let yaml = std::fs::read_to_string(root.join("pnpm-workspace.yaml"))
+            .map_err(|e| format!("pnpm-workspace.yaml: {e}"))?;
+        let globs = workspace::package_globs(&yaml);
+        let packages = workspace::packages(root, &globs)?;
         let mut parsed = BTreeMap::new();
         for file in workspace::sources(root, &packages, &rules.ignore) {
             if let Some(p) = read(root, &file) {
@@ -86,6 +91,7 @@ impl Tree {
         Ok(Self {
             root: root.clone(),
             rules,
+            globs,
             packages,
             parsed,
             root_manifest,
