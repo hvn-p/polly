@@ -87,7 +87,8 @@ only those two and these channels: any other issue or PR is asked for.
   it. Domains share events only through the session log: no in-process event bus.
 - Outside `apps/` and `packages/`: `services/compute` (Python audio analysis, behind its
   own OpenAPI), `plugin/` (the Claude Code plugin), `dev/` (each worktree's local Polly:
-  read `dev/README.md` before running or validating anything locally).
+  read `dev/README.md` before running or validating anything locally),
+  `tools/architecture` (the analyzer and its view, which import nothing of Polly).
 - A contract between two processes is changed in its source (the Zod schemas under
   `apps/api/src/contracts/`, or the compute service's code), then regenerated with
   `nr contracts`.

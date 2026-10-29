@@ -2,7 +2,8 @@
 
 Each worktree runs its own Polly at its own URL, on its own data: a database, a
 test database and a bucket in the machine's shared Postgres and Garage, and a
-supervisor that runs the worktree's API, front-end dev server and worker.
+supervisor that runs the worktree's API, MCP server, front-end dev server, worker,
+the build that rebuilds the first three on each change, and the architecture view.
 
 ## Prerequisites
 
@@ -19,7 +20,7 @@ Every command acts on the worktree it runs in.
 
 | Command | Does |
 |---|---|
-| `nr dev:up` | Creates what is missing, migrates, seeds the demo account, starts the processes, prints the architecture view's URL and the worktree's. Safe to run again: it repairs a stopped or partly set up worktree. |
+| `nr dev:up` | Creates what is missing, migrates, seeds the demo account, starts the processes, prints the worktree's URL (stdout) and the architecture view's (stderr). Safe to run again: it repairs a stopped or partly set up worktree, and restarts the processes when what they run changed. |
 | `nr dev:down` | Stops the processes and releases the worktree's databases, bucket and routes. |
 | `nr dev:url` | Prints the worktree's URL. |
 | `nr dev:worker real [--compute <fingerprint>]` / `nr dev:worker fake` | Restarts the worktree's worker with the machine's compute service for its fingerprint of `services/compute` (or the one named), or with the fake analyzer that loads none. Worktrees with the same fingerprint share one service; `nr dev:down` puts the worktree back in fake mode. |
@@ -37,9 +38,9 @@ with the demo account.
 
 - `.env.local`: the worktree's configuration, generated from
   [`env.template`](env.template). Generated values are never rewritten.
-- `.dev/logs/api.log`, `.dev/logs/web.log`, `.dev/logs/worker.log`,
-  `.dev/logs/architecture.log`, `.dev/logs/architecture-view.log`: the output of each
-  process.
+- `.dev/logs/api.log`, `.dev/logs/mcp.log`, `.dev/logs/web.log`, `.dev/logs/worker.log`,
+  `.dev/logs/build.log`, `.dev/logs/architecture.log`, `.dev/logs/architecture-view.log`:
+  the output of each process.
 - `.dev/state.json`: what `dev:down` releases.
 
 ## Architecture view
@@ -48,8 +49,12 @@ with the demo account.
 `architecture.rules.json` and the analyzer see it, compared with `main`, updated on
 every saved file. The analyzer is the one built in the worktree
 (`cargo build --release` in `tools/architecture/analyzer`) when there is one, the
-prebuilt package otherwise: only whoever changes the analyzer needs Rust, and then
-restarts the worktree's processes to run the new build.
+prebuilt package otherwise, once a published version holds the view (`dev:up` says
+`ARCHITECTURE_VIEW_UNAVAILABLE` when neither exists). Only whoever changes the analyzer
+needs Rust. After the first `cargo build --release`, `nr dev:up` restarts the processes on
+it; after a later one, stop the running analyzer and the supervisor starts it again on the
+new build within 2 s:
+`pkill -f "$PWD/tools/architecture/analyzer/target/release/architecture-analyzer"`.
 
 ## Demo account
 
