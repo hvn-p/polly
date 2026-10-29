@@ -1,4 +1,3 @@
-import { once } from 'node:events'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -202,8 +201,8 @@ describe('dev:worker', { timeout: 30_000 }, () => {
 
   it('waits for a dev:up running in the worktree before it restarts the worker', async () => {
     const a = await worktree('feature/worker-wait', fakeCompute())
-    const holder = await holdLock(join(a.root, '.dev/up.lock'), 1)
-    const released = once(holder, 'exit').then(() => Date.now())
+    await holdLock(join(a.root, '.dev/up.lock'), 1)
+    const heldAt = Date.now()
     let startedAt = 0
     const start = a.infra.supervisor.start
     a.infra.supervisor.start = async (options) => {
@@ -211,7 +210,8 @@ describe('dev:worker', { timeout: 30_000 }, () => {
       return start(options)
     }
     await worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined })
-    expect(startedAt).toBeGreaterThanOrEqual(await released)
+    // The lock is released when the holder exits, which Node may notice after the worker command does.
+    expect(startedAt - heldAt).toBeGreaterThan(900)
   })
 
   it('refuses a mode other than real or fake', async () => {
