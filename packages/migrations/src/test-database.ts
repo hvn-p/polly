@@ -20,10 +20,11 @@ export function assertTestDatabase(url: string | undefined): string {
   return url
 }
 
-// The test database's URL, once checked to name a test database.
-export function testDatabaseUrl(): string {
-  if (process.env['TEST_DATABASE_URL'] !== undefined) {
-    return assertTestDatabase(process.env['TEST_DATABASE_URL'])
+// The test database's URL, once checked to name a test database: the
+// environment's, otherwise .env.local's.
+export function testDatabaseUrl(env: Record<string, string | undefined>): string {
+  if (env['TEST_DATABASE_URL'] !== undefined) {
+    return assertTestDatabase(env['TEST_DATABASE_URL'])
   }
   const envFile = join(import.meta.dirname, '..', '..', '..', '.env.local')
   return assertTestDatabase(

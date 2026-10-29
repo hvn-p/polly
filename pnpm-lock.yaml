@@ -421,6 +421,9 @@ importers:
 
   packages/migrations:
     dependencies:
+      '@polly/platform':
+        specifier: workspace:*
+        version: link:../platform
       kysely:
         specifier: 0.29.7
         version: 0.29.7

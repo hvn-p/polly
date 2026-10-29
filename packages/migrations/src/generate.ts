@@ -7,6 +7,7 @@
 import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { environment } from '@polly/platform'
 import type { Migration } from 'kysely/migration'
 import { connect } from './connect.ts'
 import { migrate } from './migrate.ts'
@@ -21,7 +22,7 @@ export function lastMigrationModule(migrations: Record<string, Migration>): stri
 }
 
 if (process.argv[1] === import.meta.filename) {
-  const url = testDatabaseUrl()
+  const url = testDatabaseUrl(environment())
   const db = connect(url)
   try {
     await migrate(db)

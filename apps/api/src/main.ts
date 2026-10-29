@@ -5,7 +5,6 @@
 // It serves nothing while the database is behind the code (SCHEMA_BEHIND), and
 // starts once nr dev:up has migrated it.
 
-import { isIP } from 'node:net'
 import { assertSchemaCurrent, connect, PostgresStore, waitForSchemaCurrent } from '@polly/database'
 import {
   apiResource,
@@ -15,7 +14,16 @@ import {
   registerMcpClient,
 } from '@polly/identity'
 import { createLogger } from '@polly/logging'
-import { type Clock, type Config, type Logger, readConfig, systemClock } from '@polly/platform'
+import {
+  type Clock,
+  type Config,
+  environment,
+  type Logger,
+  Refusal,
+  readConfig,
+  readConfigOf,
+  systemClock,
+} from '@polly/platform'
 import { type RunningServer, serveApi } from './server.ts'
 
 export type { RunningServer } from './server.ts'
@@ -78,25 +86,26 @@ export async function startServer({
 
 if (process.argv[1] === import.meta.filename) {
   const log = createLogger({ name: 'polly-api' })
-  const hostname = process.env['POLLY_API_HOST'] ?? ''
-  const port = Number(process.env['POLLY_API_PORT'])
-  const invalid = [
-    ...(isIP(hostname) === 0 ? ['POLLY_API_HOST'] : []),
-    ...(Number.isInteger(port) && port > 0 ? [] : ['POLLY_API_PORT']),
-  ]
-  if (invalid.length > 0) {
-    log.error('INVALID_CONFIGURATION', { keys: invalid })
-    process.exit(1)
-  }
   try {
-    const config = readConfig(process.env)
+    const env = environment()
+    const config = readConfig(env)
+    const listen = readConfigOf(env, ['POLLY_API_HOST', 'POLLY_API_PORT'])
     const db = connect(config.DATABASE_URL)
     await waitForSchemaCurrent(db, { retryMs: 2000, onBehind: (message) => log.warn(message) })
     await db.destroy()
-    const server = await startServer({ config, hostname, port, log })
+    const server = await startServer({
+      config,
+      hostname: listen.POLLY_API_HOST,
+      port: listen.POLLY_API_PORT,
+      log,
+    })
     log.info('API listening', { url: server.url })
   } catch (error) {
-    log.error('the API stopped', { error })
+    if (error instanceof Refusal) {
+      log.error(error.code, { reason: error.message })
+    } else {
+      log.error('the API stopped', { error })
+    }
     process.exit(1)
   }
 }

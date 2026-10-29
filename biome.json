@@ -48,5 +48,23 @@
         "useLiteralKeys": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "apps/**/src/**",
+        "packages/**/src/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!packages/platform/src/config.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noProcessEnv": "error"
+          }
+        }
+      }
+    }
+  ]
 }

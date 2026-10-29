@@ -6,7 +6,7 @@ import type { TestProject } from 'vitest/node'
 import { connect, migrate, testDatabaseUrl } from '../src/index.ts'
 
 export default async function setup(project: TestProject): Promise<void> {
-  const url = testDatabaseUrl()
+  const url = testDatabaseUrl(process.env)
   const db = connect(url)
   try {
     await migrate(db)

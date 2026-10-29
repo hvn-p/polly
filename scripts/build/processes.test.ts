@@ -35,6 +35,16 @@ describe('building a Node process', () => {
     }
   })
 
+  it('bundles neither the demo account nor its seed into a deployed process', async () => {
+    const out = mkdtempSync(join(tmpdir(), 'build-out-'))
+    for (const target of PROCESSES.filter(({ development }) => development === undefined)) {
+      await bundleProcess({ ...pathsOf(target), outfile: join(out, `${target.name}.js`) })
+      const bundle = readFileSync(join(out, `${target.name}.js`), 'utf8')
+      expect(bundle, target.name).not.toContain('demo@polly.localhost')
+      expect(bundle, target.name).not.toContain('seedDemoAccount')
+    }
+  })
+
   it('keeps each module of a dev command on its source directory, and only the entry on the bundle', async () => {
     const root = fixture({
       'src/lib/where.ts': [

@@ -1,11 +1,13 @@
 // The API's command line, run by dev:up on a worktree's database once it is
-// migrated, from its build: `node apps/api/dist/cli.js seed-demo`.
+// migrated, from its build: `node apps/api/dist/cli.js seed-demo`. Built in a
+// checkout only and never deployed, so the demo account stays out of every
+// deployed bundle.
 
 import { DEMO_ACCOUNT, seedDemoAccount } from '@polly/back'
 import { connect } from '@polly/database'
 import { createIdentity, learnerAccounts } from '@polly/identity'
 import { createLogger } from '@polly/logging'
-import { type Logger, Refusal, readConfig } from '@polly/platform'
+import { environment, type Logger, Refusal, readConfig } from '@polly/platform'
 
 const COMMANDS = ['seed-demo']
 
@@ -54,7 +56,7 @@ export async function runCli(argv: readonly string[], { env, out, log }: CliIo):
 
 if (process.argv[1] === import.meta.filename) {
   process.exitCode = await runCli(process.argv.slice(2), {
-    env: process.env,
+    env: environment(),
     out: (line) => console.log(line),
     log: createLogger({ name: 'polly-api-cli' }),
   })

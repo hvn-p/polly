@@ -18,7 +18,7 @@ async function emptyDatabase<DB>(db: Kysely<DB>): Promise<void> {
 }
 
 export default async function setup(project: TestProject): Promise<void> {
-  const url = testDatabaseUrl()
+  const url = testDatabaseUrl(process.env)
   const db = connect(url)
   try {
     await migrate(db)

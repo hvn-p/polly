@@ -4,13 +4,12 @@
 import type { AddressInfo } from 'node:net'
 import { serve } from '@hono/node-server'
 import type { EventCodeStore } from '@polly/back'
-import type { Clock, Logger } from '@polly/platform'
+import { type Clock, type Logger, originOf } from '@polly/platform'
 import { type Authenticate, learnerGuard } from './access.ts'
 import { eventCodeGuard, registerAgentEventRoute } from './agent-events/index.ts'
 import { createApp } from './app.ts'
 import { registerAuthRoutes } from './auth.ts'
 import { registerLearnerRoutes } from './learner/index.ts'
-import { ownOrigin } from './listen.ts'
 import { type Guards, type Route, RouteRegistry } from './routes.ts'
 
 export interface ApiPorts {
@@ -41,7 +40,7 @@ export async function serveApi(
     public: async () => ({}),
     // The keys are read on the address the server listens on, never through
     // the worktree's public URL.
-    learner: learnerGuard(ports.learner(() => `${ownOrigin(hostname, listeningPort)}/api/auth/jwks`)),
+    learner: learnerGuard(ports.learner(() => `${originOf(hostname, listeningPort)}/api/auth/jwks`)),
     'event-code': eventCodeGuard(ports.codes),
   }
   const registry = new RouteRegistry(guards)
@@ -54,7 +53,7 @@ export async function serveApi(
   })
   listeningPort = (server.address() as AddressInfo).port
   return {
-    url: ownOrigin(hostname, listeningPort),
+    url: originOf(hostname, listeningPort),
     routes: registry.routes(),
     close: () =>
       new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),

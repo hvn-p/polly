@@ -6,7 +6,7 @@ import { connect, migrate, testDatabaseUrl } from '@polly/migrations'
 import type { TestProject } from 'vitest/node'
 
 export default async function setup(project: TestProject): Promise<void> {
-  const url = testDatabaseUrl()
+  const url = testDatabaseUrl(process.env)
   const db = connect(url)
   try {
     await migrate(db)

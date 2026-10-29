@@ -14,14 +14,15 @@ export interface Process {
   // Paths from the repository root.
   entry: string
   output: string
-  // A dev command, run in a checkout only: its modules keep their source
-  // directories. A deployed process bundles nothing of dev/.
+  // Run in a checkout only, never deployed: a dev command, whose modules keep
+  // their source directories, or the demo seed. A deployed process bundles
+  // nothing of dev/, and not the demo account.
   development?: true
 }
 
 export const PROCESSES: Process[] = [
   { name: 'api', entry: 'apps/api/src/main.ts', output: 'apps/api/dist/main.js' },
-  { name: 'api-cli', entry: 'apps/api/src/cli.ts', output: 'apps/api/dist/cli.js' },
+  { name: 'api-cli', entry: 'apps/api/src/cli.ts', output: 'apps/api/dist/cli.js', development: true },
   { name: 'mcp', entry: 'apps/mcp/src/main.ts', output: 'apps/mcp/dist/main.js' },
   { name: 'worker', entry: 'apps/worker/src/main.ts', output: 'apps/worker/dist/main.js' },
   { name: 'migrations', entry: 'packages/migrations/src/cli.ts', output: 'packages/migrations/dist/cli.js' },

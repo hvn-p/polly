@@ -4,12 +4,11 @@
 // that does not exchange gets the 401 whose WWW-Authenticate header points the
 // client at the OAuth flow.
 
-import { isIP } from 'node:net'
 import { serve } from '@hono/node-server'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { createApiClient } from '@polly/contract'
 import { createLogger } from '@polly/logging'
-import { type Logger, readConfigOf } from '@polly/platform'
+import { environment, type Logger, originOf, Refusal, readConfigOf } from '@polly/platform'
 import { exchangeToken } from './exchange.ts'
 import { notFound, unauthorized } from './refusals.ts'
 import { TOOLS, type ToolDefinition } from './tools.ts'
@@ -84,42 +83,43 @@ export async function startMcpServer(options: McpOptions): Promise<RunningMcp> {
   const address = server.address()
   const port = typeof address === 'object' && address !== null ? address.port : options.port
   return {
-    url: `http://${options.hostname.includes(':') ? `[${options.hostname}]` : options.hostname}:${port}`,
+    url: originOf(options.hostname, port),
     close: () =>
       new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
   }
 }
 
+// The server's settings, read from the environment: it reaches the API on the
+// API's own address, never through the public origin.
+export function settingsFrom(env: Record<string, string | undefined>): Omit<McpOptions, 'log' | 'tools'> {
+  const config = readConfigOf(env, [
+    'POLLY_MCP_HOST',
+    'POLLY_MCP_PORT',
+    'POLLY_API_HOST',
+    'POLLY_API_PORT',
+    'PUBLIC_URL',
+    'MCP_CLIENT_SECRET',
+  ])
+  return {
+    hostname: config.POLLY_MCP_HOST,
+    port: config.POLLY_MCP_PORT,
+    publicUrl: config.PUBLIC_URL,
+    apiUrl: originOf(config.POLLY_API_HOST, config.POLLY_API_PORT),
+    clientSecret: config.MCP_CLIENT_SECRET,
+  }
+}
+
 if (process.argv[1] === import.meta.filename) {
   const log = createLogger({ name: 'polly-mcp' })
-  const env = process.env
-  const hostname = env['POLLY_MCP_HOST'] ?? ''
-  const port = Number(env['POLLY_MCP_PORT'])
-  const apiPort = Number(env['POLLY_API_PORT'])
-  const invalid = [
-    ...(isIP(hostname) === 0 ? ['POLLY_MCP_HOST'] : []),
-    ...(Number.isInteger(port) && port > 0 ? [] : ['POLLY_MCP_PORT']),
-    ...(isIP(env['POLLY_API_HOST'] ?? '') === 0 ? ['POLLY_API_HOST'] : []),
-    ...(Number.isInteger(apiPort) && apiPort > 0 ? [] : ['POLLY_API_PORT']),
-  ]
-  if (invalid.length > 0) {
-    log.error('INVALID_CONFIGURATION', { keys: invalid })
-    process.exit(1)
-  }
   try {
-    const config = readConfigOf(env, ['PUBLIC_URL', 'MCP_CLIENT_SECRET'])
-    const apiHost = env['POLLY_API_HOST'] === '0.0.0.0' ? '127.0.0.1' : String(env['POLLY_API_HOST'])
-    const server = await startMcpServer({
-      hostname,
-      port,
-      publicUrl: config.PUBLIC_URL,
-      apiUrl: `http://${apiHost}:${apiPort}`,
-      clientSecret: config.MCP_CLIENT_SECRET,
-      log,
-    })
+    const server = await startMcpServer({ ...settingsFrom(environment()), log })
     log.info('MCP server listening', { url: server.url })
   } catch (error) {
-    log.error('the MCP server stopped', { error })
+    if (error instanceof Refusal) {
+      log.error(error.code, { reason: error.message })
+    } else {
+      log.error('the MCP server stopped', { error })
+    }
     process.exit(1)
   }
 }

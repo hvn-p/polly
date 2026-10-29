@@ -50,6 +50,7 @@ describe("the worker's compute service", { timeout: 60_000 }, () => {
       env: {
         ...process.env,
         DATABASE_URL: inject('testDatabaseUrl'),
+        POLLY_ENV: 'local',
         POLLY_WORKER_MODE: 'real',
         POLLY_COMPUTE_URL: computeUrl,
         POLLY_COMPUTE_FINGERPRINT: '0000mine0000',

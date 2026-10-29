@@ -8,7 +8,7 @@ import { computeAnalyzer, computeFingerprint, fakeAnalyzer } from '@polly/analys
 import { type Analyzer, runPlaceholderAnalysis } from '@polly/back'
 import { connect, waitForSchemaCurrent } from '@polly/database'
 import { createLogger } from '@polly/logging'
-import { type Logger, readConfigOf } from '@polly/platform'
+import { environment, type Logger, Refusal, readConfigOf, type Settings } from '@polly/platform'
 import { PLACEHOLDER_ANALYSIS } from '@polly/queue'
 
 export interface WorkerOptions {
@@ -40,35 +40,39 @@ export async function startWorker({
   return { close: () => DBOS.shutdown() }
 }
 
-// The analyzer of the worktree's POLLY_WORKER_MODE, or the setting that
-// prevents it.
+type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
+
+// The analyzer POLLY_WORKER_MODE names, or the setting that prevents it. The
+// fake analyzer is a local worktree's only: outside one, the mode is required
+// and real.
 export function analyzerFor(
-  env: Record<string, string | undefined>,
+  config: Pick<Settings, 'POLLY_ENV' | 'POLLY_WORKER_MODE' | 'POLLY_COMPUTE_URL'>,
+  fetch: Fetch,
 ): { analyzer: Analyzer } | { invalid: string } {
-  const mode = env['POLLY_WORKER_MODE'] ?? 'fake'
-  if (mode === 'fake') {
+  const mode = config.POLLY_WORKER_MODE ?? (config.POLLY_ENV === 'local' ? 'fake' : undefined)
+  if (mode === 'fake' && config.POLLY_ENV === 'local') {
     return { analyzer: fakeAnalyzer }
   }
   if (mode !== 'real') {
     return { invalid: 'POLLY_WORKER_MODE' }
   }
-  const computeUrl = env['POLLY_COMPUTE_URL'] ?? ''
-  return URL.canParse(computeUrl)
-    ? { analyzer: computeAnalyzer({ baseUrl: computeUrl }) }
-    : { invalid: 'POLLY_COMPUTE_URL' }
+  return config.POLLY_COMPUTE_URL === undefined
+    ? { invalid: 'POLLY_COMPUTE_URL' }
+    : { analyzer: computeAnalyzer({ baseUrl: config.POLLY_COMPUTE_URL, fetch }) }
 }
 
 // Warns when the compute service runs another version of the code than the
 // worktree's services/compute: comparing two versions is legitimate, testing
 // one without knowing is not.
 export async function checkComputeVersion(
-  env: Record<string, string | undefined>,
+  config: Pick<Settings, 'POLLY_COMPUTE_URL' | 'POLLY_COMPUTE_FINGERPRINT'>,
   log: Logger,
+  fetch: Fetch,
 ): Promise<void> {
-  const baseUrl = env['POLLY_COMPUTE_URL'] ?? ''
-  const worktree = env['POLLY_COMPUTE_FINGERPRINT'] ?? 'unversioned'
+  const baseUrl = config.POLLY_COMPUTE_URL ?? ''
+  const worktree = config.POLLY_COMPUTE_FINGERPRINT ?? 'unversioned'
   try {
-    const service = await computeFingerprint({ baseUrl })
+    const service = await computeFingerprint({ baseUrl, fetch })
     if (service !== worktree) {
       log.warn('COMPUTE_VERSION_MISMATCH', { worktree, service })
     }
@@ -79,15 +83,20 @@ export async function checkComputeVersion(
 
 if (process.argv[1] === import.meta.filename) {
   const log = createLogger({ name: 'polly-worker' })
-  const chosen = analyzerFor(process.env)
-  if ('invalid' in chosen) {
-    log.error('INVALID_CONFIGURATION', { keys: [chosen.invalid] })
-    process.exit(1)
-  }
   try {
-    const config = readConfigOf(process.env, ['DATABASE_URL'])
-    if (process.env['POLLY_WORKER_MODE'] === 'real') {
-      await checkComputeVersion(process.env, log)
+    const config = readConfigOf(environment(), [
+      'DATABASE_URL',
+      'POLLY_ENV',
+      'POLLY_WORKER_MODE',
+      'POLLY_COMPUTE_URL',
+      'POLLY_COMPUTE_FINGERPRINT',
+    ])
+    const chosen = analyzerFor(config, globalThis.fetch)
+    if ('invalid' in chosen) {
+      throw new Refusal('INVALID_CONFIGURATION', `${chosen.invalid} invalid or missing`)
+    }
+    if (config.POLLY_WORKER_MODE === 'real') {
+      await checkComputeVersion(config, log, globalThis.fetch)
     }
     // The workflows read Polly's tables: nothing runs before they exist.
     const db = connect(config.DATABASE_URL)
@@ -95,7 +104,11 @@ if (process.argv[1] === import.meta.filename) {
     await db.destroy()
     await startWorker({ databaseUrl: config.DATABASE_URL, analyzer: chosen.analyzer, log })
   } catch (error) {
-    log.error('the worker stopped', { error })
+    if (error instanceof Refusal) {
+      log.error(error.code, { reason: error.message })
+    } else {
+      log.error('the worker stopped', { error })
+    }
     process.exit(1)
   }
 }

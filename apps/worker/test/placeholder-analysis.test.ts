@@ -17,7 +17,12 @@ let client: DBOSClient
 // once it runs, with its output so far and to come.
 async function startWorker({ slow = false } = {}): Promise<{ worker: ChildProcess; output: () => string }> {
   const worker = spawn(process.execPath, [slow ? slowWorker : main], {
-    env: { ...process.env, DATABASE_URL: inject('testDatabaseUrl'), POLLY_WORKER_MODE: 'fake' },
+    env: {
+      ...process.env,
+      DATABASE_URL: inject('testDatabaseUrl'),
+      POLLY_ENV: 'local',
+      POLLY_WORKER_MODE: 'fake',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   workers.push(worker)
