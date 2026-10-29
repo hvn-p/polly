@@ -4,7 +4,7 @@
   "tiers": [
     {
       "id": "interfaces",
-      "group": "back",
+      "group": "server",
       "name": "Routes & workflows",
       "criterion": "One process each. Parse, authorize, call one flow, answer. Its main.ts, the composition root, alone wires the adapters.",
       "paths": ["apps/api/src", "apps/api/src/entry", "apps/mcp/src", "apps/worker/src"],
@@ -42,7 +42,7 @@
     },
     {
       "id": "flows",
-      "group": "back",
+      "group": "server",
       "name": "Flows",
       "criterion": "One use case each: chain domain calls through their ports, compute nothing, no technology.",
       "paths": ["packages/back/src/flows/*"],
@@ -62,7 +62,7 @@
     },
     {
       "id": "domains",
-      "group": "back",
+      "group": "server",
       "name": "Domains",
       "criterion": "Product rules. A domain declares a port (an exported interface, in its own words) for what it needs; no technology, no Node built-in.",
       "paths": ["packages/back/src/domains/*"],
@@ -74,7 +74,7 @@
     },
     {
       "id": "adapters",
-      "group": "back",
+      "group": "server",
       "name": "Adapters",
       "criterion": "One package per capacity, named by what it provides: implements the domains' ports with one technology. May depend on a lower capacity, never in a cycle.",
       "paths": [
@@ -99,7 +99,7 @@
     },
     {
       "id": "kernel",
-      "group": "back",
+      "group": "server",
       "name": "Kernel",
       "criterion": "Polly's pure values (ids, the event code, scores) and the one hash function. No rule, no other technology.",
       "paths": ["packages/kernel"],
@@ -110,7 +110,7 @@
     },
     {
       "id": "socle",
-      "group": "back",
+      "group": "server",
       "name": "Socle",
       "criterion": "What every process shares, with no product word and no chosen technology: Refusal, the Logger and Clock ports, the configuration schema.",
       "paths": ["packages/platform"],
@@ -121,7 +121,7 @@
     },
     {
       "id": "contract",
-      "group": "back",
+      "group": "server",
       "name": "Contract",
       "criterion": "Generated from the API's routes: its client, its schemas and the refusal codes. Never edited by hand.",
       "paths": ["packages/contract"],
