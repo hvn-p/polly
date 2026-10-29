@@ -37,6 +37,8 @@ pub struct Edge {
     pub file: String,
     /// The import's line.
     pub line: u32,
+    /// The import's last line.
+    pub end_line: u32,
     /// The specifier as written.
     pub spec: String,
     /// Whether it carries types only.
@@ -355,39 +357,14 @@ pub fn build(input: &Input) -> Graph {
                     }
                 }
                 Target::File(to_file) => {
-                    let Some((_, from_module)) = &from else {
-                        continue;
-                    };
-                    let mut reached = vec![];
-                    let types = if request.type_only {
-                        request.names.clone()
-                    } else {
-                        request.type_names.clone()
-                    };
-                    let taken = Taken {
-                        names: request.names.clone(),
-                        types,
-                    };
-                    follow(&mut cx, to_file, &taken, &mut BTreeSet::new(), &mut reached);
-                    for (to_file, Taken { names, types }) in reached {
-                        let Some((_, to_module)) = cx.locate(&to_file) else {
-                            continue;
-                        };
-                        if &to_module == from_module {
-                            continue;
-                        }
-                        check_entry(&mut cx, file, request, &to_file, &to_module, &barrels);
-                        edges.push((
-                            Edge {
-                                from: from_module.clone(),
-                                to: to_module,
-                                file: (*file).to_string(),
-                                line: request.line,
-                                spec: request.spec.clone(),
-                                type_only: !names.is_empty() && names.is_subset(&types),
-                                names: names.into_iter().collect(),
-                            },
+                    if let Some((_, from_module)) = &from {
+                        edges.extend(module_edges(
+                            &mut cx,
+                            file,
+                            from_module,
+                            request,
                             to_file,
+                            &barrels,
                         ));
                     }
                 }
@@ -416,6 +393,52 @@ pub fn build(input: &Input) -> Graph {
         technologies,
         violations: cx.violations.into_iter().collect(),
     }
+}
+
+/// The modules an import of a file reaches, each with the file it reaches.
+fn module_edges(
+    cx: &mut Context,
+    file: &str,
+    from_module: &str,
+    request: &Request,
+    to_file: &str,
+    barrels: &BTreeSet<&str>,
+) -> Vec<(Edge, String)> {
+    let mut reached = vec![];
+    let types = if request.type_only {
+        request.names.clone()
+    } else {
+        request.type_names.clone()
+    };
+    let taken = Taken {
+        names: request.names.clone(),
+        types,
+    };
+    follow(cx, to_file, &taken, &mut BTreeSet::new(), &mut reached);
+    let mut edges = vec![];
+    for (to_file, Taken { names, types }) in reached {
+        let Some((_, to_module)) = cx.locate(&to_file) else {
+            continue;
+        };
+        if to_module == from_module {
+            continue;
+        }
+        check_entry(cx, file, request, &to_file, &to_module, barrels);
+        edges.push((
+            Edge {
+                from: from_module.to_string(),
+                to: to_module,
+                file: file.to_string(),
+                line: request.line,
+                end_line: request.end_line,
+                spec: request.spec.clone(),
+                type_only: !names.is_empty() && names.is_subset(&types),
+                names: names.into_iter().collect(),
+            },
+            to_file,
+        ));
+    }
+    edges
 }
 
 /// Each file's module, and what its imports resolve to; a file in no tier is a violation

@@ -54,6 +54,28 @@ fn the_valid_tree_has_no_violation() {
 }
 
 #[test]
+fn an_import_written_over_several_lines_reports_where_it_ends() {
+    let tree = Tree::valid();
+    tree.write(
+        "apps/api/src/routes.ts",
+        "// routes\nimport {\n  type EventCodes,\n} from '@t/back/domains'\nimport { type Code } from '@t/kernel'\nexport function serve(x: unknown): void {}\nexport type { EventCodes, Code }\n",
+    );
+    let report = serde_json::to_value(analyze(tree.path(), None).unwrap()).unwrap();
+    let lines: Vec<_> = report["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["file"] == "apps/api/src/routes.ts")
+        .map(|e| (e["line"].clone(), e["endLine"].clone()))
+        .collect();
+    assert_eq!(
+        lines,
+        [(2.into(), 4.into()), (5.into(), 5.into())],
+        "{report:#}"
+    );
+}
+
+#[test]
 fn c69_types_only_is_judged_name_by_name_through_a_barrel() {
     let tree = Tree::valid();
     tree.write(

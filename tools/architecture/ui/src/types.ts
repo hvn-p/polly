@@ -28,6 +28,8 @@ export interface Edge {
   to: string
   file: string
   line: number
+  // Past `line` when the import is written over several lines.
+  endLine: number
   spec: string
   typeOnly: boolean
   names: string[]

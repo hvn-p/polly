@@ -5,7 +5,7 @@ use std::path::Path;
 
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
-use oxc_span::{SourceType, Span};
+use oxc_span::SourceType;
 use oxc_syntax::module_record::{
     ExportExportName, ExportImportName, ImportImportName, ModuleRecord, RequestedModule,
 };
@@ -17,6 +17,8 @@ pub struct Request {
     pub spec: String,
     /// Its line, from 1.
     pub line: u32,
+    /// Its last line, from 1: past `line` when it is written over several lines.
+    pub end_line: u32,
     /// The names it takes from the target; `*` for all.
     pub names: BTreeSet<String>,
     /// Whether it carries types only.
@@ -36,8 +38,8 @@ pub struct Parsed {
     pub exports: BTreeSet<String>,
 }
 
-fn line_of(source: &str, span: Span) -> u32 {
-    let before = source.get(..span.start as usize).unwrap_or(source);
+fn line_of(source: &str, offset: u32) -> u32 {
+    let before = source.get(..offset as usize).unwrap_or(source);
     u32::try_from(before.matches('\n').count() + 1).unwrap_or(u32::MAX)
 }
 
@@ -51,7 +53,8 @@ fn static_request(
     let span = statement.statement_span;
     let mut request = Request {
         spec: spec.to_string(),
-        line: line_of(source, span),
+        line: line_of(source, span.start),
+        end_line: line_of(source, span.end),
         names: BTreeSet::new(),
         type_only: statement.is_type,
         type_names: BTreeSet::new(),
@@ -128,7 +131,8 @@ pub fn parse(path: &Path, source: &str) -> Parsed {
         if quoted {
             requests.push(Request {
                 spec: text[1..text.len() - 1].to_string(),
-                line: line_of(source, dynamic.span),
+                line: line_of(source, dynamic.span.start),
+                end_line: line_of(source, dynamic.span.end),
                 names: BTreeSet::from(["*".to_string()]),
                 type_only: false,
                 type_names: BTreeSet::new(),

@@ -333,6 +333,33 @@ describe('the source', () => {
     expect(panel.className).not.toContain('open')
   })
 
+  it('tints every line of an import written over several lines, annotated after its last', async () => {
+    const file = 'packages/back/src/flows/buy/index.ts'
+    const source =
+      "import type {\n  Price,\n} from '@shop/kernel'\n// pricing\nimport {\n  PostgresStore } from '@shop/database'\n"
+    const report = fixture()
+    report.edges = report.edges.map((e) =>
+      e.file !== file ? e : e.line === 1 ? { ...e, endLine: 3 } : { ...e, line: 5, endLine: 6 },
+    )
+    report.violations = report.violations.map((v) => (v.file === file ? { ...v, line: 5 } : v))
+    render(<App feed={feedOf({ report }, { [file]: source })} />)
+    await act(async () => {
+      fireEvent.click(within(side()).getByRole('button', { name: /index.ts:5/ }))
+    })
+    const lines = [...screen.getByRole('complementary', { name: 'Source' }).querySelectorAll('pre > .l')]
+    const kind = (line: Element | undefined) =>
+      line?.classList.contains('breach-line')
+        ? 'breach'
+        : line?.classList.contains('imp-line')
+          ? 'import'
+          : ''
+    expect(lines.slice(0, 6).map(kind)).toEqual(['import', 'import', 'import', '', 'breach', 'breach'])
+    const notes = (line: Element | undefined) => [...(line?.querySelectorAll('.go, .note') ?? [])].length
+    expect(lines.slice(0, 6).map(notes)).toEqual([0, 0, 1, 0, 0, 2])
+    expect(lines[2]?.textContent).toContain('imports kernel, Kernel')
+    expect(lines[5]?.textContent).toContain('Breach, tier.')
+  })
+
   it('says when a file cannot be read, and closes on Escape', async () => {
     render(<App feed={feedOf({})} />)
     go('#/breaches')

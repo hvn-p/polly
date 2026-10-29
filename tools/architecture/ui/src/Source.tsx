@@ -1,6 +1,6 @@
-// A file opened in the app at a line: each import line tinted with the tier it
-// imports and linked to its module, a breaching line annotated with its rule
-// and fix.
+// A file opened in the app at a line: each import's lines tinted with the tier it
+// imports and linked to its module after its last line, a breaching import or line
+// annotated with its rule and fix.
 
 import type { CSSProperties, ReactNode } from 'react'
 import { labelOf, tierName, tierOfModule } from './model.ts'
@@ -47,6 +47,8 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
   const file = open?.file ?? ''
   const edges = model.report.edges.filter((e) => e.file === file)
   const breaches = model.report.violations.filter((v) => v.file === file)
+  // A breach on an import is annotated after the import's last line.
+  const noteLine = (line: number) => edges.find((e) => e.line === line)?.endLine ?? line
   const scrollToTarget = (element: HTMLDivElement | null) => {
     element?.scrollIntoView?.({ block: 'center' })
   }
@@ -64,9 +66,11 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
       <pre>
         {open.text.split('\n').map((text, i) => {
           const n = i + 1
-          const imports = edges.filter((e) => e.line === n)
-          const broken = breaches.filter((v) => v.line === n)
+          const imports = edges.filter((e) => e.line <= n && n <= e.endLine)
+          const broken = breaches.filter((v) => v.line === n || imports.some((e) => e.line === v.line))
+          const notes = breaches.filter((v) => noteLine(v.line) === n)
           const target = imports[0]?.to
+          const ends = imports[0]?.endLine === n
           const tier = target === undefined ? '' : tierOfModule(model, target)
           const classes = [
             'l',
@@ -82,12 +86,12 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
             >
               <span>{n}</span>
               <span>{text === '' ? ' ' : highlight(text)}</span>
-              {target !== undefined && broken.length === 0 ? (
+              {target !== undefined && ends && broken.length === 0 ? (
                 <span className="go">
                   imports <a href={moduleHref(target)}>{labelOf(model, target)}</a>, {tierName(model, tier)}
                 </span>
               ) : null}
-              {broken.map((v) => (
+              {notes.map((v) => (
                 <div className="note" key={v.rule}>
                   <b>Breach, {v.rule}.</b> {v.message}
                   <br />
