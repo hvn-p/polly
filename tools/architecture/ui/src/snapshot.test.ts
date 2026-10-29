@@ -21,6 +21,13 @@ describe('a snapshot built into the page', () => {
     expect(JSON.parse(document.getElementById('snapshot')?.textContent ?? '').name).toBe(report.name)
   })
 
+  it('keeps a report that holds replacement patterns as it is', () => {
+    const report = { ...fixture(), name: "a$'b$$c$&d$`e" }
+    const html = embedSnapshot(page, JSON.stringify(report))
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    expect(JSON.parse(document.getElementById('snapshot')?.textContent ?? '')).toEqual(report)
+  })
+
   it('refuses a page without its place, or a report that is not JSON', () => {
     expect(() => embedSnapshot('<body></body>', '{}')).toThrow('no snapshot script')
     expect(() => embedSnapshot(page, 'not json')).toThrow()

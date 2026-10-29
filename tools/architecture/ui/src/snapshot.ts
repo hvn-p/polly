@@ -9,5 +9,6 @@ export function embedSnapshot(html: string, report: string): string {
   }
   // Reformatted, so it is JSON; "<" escaped, so nothing in it closes the script.
   const json = JSON.stringify(JSON.parse(report)).replaceAll('<', '\\u003c')
-  return html.replace(PLACE, PLACE.replace('></script>', `>${json}</script>`))
+  // A function, so a "$" in the report is never read as a replacement pattern.
+  return html.replace(PLACE, () => PLACE.replace('></script>', () => `>${json}</script>`))
 }
