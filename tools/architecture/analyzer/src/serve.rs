@@ -4,8 +4,9 @@
 use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use tiny_http::{Header, Response, Server};
 
@@ -143,6 +144,35 @@ fn source(state: &Mutex<State>, root: &Path, path: &str) -> Option<Vec<u8>> {
     analyzed.then(|| std::fs::read(root.join(&file)).ok())?
 }
 
+/// How long an event stream stays silent before a keepalive.
+const KEEPALIVE: Duration = Duration::from_secs(15);
+
+/// Writes an event stream's head, then each event, and a comment after `keepalive`
+/// without one, until a write fails: a closed tab is noticed at the next keepalive, which
+/// ends its thread and drops its stream.
+fn stream(writer: &mut dyn Write, events: &Receiver<String>, keepalive: Duration) {
+    let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+    let mut send = |text: &str| {
+        writer
+            .write_all(text.as_bytes())
+            .and_then(|()| writer.flush())
+            .is_ok()
+    };
+    if !send(head) {
+        return;
+    }
+    loop {
+        let written = match events.recv_timeout(keepalive) {
+            Ok(event) => send(&event),
+            Err(RecvTimeoutError::Timeout) => send(": keepalive\n\n"),
+            Err(RecvTimeoutError::Disconnected) => false,
+        };
+        if !written {
+            return;
+        }
+    }
+}
+
 fn answer(request: tiny_http::Request, state: &Mutex<State>, ui: Option<&Path>, root: &Path) {
     let url = request.url().split('?').next().unwrap_or("/").to_string();
     if let Some(path) = url.strip_prefix("/source/") {
@@ -181,23 +211,7 @@ fn answer(request: tiny_http::Request, state: &Mutex<State>, ui: Option<&Path>, 
                 }
                 state.streams.push(tx);
             }
-            let mut writer = request.into_writer();
-            let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
-            if writer
-                .write_all(head.as_bytes())
-                .and_then(|()| writer.flush())
-                .is_ok()
-            {
-                for event in rx {
-                    if writer
-                        .write_all(event.as_bytes())
-                        .and_then(|()| writer.flush())
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-            }
+            stream(&mut request.into_writer(), &rx, KEEPALIVE);
             Ok(())
         }
         _ => {
@@ -222,4 +236,50 @@ fn answer(request: tiny_http::Request, state: &Mutex<State>, ui: Option<&Path>, 
             }
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A browser tab that takes `open` writes, then is closed.
+    struct Tab {
+        written: String,
+        open: usize,
+    }
+
+    impl Write for Tab {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.open == 0 {
+                return Err(std::io::ErrorKind::BrokenPipe.into());
+            }
+            self.open -= 1;
+            self.written.push_str(&String::from_utf8_lossy(buf));
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_silent_stream_is_kept_alive_and_dropped_once_its_tab_is_closed() {
+        let (events, rx) = mpsc::channel::<String>();
+        let (done, ended) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut tab = Tab {
+                written: String::new(),
+                open: 2,
+            };
+            stream(&mut tab, &rx, Duration::from_millis(10));
+            let _ = done.send(tab.written);
+        });
+        // No event comes, and the state still holds the stream's sender.
+        let written = ended
+            .recv_timeout(Duration::from_secs(2))
+            .expect("the stream ends once a keepalive fails");
+        assert!(written.ends_with("\r\n\r\n: keepalive\n\n"), "{written}");
+        drop(events);
+    }
 }
