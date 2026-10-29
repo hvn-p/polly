@@ -685,6 +685,7 @@ details.link {
 }
 .src header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
@@ -1486,4 +1487,30 @@ fieldset.zoom {
   margin: 0;
   padding: 0;
   min-inline-size: 0;
+}
+.src .legend {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+.src .legend .item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 12px / 20px var(--mono);
+  color: var(--ink-2);
+}
+.src .legend .item:hover {
+  color: var(--ink);
+}
+.src .legend .item[aria-pressed="false"] {
+  opacity: 0.4;
+}
+.src .legend .stn {
+  color: var(--c);
 }

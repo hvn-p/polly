@@ -1,10 +1,11 @@
 // A file opened in the app at a line: each import's lines tinted with the tier it
 // imports and linked to its module after its last line, a breaching import or line
-// annotated with its rule and fix.
+// annotated with its rule and fix. A legend shows or hides the imports of each
+// module, so one can be read alone; a breach always shows.
 
-import type { CSSProperties, ReactNode } from 'react'
+import { type CSSProperties, type ReactNode, useState } from 'react'
 import { labelOf, tierName, tierOfModule } from './model.ts'
-import { Cross, moduleHref, plural, useView } from './parts.tsx'
+import { Cross, moduleHref, plural, tint, useView } from './parts.tsx'
 
 export interface OpenSource {
   file: string
@@ -47,6 +48,19 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
   const file = open?.file ?? ''
   const edges = model.report.edges.filter((e) => e.file === file)
   const breaches = model.report.violations.filter((v) => v.file === file)
+  // The modules the file imports, in the order of their first import.
+  const modules = [...new Set([...edges].sort((a, b) => a.line - b.line).map((e) => e.to))]
+  // The modules hidden from the legend, for the file they were hidden in.
+  const [hiding, setHiding] = useState({ file, ids: new Set<string>() })
+  const hidden = hiding.file === file ? hiding.ids : new Set<string>()
+  const toggle = (id: string) =>
+    setHiding((last) => {
+      const ids = new Set(last.file === file ? last.ids : [])
+      if (!ids.delete(id)) {
+        ids.add(id)
+      }
+      return { file, ids }
+    })
   // A breach on an import is annotated after the import's last line.
   const noteLine = (line: number) => edges.find((e) => e.line === line)?.endLine ?? line
   const scrollToTarget = (element: HTMLDivElement | null) => {
@@ -66,8 +80,9 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
       <pre>
         {open.text.split('\n').map((text, i) => {
           const n = i + 1
-          const imports = edges.filter((e) => e.line <= n && n <= e.endLine)
-          const broken = breaches.filter((v) => v.line === n || imports.some((e) => e.line === v.line))
+          const covering = edges.filter((e) => e.line <= n && n <= e.endLine)
+          const broken = breaches.filter((v) => v.line === n || covering.some((e) => e.line === v.line))
+          const imports = covering.filter((e) => !hidden.has(e.to))
           const notes = breaches.filter((v) => noteLine(v.line) === n)
           const target = imports[0]?.to
           const ends = imports[0]?.endLine === n
@@ -124,6 +139,27 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
             <button type="button" className="close" onClick={onClose}>
               <Cross /> Close
             </button>
+            {modules.length === 0 ? null : (
+              <fieldset className="legend" aria-label="Imported modules">
+                {modules.map((id) => {
+                  const shown = !hidden.has(id)
+                  return (
+                    <button
+                      type="button"
+                      key={id}
+                      className="item"
+                      aria-pressed={shown}
+                      title={`${shown ? 'Hide' : 'Show'} the imports of ${labelOf(model, id)}`}
+                      style={tint(model.colour[tierOfModule(model, id)])}
+                      onClick={() => toggle(id)}
+                    >
+                      <span className="stn" />
+                      {labelOf(model, id)}
+                    </button>
+                  )
+                })}
+              </fieldset>
+            )}
           </header>
           {body}
         </>

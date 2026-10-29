@@ -360,6 +360,30 @@ describe('the source', () => {
     expect(lines[5]?.textContent).toContain('Breach, tier.')
   })
 
+  it('shows or hides the imports of each module from a legend, the breaches always shown', async () => {
+    const source =
+      "import type { Price } from '@shop/kernel'\n// pricing\nimport { PostgresStore } from '@shop/database'\n"
+    render(<App feed={feedOf({}, { 'packages/back/src/flows/buy/index.ts': source })} />)
+    await act(async () => {
+      fireEvent.click(within(side()).getByRole('button', { name: /index.ts:3/ }))
+    })
+    const panel = screen.getByRole('complementary', { name: 'Source' })
+    const legend = within(within(panel).getByRole('group', { name: 'Imported modules' }))
+    const line = (n: number) => panel.querySelectorAll('pre > .l')[n - 1]
+    expect(legend.getAllByRole('button').map((b) => b.textContent)).toEqual(['kernel', 'database'])
+    const kernel = legend.getByRole('button', { name: 'kernel' })
+    expect(kernel.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(kernel)
+    expect(kernel.getAttribute('aria-pressed')).toBe('false')
+    expect(line(1)?.className).not.toContain('imp-line')
+    expect(line(1)?.textContent).not.toContain('imports kernel')
+    fireEvent.click(legend.getByRole('button', { name: 'database' }))
+    expect(line(3)?.className).toContain('breach-line')
+    expect(line(3)?.textContent).toContain('Breach, tier.')
+    fireEvent.click(kernel)
+    expect(line(1)?.className).toContain('imp-line')
+  })
+
   it('says when a file cannot be read, and closes on Escape', async () => {
     render(<App feed={feedOf({})} />)
     go('#/breaches')
