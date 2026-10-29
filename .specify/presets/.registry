@@ -2,9 +2,9 @@
   "schema_version": "1.0",
   "presets": {
     "polly": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "source": "local",
-      "manifest_hash": "sha256:c34bbc06414685d796b363f8b98f0e3ba47792490abf947edbd5ae373893ca59",
+      "manifest_hash": "sha256:cc77f9a1ff3c2adb1a9ca208185fce553d27cc9cf6c20d0ef83c8529a45102c8",
       "enabled": true,
       "priority": 10,
       "registered_commands": {
@@ -31,7 +31,7 @@
           "speckit-bug-fix"
         ]
       },
-      "installed_at": "2026-10-27T10:59:55.433757+00:00"
+      "installed_at": "2026-10-29T16:26:30.123848+00:00"
     }
   }
 }
