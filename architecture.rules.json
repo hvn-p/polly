@@ -336,6 +336,15 @@
       "paths": ["tools/architecture/ui/src"],
       "mayImport": [],
       "fix": "A tool imports nothing of Polly: it reads Polly's files, never its code."
+    },
+    {
+      "id": "scripts",
+      "group": "tools",
+      "name": "Repository scripts",
+      "criterion": "The repository's guards, generators and builds, run by nr and CI: they read Polly's files, never import its code.",
+      "paths": ["scripts"],
+      "mayImport": [],
+      "fix": "A repository script reads Polly's files: it imports nothing of Polly's packages."
     }
   ],
   "packages": {
@@ -395,6 +404,10 @@
     },
     "@polly/plugin": {
       "provides": "the Claude Code plugin"
+    },
+    "@polly/scripts": {
+      "provides": "the repository's guards, generators and builds",
+      "runOnly": "The repository scripts are run, never imported: no process depends on them."
     },
     "@polly/dev": {
       "provides": "each worktree's local Polly",

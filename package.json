@@ -15,7 +15,8 @@
     "agent": "node scripts/build/processes.ts && node dev/dist/main.js agent",
     "contracts": "node scripts/contracts/generate.ts",
     "bundles": "node scripts/build/bundles.ts",
-    "lint": "biome check --error-on-warnings .",
+    "lint": "biome check --error-on-warnings . && pnpm run lint:architecture",
+    "lint:architecture": "cargo run --quiet --release --manifest-path tools/architecture/analyzer/Cargo.toml -- check",
     "lint:fix": "biome check --write .",
     "typecheck": "tsc -p scripts && pnpm -r --no-bail run typecheck",
     "test": "vitest run && pnpm run test:repo",
@@ -29,7 +30,6 @@
     "@vitest/coverage-v8": "5.0.5",
     "esbuild": "0.28.2",
     "typescript": "7.0.2",
-    "vitest": "5.0.5",
-    "zod": "4.6.7"
+    "vitest": "5.0.5"
   }
 }

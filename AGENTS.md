@@ -84,7 +84,7 @@ consent covers only those two and that channel: any other issue or PR is asked f
   `kernel` (ids, language code, score, clock; no domain rule).
 - The domains are `learner-memory`, `session-log`, `catalogue`, `evaluation` and
   `audio`. No domain imports another, no flow imports another, and a module is imported
-  through its index file only. `scripts/checks/dependencies.mjs` enforces this in CI.
+  through its index file only. `nr lint` enforces this against `architecture.rules.json`.
 - A domain that needs another domain's data declares a port it owns, and a flow feeds
   it. Domains share events only through the session log: no in-process event bus.
 - The front end (`apps/web`) follows the Feature-Sliced Design layers.
