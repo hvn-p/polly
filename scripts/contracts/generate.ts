@@ -66,13 +66,6 @@ export const CONTRACTS: Contract[] = [
     client: 'packages/contract/src/generated.ts',
   },
   {
-    // The monitor reads the stream's schemas until it is bundled with the client.
-    name: 'agent-events',
-    source: 'apps/api/src/entry/contracts/agent-events.ts',
-    load: fromSource('apps/api/src/entry/contracts/agent-events.ts'),
-    jsonSchema: ['plugin/contracts/agent-events.schema.json'],
-  },
-  {
     name: 'compute',
     source: 'services/compute/src/polly_compute/app.py',
     load: async () => ({}),
@@ -214,6 +207,16 @@ export function typeOf(schema: unknown): string {
   }
 }
 
+// The `type` of each event a stream's schema admits.
+function eventTypes(schema: unknown): string[] {
+  const node = (schema ?? {}) as Record<string, unknown>
+  const members = (node['oneOf'] ?? node['anyOf'] ?? [node]) as Record<string, unknown>[]
+  return members.flatMap((member) => {
+    const type = (member['properties'] as Record<string, { const?: unknown }> | undefined)?.['type']?.const
+    return typeof type === 'string' ? [type] : []
+  })
+}
+
 // An operation of the OpenAPI document, as openApiDocument writes it.
 interface DocumentOperation {
   operationId: string
@@ -245,9 +248,14 @@ export function clientModule(source: string, document: Record<string, unknown>):
       const content = operation.responses['200']?.content ?? {}
       const entry = `{ method: '${method.toUpperCase()}', path: '${path}', refusals: [${codes.map((c) => `'${c}'`).join(', ')}] }`
       if ('text/event-stream' in content) {
-        streams.push(`  ${id}: { event: ${typeOf(content['text/event-stream']?.schema)} }`)
+        const event = content['text/event-stream']?.schema
+        streams.push(`  ${id}: { event: ${typeOf(event)} }`)
         streamTable.push(
-          `  ${id}: { path: '${path}', refusals: [${codes.map((c) => `'${c}'`).join(', ')}] },`,
+          `  ${id}: { path: '${path}', refusals: [${codes.map((c) => `'${c}'`).join(', ')}], events: [${eventTypes(
+            event,
+          )
+            .map((t) => `'${t}'`)
+            .join(', ')}] },`,
         )
         continue
       }

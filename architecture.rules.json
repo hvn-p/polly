@@ -192,7 +192,7 @@
       "group": "plugin",
       "name": "Plugin",
       "criterion": "The Claude Code plugin's scripts: the monitor. Reaches Polly through the generated contract only.",
-      "paths": ["plugin/monitors", "plugin/bin", "plugin/src"],
+      "paths": ["plugin/monitors", "plugin/src"],
       "mayImport": ["contract"],
       "technologies": ["node:*"],
       "fix": "The plugin reaches Polly through the generated contract only.",

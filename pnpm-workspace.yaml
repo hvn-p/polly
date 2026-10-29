@@ -23,3 +23,7 @@ minimumReleaseAgeExclude:
   - "@aws-sdk/token-providers@3.1157.0"
   - "@smithy/core@3.37.0"
   - "@smithy/node-http-handler@4.13.0"
+# Install scripts a dependency may run. esbuild's only checks its binary, which
+# arrives through its platform package (@esbuild/<platform>).
+allowBuilds:
+  esbuild: false

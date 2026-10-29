@@ -14,6 +14,7 @@
     "dev:url": "node dev/src/main.ts url",
     "agent": "node dev/src/main.ts agent",
     "contracts": "node scripts/contracts/generate.ts",
+    "bundles": "node scripts/build/bundles.ts",
     "lint": "biome check --error-on-warnings .",
     "lint:fix": "biome check --write .",
     "typecheck": "tsc -p scripts && pnpm -r --no-bail run typecheck",
@@ -25,6 +26,7 @@
     "@biomejs/biome": "2.6.2",
     "@types/node": "24.19.2",
     "@vitest/coverage-v8": "5.0.5",
+    "esbuild": "0.28.2",
     "typescript": "7.0.2",
     "vitest": "5.0.5",
     "zod": "4.6.7"

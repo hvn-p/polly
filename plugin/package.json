@@ -4,5 +4,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@polly/contract": "workspace:*"
   }
 }

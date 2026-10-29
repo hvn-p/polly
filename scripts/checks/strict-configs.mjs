@@ -68,7 +68,7 @@ const BIOME_ALLOWED_OFF = new Set(['complexity/useLiteralKeys'])
 const BIOME_ALLOWED_EXCLUDES = {
   node_modules: 'installed dependencies',
   vendors: "the platform's repository, read-only here and linted in its own",
-  '**/contracts/*.schema.json': 'generated from the Zod sources by nr contracts',
+  'plugin/monitors': 'bundled by esbuild from plugin/src (nr bundles)',
   'pnpm-lock.yaml': 'written by pnpm',
   '.claude/skills/impeccable': 'an installed third-party skill',
   '.specify': "Spec Kit's installed scripts and the feature's artifact cache",

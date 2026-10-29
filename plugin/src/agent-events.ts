@@ -3,31 +3,26 @@
 // to bind with start_lesson, and holds the worktree's agent-event stream open
 // with that code in a header. Each event becomes one line for the agent, its
 // data inside a delimited field the polly:lesson skill treats as content.
-// Writes nothing to disk; prints its code nowhere but its code line.
+// Writes nothing to disk; prints its code nowhere but its code line. Bundled
+// with the contract's client into plugin/monitors/ (nr bundles).
 
 import { randomBytes } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
+import { STREAMS } from '@polly/contract'
 
 const RECONNECT_DELAY_MS = 2000
 const UNCONFIGURED_URL = 'https://unconfigured.invalid/api/agent-events'
 
-/** @type {{ $defs: { agentEvent: { oneOf: { properties: { type: { const: string } } }[] }, refusal: { properties: { code: { enum: string[] } } } } }} */
-const contract = JSON.parse(
-  readFileSync(join(import.meta.dirname, '..', 'contracts', 'agent-events.schema.json'), 'utf8'),
-)
-const EVENT_TYPES = new Set(contract.$defs.agentEvent.oneOf.map((event) => event.properties.type.const))
-const REFUSALS = new Set(contract.$defs.refusal.properties.code.enum)
+const EVENT_TYPES: ReadonlySet<unknown> = new Set(STREAMS.agentEvents.events)
+const REFUSALS: ReadonlySet<unknown> = new Set(STREAMS.agentEvents.refusals)
 // Refusals a new code answers; any other ending is retried with the same code.
 const NEEDS_NEW_CODE = new Set(['EVENT_CODE_REVOKED', 'INVALID_EVENT_CODE'])
 
-/** @param {string} line */
-function say(line) {
+function say(line: string): void {
   process.stdout.write(`${line}\n`)
 }
 
-function drawCode() {
+function drawCode(): string {
   const code = randomBytes(32).toString('base64url')
   say(`polly event code: ${code}. Bind it with the start_lesson tool of the polly MCP server.`)
   return code
@@ -35,27 +30,21 @@ function drawCode() {
 
 // JSON that cannot close its field: `<` and `>` are escaped, which JSON keeps
 // as the same characters.
-/** @param {unknown} data */
-function fieldOf(data) {
+function fieldOf(data: unknown): string {
   return JSON.stringify(data).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e')
 }
 
-/**
- * Reads one connection until it ends; returns the refusal code that ended it,
- * if any.
- * @param {string} url
- * @param {string} code
- * @returns {Promise<string | undefined>}
- */
-async function listen(url, code) {
+// Reads one connection until it ends; returns the refusal code that ended it,
+// if any.
+async function listen(url: string, code: string): Promise<string | undefined> {
   const response = await fetch(url, { headers: { authorization: `Bearer ${code}` } })
   if (!response.ok) {
-    const body = /** @type {{ code?: unknown }} */ (await response.json().catch(() => ({})))
+    const body = (await response.json().catch(() => ({}))) as { code?: unknown }
     return typeof body.code === 'string' && REFUSALS.has(body.code) ? body.code : undefined
   }
   const decoder = new TextDecoder()
   let buffer = ''
-  for await (const chunk of /** @type {AsyncIterable<Uint8Array>} */ (response.body ?? [])) {
+  for await (const chunk of (response.body ?? []) as AsyncIterable<Uint8Array>) {
     buffer += decoder.decode(chunk, { stream: true })
     let boundary = buffer.indexOf('\n\n')
     while (boundary !== -1) {
@@ -67,10 +56,9 @@ async function listen(url, code) {
       if (event === undefined || data === undefined) {
         continue
       }
-      /** @type {{ type?: unknown, code?: unknown }} */
-      let parsed
+      let parsed: { type?: unknown; code?: unknown }
       try {
-        parsed = JSON.parse(data)
+        parsed = JSON.parse(data) as typeof parsed
       } catch {
         continue
       }
@@ -95,7 +83,7 @@ if (configured === undefined || configured === '') {
 }
 const url = configured || UNCONFIGURED_URL
 for (;;) {
-  let ending
+  let ending: string | undefined
   try {
     ending = await listen(url, code)
   } catch {

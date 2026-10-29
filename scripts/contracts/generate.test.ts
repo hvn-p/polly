@@ -160,6 +160,13 @@ describe('API contract generation', () => {
     )
   })
 
+  it("lists each stream's event types and refusals, for a client that checks them at runtime", async () => {
+    const client = (await render(api)).get('contract/src/generated.ts') ?? ''
+    expect(client).toContain(
+      "agentEvents: { path: '/api/agent-events', refusals: ['EVENT_CODE_REVOKED'], events: ['test'] }",
+    )
+  })
+
   it('C65: the guard names the API contract when its generated client was edited', async () => {
     const root = freshRoot()
     await generate(root, [api])

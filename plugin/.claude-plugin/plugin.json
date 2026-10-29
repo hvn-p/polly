@@ -12,7 +12,7 @@
     "monitors": [
       {
         "name": "agent-events",
-        "command": "node --use-system-ca \"${CLAUDE_PLUGIN_ROOT}/bin/agent-events.mjs\"",
+        "command": "node --use-system-ca \"${CLAUDE_PLUGIN_ROOT}/monitors/agent-events.mjs\"",
         "description": "Polly lesson events",
         "when": "on-skill-invoke:polly:lesson"
       }

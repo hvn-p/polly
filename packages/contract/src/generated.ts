@@ -40,6 +40,7 @@ export const STREAMS = {
   agentEvents: {
     path: '/api/agent-events',
     refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED', 'EVENT_CODE_NOT_BOUND'],
+    events: ['test'],
   },
 } as const
 

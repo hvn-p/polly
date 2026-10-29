@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { afterEach } from 'vitest'
 
-const monitorScript = join(import.meta.dirname, '..', '..', 'bin', 'agent-events.mjs')
+const monitorScript = join(import.meta.dirname, '..', '..', 'monitors', 'agent-events.mjs')
 
 // Records every host name the monitor resolves, and resolves none: no request
 // can leave the machine.

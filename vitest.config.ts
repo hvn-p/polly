@@ -12,16 +12,14 @@ export default defineConfig({
         'apps/*/src/**/*.{ts,tsx}',
         'dev/src/**/*.ts',
         'packages/*/src/**/*.ts',
-        'plugin/bin/**/*.mjs',
         'scripts/**/*.{ts,mjs}',
       ],
       exclude: [
         '**/*.test.{ts,tsx}',
         '**/vitest.config.ts',
         // Process entry points: the tests run them as the processes they are
-        // (the monitor against a stub stream, the supervisor by dev:up), and V8
-        // coverage does not follow a child process.
-        'plugin/bin/agent-events.mjs',
+        // (the supervisor by dev:up), and V8 coverage does not follow a child
+        // process.
         'dev/src/supervisor/main.ts',
         // The driven agent run: on demand, never in CI (nr dev:e2e).
         'dev/src/e2e/claude.ts',

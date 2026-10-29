@@ -25,7 +25,7 @@ describe('plugin manifest', () => {
         name: 'agent-events',
         // The system's CA store holds the local CA of the worktree's HTTPS origin.
         // biome-ignore lint/suspicious/noTemplateCurlyInString: Claude Code expands it, not JavaScript.
-        command: 'node --use-system-ca "${CLAUDE_PLUGIN_ROOT}/bin/agent-events.mjs"',
+        command: 'node --use-system-ca "${CLAUDE_PLUGIN_ROOT}/monitors/agent-events.mjs"',
         when: expect.stringMatching(/^on-skill-invoke:(polly:)?lesson$/),
       }),
     ])
