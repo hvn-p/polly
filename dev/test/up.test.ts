@@ -1,11 +1,13 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { createConnection, createServer, type Server } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { up } from '../src/commands/up.ts'
 import { url } from '../src/commands/url.ts'
 import { parseEnv } from '../src/config/index.ts'
+import { listeningPorts } from '../src/infra/listening.ts'
 import { fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
 import { git, temporaryRepository } from './support/repository.ts'
 
@@ -16,6 +18,25 @@ function output() {
 
 function env(root: string): Map<string, string> {
   return parseEnv(readFileSync(join(root, '.env.local'), 'utf8'))
+}
+
+// Another process's listener on a port, as the machine shows it to dev:up.
+function holdPort(port: number): Promise<Server> {
+  return new Promise((resolve) => {
+    const server = createServer((socket) => socket.end())
+    server.listen(port, '127.0.0.1', () => resolve(server))
+  })
+}
+
+function accepts(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection({ port, host: '127.0.0.1' })
+    socket.once('connect', () => {
+      socket.destroy()
+      resolve(true)
+    })
+    socket.once('error', () => resolve(false))
+  })
 }
 
 describe('dev:up with faked infrastructure', () => {
@@ -122,8 +143,9 @@ describe('dev:up with faked infrastructure', () => {
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
     infra.runningSupervisors.clear()
+    infra.ports = listeningPorts()
     const port = Number(env(root).get('POLLY_API_PORT'))
-    infra.heldPorts.add(port)
+    const holder = await holdPort(port)
     infra.calls.length = 0
     await expect(
       up({ root, ...loaded(infra), out: output().write, warn: () => undefined }),
@@ -134,6 +156,8 @@ describe('dev:up with faked infrastructure', () => {
       ),
     })
     expect(infra.calls).not.toContain('supervisor.start')
+    expect(await accepts(port)).toBe(true)
+    holder.close()
   })
 
   it('C9: refuses a host name already routed to another port, and leaves the route alone', async () => {
@@ -172,14 +196,17 @@ describe('dev:up with faked infrastructure', () => {
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
     infra.runningSupervisors.clear()
+    infra.ports = listeningPorts()
     const port = Number(env(root).get('POLLY_ARCH_PORT'))
-    infra.heldPorts.add(port)
+    const holder = await holdPort(port)
     await expect(
       up({ root, ...loaded(infra), out: output().write, warn: () => undefined }),
     ).rejects.toMatchObject({
       code: 'RESOURCE_CONFLICT',
       message: expect.stringMatching(new RegExp(`^port ${port} \\(POLLY_ARCH_PORT\\)`)),
     })
+    expect(await accepts(port)).toBe(true)
+    holder.close()
   })
 
   describe('C58: vendors/infra not initialised', () => {

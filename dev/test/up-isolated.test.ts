@@ -9,6 +9,7 @@ import {
   garage as garageOf,
   isolatedWorktreeInfrastructure,
   query,
+  routeTable,
   shippedMigrations,
   stateOf,
   superuser as superuserOf,
@@ -60,6 +61,9 @@ describe('dev:up against an isolated infrastructure', { timeout: 240_000 }, () =
       await shippedMigrations(),
     )
     expect(await query(root, 'select email from "user"')).toEqual([{ email: 'demo@polly.localhost' }])
+    const id = env['POLLY_WORKTREE_ID'] ?? ''
+    expect(routeTable.get(`${id}.polly`)).toBe(Number(env['POLLY_WEB_PORT']))
+    expect(routeTable.get(`arch.${id}.polly`)).toBe(Number(env['POLLY_ARCH_PORT']))
     await until(() => groupMembers(stateOf(root).supervisor.pid).length === 2)
   })
 

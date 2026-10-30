@@ -12,6 +12,7 @@ import {
   garage as garageOf,
   isolatedWorktreeInfrastructure,
   query,
+  routeTable,
   shippedMigrations,
   stateOf,
   superuser as superuserOf,
@@ -73,9 +74,12 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     client.on('error', () => undefined)
     await client.connect()
     const env = envOf(root)
-    await down({ root, infra, out })
+    const id = env['POLLY_WORKTREE_ID'] ?? ''
+    expect(routeTable.has(`${id}.polly`)).toBe(true)
+    await down({ root, infra: infrastructure(), out })
     expect(groupMembers(pid)).toEqual([])
     await released(env)
+    expect([routeTable.has(`${id}.polly`), routeTable.has(`arch.${id}.polly`)]).toEqual([false, false])
     await expect(down({ root, infra, out })).resolves.toBeUndefined()
     await client.end().catch(() => undefined)
   })

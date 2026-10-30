@@ -13,14 +13,20 @@ import type { isolatedInfrastructure } from './isolated-infrastructure.ts'
 
 type Shared = Awaited<ReturnType<typeof isolatedInfrastructure>>
 
-// The real adapters on an isolated infrastructure. portless is absent from
-// CI, so the route table is the fake's; the processes are stand-ins. Every
-// supervisor started is recorded, to be stopped after the tests.
+// portless is absent from CI: the route table is the fake's, one for every
+// infrastructure of a test file, as portless's is one for the machine.
+const routes = fakeInfrastructure()
+export const routeTable = routes.routeTable
+
+// The real adapters on an isolated infrastructure, the route table above and
+// stand-in processes. Every supervisor started is recorded, to be stopped
+// after the tests.
 export function isolatedWorktreeInfrastructure(shared: Shared, supervisors: number[]): Infrastructure {
   const fake = fakeInfrastructure()
   const supervisor = processSupervisor()
   return {
     ...fake,
+    routes: routes.routes,
     prerequisites: { missing: async () => undefined },
     shared,
     postgres: postgresAdmin(shared),
