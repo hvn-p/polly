@@ -20,13 +20,13 @@ export { browserSessions, type Consent, learnerDirectory, type Sessions, type Si
 export { MCP_CLIENT_ID, TOKEN_EXCHANGE_GRANT } from './token-exchange.ts'
 
 // Which learner makes a request for this resource: the learner its bearer
-// token was issued to, or the 401 whose WWW-Authenticate header starts the
-// OAuth flow. Keys are read at `jwksUrl`, on the address the server listens on.
+// token was issued to, or the challenge (a WWW-Authenticate value) that starts
+// the OAuth flow. Keys are read at `jwksUrl`, on the address the server listens on.
 export function authenticator(
   identity: Identity,
   resource: string,
   jwksUrl: () => string,
-): (request: Request) => Promise<{ learnerId: string } | Response> {
+): (request: Request) => Promise<{ learnerId: string } | { challenge: string }> {
   const admitted = new WeakMap<Request, string>()
   let protect: ((request: Request) => Promise<Response>) | undefined
   return async (request) => {
@@ -44,6 +44,9 @@ export function authenticator(
     )
     const response = await protect(request)
     const learnerId = admitted.get(request)
-    return learnerId === undefined ? response : { learnerId }
+    if (learnerId !== undefined) {
+      return { learnerId }
+    }
+    return { challenge: response.headers.get('www-authenticate') ?? 'Bearer' }
   }
 }

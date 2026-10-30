@@ -2,7 +2,7 @@
 // built: routes and access rules throw a Refusal; scripts/checks/refusals.mjs
 // keeps them from building their own.
 
-import type { Refusal } from '@polly/platform'
+import { Refusal } from '@polly/platform'
 
 // A refusal not listed here depends on the state of something: 409.
 const HTTP_STATUS: Record<string, number> = {
@@ -16,6 +16,14 @@ const HTTP_STATUS: Record<string, number> = {
 // A path no route serves: no refusal of the contract, so no code.
 export function notFoundResponse(): Response {
   return new Response(null, { status: 404 })
+}
+
+// An unauthenticated request: UNAUTHORIZED, with the challenge whose
+// resource metadata starts the OAuth flow.
+export function challengeResponse(challenge: string): Response {
+  const response = refusalResponse(new Refusal('UNAUTHORIZED', 'sign in to Polly through OAuth'))
+  response.headers.set('www-authenticate', challenge)
+  return response
 }
 
 export function refusalResponse(refusal: Refusal): Response {

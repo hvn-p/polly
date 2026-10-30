@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { refusal } from '../src/contracts/agent-events.ts'
 import { testServer } from './support/server.ts'
 
 const server = await testServer({ POLLY_ENV: 'local' })
@@ -14,6 +15,10 @@ describe('route walk', () => {
       })
       expect({ path, status: response.status }).toEqual({ path, status: 401 })
       expect(response.headers.get('www-authenticate')).toMatch(/^Bearer .*resource_metadata=/)
+      expect({ path, body: refusal.parse(await response.json()).code }).toEqual({
+        path,
+        body: 'UNAUTHORIZED',
+      })
     }
   })
 
@@ -25,6 +30,10 @@ describe('route walk', () => {
         body: method === 'GET' ? null : '{}',
       })
       expect(response.status).toBe(401)
+      expect({ path, body: refusal.parse(await response.json()).code }).toEqual({
+        path,
+        body: 'UNAUTHORIZED',
+      })
     }
   })
 

@@ -1,6 +1,7 @@
-import { apiResource, authenticator, MCP_CLIENT_ID } from '@polly/identity'
+import { apiResource, MCP_CLIENT_ID } from '@polly/identity'
 import { hash } from '@polly/kernel'
 import { describe, expect, it } from 'vitest'
+import { refusal } from '../src/contracts/agent-events.ts'
 import { claimsOf, createLearner, exchangeToken, mcpAccessToken } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
 
@@ -57,17 +58,11 @@ describe('token exchange', () => {
 
   it('C72: the MCP token sent to the API as is is refused', async () => {
     const { subjectToken } = await mcpToken()
-    const authenticate = authenticator(
-      server.identity,
-      apiResource(server.config.PUBLIC_URL),
-      () => `${server.url}/api/auth/jwks`,
-    )
-    const outcome = await authenticate(
-      new Request(`${server.config.PUBLIC_URL}/api/me`, {
-        headers: { authorization: `Bearer ${subjectToken}` },
-      }),
-    )
-    expect(outcome).toBeInstanceOf(Response)
-    expect((outcome as Response).status).toBe(401)
+    const response = await fetch(`${server.url}/api/me`, {
+      headers: { authorization: `Bearer ${subjectToken}` },
+    })
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toMatch(/^Bearer .*resource_metadata=/)
+    expect(refusal.parse(await response.json()).code).toBe('UNAUTHORIZED')
   })
 })

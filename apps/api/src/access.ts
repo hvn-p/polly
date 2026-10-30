@@ -6,11 +6,13 @@
 // lets some cross-site requests carry it.
 
 import { Refusal } from '@polly/platform'
+import { challengeResponse } from './refusals.ts'
 import type { Guard } from './routes.ts'
 
-// Which learner makes a request, or the response refusing it: the identity's
-// port, built by the composition root once the server's JWKS URL is known.
-export type Authenticate = (request: Request) => Promise<{ learnerId: string } | Response>
+// Which learner makes a request, or the challenge (a WWW-Authenticate value)
+// refusing it: the identity's port, built by the composition root once the
+// server's JWKS URL is known.
+export type Authenticate = (request: Request) => Promise<{ learnerId: string } | { challenge: string }>
 
 // The learner a browser's session cookie names, if any.
 export type SessionLearner = (headers: Headers) => Promise<string | undefined>
@@ -28,7 +30,8 @@ export function learnerGuard(
         ? undefined
         : await sessionLearner(request.headers)
     if (learnerId === undefined) {
-      return authenticate(request)
+      const outcome = await authenticate(request)
+      return 'challenge' in outcome ? challengeResponse(outcome.challenge) : outcome
     }
     if (!SAFE_METHODS.has(request.method) && request.headers.get('origin') !== origin) {
       throw new Refusal('UNAUTHORIZED', "a request signed in by its cookie comes from the worktree's origin")
