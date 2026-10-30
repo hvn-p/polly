@@ -5,7 +5,7 @@
 //
 // Usage: node scripts/build/processes.ts [--watch] [name...]
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { type BuildOptions, build, context, type Plugin } from 'esbuild'
 
@@ -112,9 +112,17 @@ function options({ entry, outfile, development = false }: Paths): BuildOptions {
   }
 }
 
-// Builds a process; resolves with the source files it bundled.
+// Builds a process; resolves with the source files it bundled. An output
+// identical to the one on disk is left unwritten: a running process that
+// watches its build (node --watch) restarts on a write, changed or not.
 export async function bundleProcess(paths: Paths): Promise<string[]> {
-  const { metafile } = await build(options(paths))
+  const { metafile, outputFiles } = await build({ ...options(paths), write: false })
+  for (const { path, contents } of outputFiles) {
+    if (!existsSync(path) || !Buffer.from(contents).equals(readFileSync(path))) {
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, contents)
+    }
+  }
   return Object.keys(metafile?.inputs ?? {})
 }
 
@@ -141,9 +149,16 @@ export function pathsOf({ entry, output, development }: Process): Paths {
   }
 }
 
+// A failure exits 2, the dev commands' status for an unexpected failure: they
+// run this build first.
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === import.meta.filename) {
   const watch = process.argv[2] === '--watch'
-  for (const target of selected(process.argv.slice(watch ? 3 : 2))) {
-    await (watch ? watchProcess(pathsOf(target)) : bundleProcess(pathsOf(target)))
+  try {
+    for (const target of selected(process.argv.slice(watch ? 3 : 2))) {
+      await (watch ? watchProcess(pathsOf(target)) : bundleProcess(pathsOf(target)))
+    }
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error)
+    process.exitCode = 2
   }
 }
