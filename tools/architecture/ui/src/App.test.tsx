@@ -588,18 +588,20 @@ describe("the analyzer's version", () => {
     ])
   })
 
-  it('keeps the warning and the top bar when a report in another format breaks a part of the view', async () => {
+  it('opens a file from a report in another format, shown without its marks, saying why', async () => {
     const file = 'packages/back/src/flows/buy/index.ts'
+    const source = "import type { Price } from '@shop/kernel'\n// pricing\nexport const price = 1\n"
     const report = fixture()
     // What an analyzer older than the view sends: edges without their uses.
     report.edges = report.edges.map(({ uses: _, ...older }) => older as (typeof report.edges)[number])
+    // The hash the shared set-up cleared changes after a tick, which closes the panel.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
     const silenced = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     render(
       <App
-        feed={feedOf(
-          { report, analyzer: null, analyzerFormat: null },
-          { [file]: "import type { Price } from '@shop/kernel'\n" },
-        )}
+        feed={feedOf({ report, analyzer: null, analyzerFormat: null }, { [file]: source })}
         identity={view}
         format={viewFormat}
       />,
@@ -609,10 +611,21 @@ describe("the analyzer's version", () => {
     })
     silenced.mockRestore()
     expect(banner()?.classList.contains('format')).toBe(true)
-    expect(screen.getByText('architecture')).toBeDefined()
-    expect(screen.getByText(/could not be drawn from the analyzer's report/).getAttribute('role')).toBe(
-      'status',
+    const panel = screen.getByRole('complementary', { name: 'Source' })
+    expect(panel.classList.contains('open')).toBe(true)
+    expect(panel.textContent).toContain(file)
+    expect(within(panel).getByRole('button', { name: /Close/ })).toBeDefined()
+    // Why the marks are missing, at the head of the code.
+    expect(within(panel).getByRole('status').textContent).toMatch(
+      /Shown without its imports marked.*not in this view's format/,
     )
+    // The file itself, line by line.
+    expect([...panel.querySelectorAll('pre > .l')].map((line) => line.textContent)).toEqual([
+      "1import type { Price } from '@shop/kernel'",
+      '2// pricing',
+      '3export const price = 1',
+      '4 ',
+    ])
   })
 
   it('says nothing when both come from the same sources, or before the analyzer answered', () => {

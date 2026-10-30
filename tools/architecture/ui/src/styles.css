@@ -1680,8 +1680,31 @@ fieldset.zoom {
   color: var(--ink);
 }
 
-/* A part of the view that could not be drawn from the analyzer's report. */
-.contained {
-  margin: 20px;
+/* Why a part of the view shows less than it should. */
+.notice {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--warn);
+  background: var(--raise);
+}
+.notice-mark {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  background: var(--warn);
+}
+.notice p {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
   color: var(--ink-2);
+  font-size: 13px;
+}
+.notice strong {
+  color: var(--ink);
+  font-size: 14px;
 }

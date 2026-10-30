@@ -6,7 +6,8 @@
 
 import { type CSSProperties, Fragment, type ReactNode, useState } from 'react'
 import { labelOf, tierName, tierOfModule } from './model.ts'
-import { Cross, moduleHref, plural, tint, useView } from './parts.tsx'
+import { Contained, Cross, moduleHref, Notice, plural, tint, useView } from './parts.tsx'
+import type { Edge, Violation } from './types.ts'
 
 export interface OpenSource {
   file: string
@@ -69,27 +70,52 @@ interface SourcePanelProps {
   open: OpenSource | undefined
   visible: boolean
   snapshot: boolean
+  // Changes with each report: the code drawn wrong from one is tried again.
+  attempt: unknown
   onClose: () => void
 }
 
-export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelProps) {
+// The file's lines alone, highlighted: what the panel shows when the report
+// cannot be read to mark them, with why at its head.
+function PlainCode({ text }: { text: string | null | undefined }) {
+  return (
+    <>
+      <Notice title="Shown without its imports marked">
+        The analyzer's report is not in this view's format; the warning above says how to fix it.
+      </Notice>
+      {typeof text === 'string' ? (
+        <pre>
+          {text
+            .split('\n')
+            .map((line, at) => ({ line, n: at + 1 }))
+            .map(({ line, n }) => (
+              <div key={n} className="l">
+                <span>{n}</span>
+                <span>{line === '' ? ' ' : highlight(line)}</span>
+              </div>
+            ))}
+        </pre>
+      ) : null}
+    </>
+  )
+}
+
+// The file's lines, its imports, breaches and uses marked. Drawn apart from
+// the panel, so a report it cannot read leaves the panel open with a message.
+function Code({
+  open,
+  edges,
+  breaches,
+  hidden,
+  snapshot,
+}: {
+  open: OpenSource
+  edges: Edge[]
+  breaches: Violation[]
+  hidden: ReadonlySet<string>
+  snapshot: boolean
+}) {
   const { model } = useView()
-  const file = open?.file ?? ''
-  const edges = model.report.edges.filter((e) => e.file === file)
-  const breaches = model.report.violations.filter((v) => v.file === file)
-  // The modules the file imports, in the order of their first import.
-  const modules = [...new Set([...edges].sort((a, b) => a.line - b.line).map((e) => e.to))]
-  // The modules hidden from the legend, for the file they were hidden in.
-  const [hiding, setHiding] = useState({ file, ids: new Set<string>() })
-  const hidden = hiding.file === file ? hiding.ids : new Set<string>()
-  const toggle = (id: string) =>
-    setHiding((last) => {
-      const ids = new Set(last.file === file ? last.ids : [])
-      if (!ids.delete(id)) {
-        ids.add(id)
-      }
-      return { file, ids }
-    })
   const marks = Map.groupBy(
     edges
       .filter((e) => !hidden.has(e.to))
@@ -103,7 +129,7 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
     element?.scrollIntoView?.({ block: 'center' })
   }
   let body: ReactNode = null
-  if (open?.text === null) {
+  if (open.text === null) {
     body = (
       <p className="empty">
         {snapshot
@@ -111,7 +137,7 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
           : 'The analyzer does not serve this file: it reads only the sources it analyzed.'}
       </p>
     )
-  } else if (open?.text !== undefined) {
+  } else if (open.text !== undefined) {
     body = (
       <pre>
         {open.text.split('\n').map((text, i) => {
@@ -155,6 +181,27 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
       </pre>
     )
   }
+  return body
+}
+
+export function SourcePanel({ open, visible, snapshot, attempt, onClose }: SourcePanelProps) {
+  const { model } = useView()
+  const file = open?.file ?? ''
+  const edges = model.report.edges.filter((e) => e.file === file)
+  const breaches = model.report.violations.filter((v) => v.file === file)
+  // The modules the file imports, in the order of their first import.
+  const modules = [...new Set([...edges].sort((a, b) => a.line - b.line).map((e) => e.to))]
+  // The modules hidden from the legend, for the file they were hidden in.
+  const [hiding, setHiding] = useState({ file, ids: new Set<string>() })
+  const hidden = hiding.file === file ? hiding.ids : new Set<string>()
+  const toggle = (id: string) =>
+    setHiding((last) => {
+      const ids = new Set(last.file === file ? last.ids : [])
+      if (!ids.delete(id)) {
+        ids.add(id)
+      }
+      return { file, ids }
+    })
   return (
     <aside className={`src${visible ? ' open' : ''}`} aria-label="Source">
       {open === undefined ? null : (
@@ -197,7 +244,12 @@ export function SourcePanel({ open, visible, snapshot, onClose }: SourcePanelPro
               </fieldset>
             )}
           </header>
-          {body}
+          <Contained
+            attempt={`${file} ${open.line} ${String(attempt)}`}
+            fallback={<PlainCode text={open.text} />}
+          >
+            <Code open={open} edges={edges} breaches={breaches} hidden={hidden} snapshot={snapshot} />
+          </Contained>
         </>
       )}
     </aside>

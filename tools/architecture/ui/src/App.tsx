@@ -2,22 +2,14 @@
 // status, tabs, counts), the trail of views visited, the current view, and the
 // source panel.
 
-import {
-  Component,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { Feed, FeedState } from './feed.ts'
 import { readSeen, writeSeen } from './feed.ts'
 import { type DiffLine, type FormatGap, formatDiff, formatGap } from './format.ts'
 import { Matrix, type Selection } from './Matrix.tsx'
 import { buildModel, type Folds, labelOf, type Model } from './model.ts'
 import { BreachesPage, ChangesPage, ModulePage, RulesPage } from './pages.tsx'
-import { BackArrow, ViewContext } from './parts.tsx'
+import { BackArrow, Contained, ViewContext } from './parts.tsx'
 import { crumbsOf, type Page, parseRoute, trailAfter } from './route.ts'
 import { type OpenSource, SourcePanel } from './Source.tsx'
 import type { Identity } from './types.ts'
@@ -249,34 +241,6 @@ function VersionWarning({
   )
 }
 
-// A part of the view that fails to draw from the report (one in a format the
-// view does not read) says so in its place, and the rest of the view, the
-// warning above all, stays up. It tries again with the next report or file.
-class Contained extends Component<{ children: ReactNode; attempt: unknown }, { failed: boolean }> {
-  override state = { failed: false }
-
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true }
-  }
-
-  override componentDidUpdate(previous: { attempt: unknown }): void {
-    if (this.state.failed && previous.attempt !== this.props.attempt) {
-      this.setState({ failed: false })
-    }
-  }
-
-  override render(): ReactNode {
-    return this.state.failed ? (
-      <p className="contained" role="status">
-        This part could not be drawn from the analyzer's report. Rebuild the analyzer, as the warning above
-        says.
-      </p>
-    ) : (
-      this.props.children
-    )
-  }
-}
-
 // identity: the analyzer's sources this view was built from; null when its
 // build could not read them.
 // format: the format of the analyzer's report this view was built to read.
@@ -445,14 +409,13 @@ export function App({
       </div>
       {view === undefined ? null : (
         <ViewContext.Provider value={view}>
-          <Contained attempt={`${source?.file} ${source?.line} ${state.updatedAt}`}>
-            <SourcePanel
-              open={source}
-              visible={sourceShown}
-              snapshot={state.status === 'snapshot'}
-              onClose={() => setSourceShown(false)}
-            />
-          </Contained>
+          <SourcePanel
+            open={source}
+            visible={sourceShown}
+            snapshot={state.status === 'snapshot'}
+            attempt={state.updatedAt}
+            onClose={() => setSourceShown(false)}
+          />
         </ViewContext.Provider>
       )}
     </>
