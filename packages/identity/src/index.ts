@@ -15,6 +15,7 @@ export {
   learnerAccounts,
   mcpResource,
   registerMcpClient,
+  SIGN_IN_BOUNDS,
 } from './better-auth.ts'
 export { browserSessions, type Consent, learnerDirectory, type Sessions, type SignIn } from './sessions.ts'
 export { MCP_CLIENT_ID, TOKEN_EXCHANGE_GRANT } from './token-exchange.ts'

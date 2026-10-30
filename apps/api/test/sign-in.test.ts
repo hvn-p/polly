@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { mcpResource } from '@polly/identity'
+import { mcpResource, SIGN_IN_BOUNDS } from '@polly/identity'
 import { describe, expect, it } from 'vitest'
+import { signInRequest } from '../src/contracts/api.ts'
 import { createLearner, createPublicClient, headers, signedInCookie } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
 
@@ -57,6 +58,14 @@ describe('POST /api/sign-in', () => {
     expect(session).toMatch(/;\s*Secure/i)
     expect(session).toMatch(/;\s*HttpOnly/i)
     expect(session).not.toMatch(/;\s*Domain=/i)
+  })
+
+  it("checks the contract's bounds: the identity's copy of them is the contract's", () => {
+    const { email, password } = signInRequest.shape
+    expect(SIGN_IN_BOUNDS).toEqual({
+      email: { max: email.maxLength },
+      password: { min: password.minLength, max: password.maxLength },
+    })
   })
 
   it('C22: refuses a wrong password, and a pair out of bounds, with INVALID_EMAIL_OR_PASSWORD', async () => {

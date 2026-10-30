@@ -167,6 +167,13 @@ describe('API contract generation', () => {
     await expect(render(bare)).rejects.toThrow('api: an API contract defines its Refusal schema')
   })
 
+  it("writes the bounds of each schema's fields, for a form that checks them before the API does", async () => {
+    const client = (await render(api)).get('contract/src/generated.ts') ?? ''
+    expect(client.replace(/\s+/g, ' ')).toContain(
+      'export const BOUNDS = { Learner: { learnerId: { max: 64 } }, Code: { code: { min: 43, max: 43 } }, Refusal: { reason: { max: 512 } }, } as const',
+    )
+  })
+
   it("lists each stream's event types and refusals, for a client that checks them at runtime", async () => {
     const client = (await render(api)).get('contract/src/generated.ts') ?? ''
     expect(client).toContain(

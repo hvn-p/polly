@@ -37,8 +37,10 @@ export function apiResource(publicUrl: string): string {
 // call, and a JWT cannot be revoked before it expires.
 const API_TOKEN_SECONDS = 300
 
-// The longest address SMTP carries (RFC 5321).
-const MAX_EMAIL_LENGTH = 254
+// The sign-in form's bounds: a copy of the API contract's, which this tier
+// cannot import; a test of the API holds it equal. 254 is the longest address
+// SMTP carries (RFC 5321).
+export const SIGN_IN_BOUNDS = { email: { max: 254 }, password: { min: 8, max: 128 } } as const
 
 // The sign-in form's bounds, checked by the API (constitution principle XVI):
 // Better Auth checks an email's format but not its length, and a password's
@@ -49,7 +51,7 @@ const signInBounds = createAuthMiddleware(async (ctx) => {
   }
   const { email, password } = (ctx.body ?? {}) as { email?: unknown; password?: unknown }
   const { minPasswordLength, maxPasswordLength } = ctx.context.password.config
-  if (typeof email === 'string' && email.length > MAX_EMAIL_LENGTH) {
+  if (typeof email === 'string' && email.length > SIGN_IN_BOUNDS.email.max) {
     throw APIError.from('BAD_REQUEST', BASE_ERROR_CODES.INVALID_EMAIL)
   }
   if (typeof password === 'string' && password.length < minPasswordLength) {
@@ -65,7 +67,12 @@ export function identityOptions(settings: IdentitySettings) {
     baseURL: settings.publicUrl,
     secret: settings.secret,
     database: { db: settings.db, type: 'postgres' },
-    emailAndPassword: { enabled: true, disableSignUp: true },
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: true,
+      minPasswordLength: SIGN_IN_BOUNDS.password.min,
+      maxPasswordLength: SIGN_IN_BOUNDS.password.max,
+    },
     hooks: { before: signInBounds },
     plugins: [
       jwt(),

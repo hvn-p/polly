@@ -101,3 +101,14 @@ export const REFUSAL_CODES = [
 ] as const
 
 export type RefusalCode = (typeof REFUSAL_CODES)[number]
+
+// The bounds of each schema's fields, which the API checks: a form checks them first.
+export const BOUNDS = {
+  Learner: { learnerId: { min: 1, max: 64 }, name: { min: 1, max: 256 } },
+  SignInRequest: { email: { min: 3, max: 254 }, password: { min: 8, max: 128 }, oauthQuery: { max: 4096 } },
+  SignedIn: { next: { min: 1, max: 2048 } },
+  ConsentRequest: { oauthQuery: { max: 4096 } },
+  Consented: { next: { min: 1, max: 2048 } },
+  EventCodeBinding: { code: { min: 43, max: 43 } },
+  Refusal: { reason: { max: 512 } },
+} as const

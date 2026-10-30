@@ -147,3 +147,10 @@ export const RESPONSES: Partial<Record<keyof Operations, JSONSchema.JSONSchema>>
 export const REFUSAL_CODES = [] as const
 
 export type RefusalCode = (typeof REFUSAL_CODES)[number]
+
+// The bounds of each schema's fields, which the API checks: a form checks them first.
+export const BOUNDS = {
+  Analysis: { recordingId: { min: 1, max: 64 }, score: { min: 0, max: 1 } },
+  AnalysisRequest: { recordingId: { min: 1, max: 64 } },
+  Version: { fingerprint: { min: 1, max: 64 } },
+} as const

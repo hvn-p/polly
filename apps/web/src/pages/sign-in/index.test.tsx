@@ -1,3 +1,4 @@
+import { BOUNDS } from '@polly/contract'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { catalogues, translator } from '../../shared/i18n/index.ts'
@@ -43,6 +44,15 @@ describe('sign-in page', () => {
     await submit(en['signIn.submit'])
     expect(screen.getByRole('alert').textContent).toBe(en['signIn.emailInvalid'])
     expect(api.call).not.toHaveBeenCalled()
+  })
+
+  it("bounds each field as the API's contract does", () => {
+    render(<SignInPage t={t} />)
+    const email = screen.getByLabelText<HTMLInputElement>(en['signIn.email'])
+    const password = screen.getByLabelText<HTMLInputElement>(en['signIn.password'])
+    const { email: emailBounds, password: passwordBounds } = BOUNDS.SignInRequest
+    expect([email.minLength, email.maxLength]).toEqual([emailBounds.min, emailBounds.max])
+    expect([password.minLength, password.maxLength]).toEqual([passwordBounds.min, passwordBounds.max])
   })
 
   it("signs in through the API's contract, then goes where it says, or home", async () => {

@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { api } from '../../shared/api/index.ts'
 import type { MessageKey, Translate } from '../../shared/i18n/index.ts'
-import { signInProblem } from './bounds.ts'
+import { EMAIL, PASSWORD, signInProblem } from './bounds.ts'
 
 export function SignInPage({ t }: { t: Translate }) {
   const [problem, setProblem] = useState<MessageKey>()
@@ -37,7 +37,14 @@ export function SignInPage({ t }: { t: Translate }) {
       <form onSubmit={submit} noValidate>
         <label>
           {t('signIn.email')}
-          <input name="email" type="email" autoComplete="username" minLength={3} maxLength={254} required />
+          <input
+            name="email"
+            type="email"
+            autoComplete="username"
+            minLength={EMAIL.min}
+            maxLength={EMAIL.max}
+            required
+          />
         </label>
         <label>
           {t('signIn.password')}
@@ -45,8 +52,8 @@ export function SignInPage({ t }: { t: Translate }) {
             name="password"
             type="password"
             autoComplete="current-password"
-            minLength={8}
-            maxLength={128}
+            minLength={PASSWORD.min}
+            maxLength={PASSWORD.max}
             required
           />
         </label>

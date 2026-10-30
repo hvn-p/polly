@@ -242,6 +242,30 @@ function standalone(schema: unknown, components: Record<string, unknown>): unkno
   return text.includes('#/components/schemas/') ? { ...local(schema), $defs: local(components) } : schema
 }
 
+// The bounds of each schema's string and number fields, as `{ min, max }`.
+function boundsOf(components: Record<string, unknown>): string[] {
+  const lines: string[] = []
+  for (const [name, schema] of Object.entries(components)) {
+    const properties = (schema as { properties?: Record<string, Record<string, unknown>> }).properties ?? {}
+    const fields: string[] = []
+    for (const [field, property] of Object.entries(properties)) {
+      const min = property['minLength'] ?? property['minimum']
+      const max = property['maxLength'] ?? property['maximum']
+      const bounds = [
+        ...(typeof min === 'number' ? [`min: ${min}`] : []),
+        ...(typeof max === 'number' ? [`max: ${max}`] : []),
+      ]
+      if (bounds.length > 0) {
+        fields.push(`${field}: { ${bounds.join(', ')} }`)
+      }
+    }
+    if (fields.length > 0) {
+      lines.push(`  ${name}: { ${fields.join(', ')} },`)
+    }
+  }
+  return lines
+}
+
 export function clientModule(source: string, document: Record<string, unknown>): string {
   const components = (document['components'] as { schemas: Record<string, unknown> }).schemas
   const lines = [
@@ -312,6 +336,16 @@ export function clientModule(source: string, document: Record<string, unknown>):
     '',
   )
   lines.push('export type RefusalCode = (typeof REFUSAL_CODES)[number]', '')
+  const bounds = boundsOf(components)
+  if (bounds.length > 0) {
+    lines.push(
+      "// The bounds of each schema's fields, which the API checks: a form checks them first.",
+      'export const BOUNDS = {',
+      ...bounds,
+      '} as const',
+      '',
+    )
+  }
   return lines.join('\n')
 }
 
