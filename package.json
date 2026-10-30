@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev:up": "pnpm install --frozen-lockfile && node scripts/build/processes.ts && node dev/dist/main.js up",
+    "dev:up": "pnpm install --frozen-lockfile >&2 || exit 2; node scripts/build/processes.ts && node dev/dist/main.js up",
     "dev:down": "node scripts/build/processes.ts && node dev/dist/main.js down",
     "dev:worker": "node scripts/build/processes.ts && node dev/dist/main.js worker",
     "dev:e2e": "node scripts/build/processes.ts && node dev/dist/main.js e2e",
