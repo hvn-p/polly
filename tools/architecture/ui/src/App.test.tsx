@@ -546,6 +546,16 @@ describe("the analyzer's version", () => {
       "The analyzer's report is not in this view's format",
     )
     expect(banner()?.textContent).toContain('What the view shows is wrong or missing')
+    // The two formats line by line, folded until asked for.
+    const diff = within(banner() as HTMLElement)
+      .getByText('Show the format difference')
+      .closest('details')
+    expect(diff?.open).toBe(false)
+    const removed = [...(diff?.querySelectorAll('pre .removed') ?? [])].map((line) =>
+      line.textContent?.trim(),
+    )
+    expect(removed.some((line) => line?.startsWith('-') && line.includes('"uses": {'))).toBe(true)
+    expect(diff?.querySelectorAll('pre .added')).toHaveLength(0)
     expect(rows()).toEqual([
       'report.edges[].uses',
       'da9228a2026-10-30 00:31no local changessources f-old',
@@ -559,6 +569,7 @@ describe("the analyzer's version", () => {
     )
     expect(banner()?.classList.contains('format')).toBe(true)
     expect(rows()[0]).toBe('no format: built before formats existed')
+    expect(within(banner() as HTMLElement).queryByText('Show the format difference')).toBeNull()
   })
 
   it('stays at the sources level when both send the same format', () => {

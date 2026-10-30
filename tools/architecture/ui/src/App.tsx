@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { Feed, FeedState } from './feed.ts'
 import { readSeen, writeSeen } from './feed.ts'
-import { type FormatGap, formatGap } from './format.ts'
+import { type DiffLine, type FormatGap, formatDiff, formatGap } from './format.ts'
 import { Matrix, type Selection } from './Matrix.tsx'
 import { buildModel, type Folds, labelOf, type Model } from './model.ts'
 import { BreachesPage, ChangesPage, ModulePage, RulesPage } from './pages.tsx'
@@ -100,7 +100,7 @@ function Built({ fields, other }: { fields: Fields; other: Fields | undefined })
 
 // How far the analyzer serving the view is from it: built from other sources,
 // or sending another format, which the view then reads wrong.
-type Gap = { level: 'sources' } | { level: 'format'; fields: FormatGap | undefined }
+type Gap = { level: 'sources' } | { level: 'format'; fields: FormatGap | undefined; diff: DiffLine[] }
 
 function gapOf(
   state: FeedState,
@@ -109,11 +109,11 @@ function gapOf(
 ): Gap | undefined {
   if (format !== null && state.analyzerFormat !== undefined) {
     if (state.analyzerFormat === null) {
-      return { level: 'format', fields: undefined }
+      return { level: 'format', fields: undefined, diff: [] }
     }
     const fields = formatGap(format, state.analyzerFormat)
     if (fields !== undefined) {
-      return { level: 'format', fields }
+      return { level: 'format', fields, diff: formatDiff(format, state.analyzerFormat) }
     }
   }
   return identity !== null &&
@@ -121,6 +121,29 @@ function gapOf(
     state.analyzer?.fingerprint !== identity.fingerprint
     ? { level: 'sources' }
     : undefined
+}
+
+// The two formats line by line, folded until asked for: what the view reads
+// as removed, what the analyzer sends as added.
+function FormatDiff({ lines }: { lines: DiffLine[] }) {
+  const numbered = lines.map((line, at) => ({ ...line, at }))
+  const classOf = { ' ': 'line', '-': 'line removed', '+': 'line added', '…': 'line folded' } as const
+  return (
+    <details className="format-diff">
+      <summary>Show the format difference</summary>
+      <p className="legend">
+        <span className="removed">- what this view reads</span>
+        <span className="added">+ what the analyzer sends</span>
+      </p>
+      <pre>
+        {numbered.map((line) => (
+          <span key={line.at} className={classOf[line.kind]}>
+            {line.kind === '…' ? '…' : `${line.kind} ${line.text}`}
+          </span>
+        ))}
+      </pre>
+    </details>
+  )
 }
 
 // Shown for as long as the analyzer serving the view was built from other
@@ -209,6 +232,7 @@ function VersionWarning({
           </>
         )}
       </dl>
+      {gap.level === 'format' && gap.diff.length > 0 ? <FormatDiff lines={gap.diff} /> : null}
       <p className="fix">
         Run <code>cargo build --release</code> in <code>tools/architecture/analyzer</code>, then restart the
         analyzer.

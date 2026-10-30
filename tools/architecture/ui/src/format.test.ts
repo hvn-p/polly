@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatGap } from './format.ts'
+import { formatDiff, formatGap } from './format.ts'
 
 // A format as the analyzer writes it: properties, references into $defs,
 // arrays and optional values.
@@ -47,5 +47,29 @@ describe('the gap between two report formats', () => {
       missing: [],
       unknown: [],
     })
+  })
+})
+
+describe('the difference between two report formats, line by line', () => {
+  it('shows what the view expects as removed and what the analyzer sends as added, around them only', () => {
+    const { uses: _, ...older } = edge
+    const lines = formatDiff(format(edge), format(older))
+    const changed = lines.filter((line) => line.kind !== ' ' && line.kind !== '…')
+    expect(changed.map((line) => `${line.kind}${line.text.trim()}`)).toEqual([
+      '-},',
+      '-"uses": {',
+      '-"items": {',
+      '-"type": "object"',
+      '-},',
+      '-"type": "array"',
+    ])
+    // Three lines of context around each change, the rest folded.
+    const first = lines.findIndex((line) => line.kind === '-')
+    expect(lines.slice(0, first).filter((line) => line.kind === ' ')).toHaveLength(3)
+    expect(lines[0]?.kind).toBe('…')
+  })
+
+  it('is empty for the same format, whatever the order of its keys', () => {
+    expect(formatDiff(format(edge), JSON.parse(JSON.stringify(format(edge))))).toEqual([])
   })
 })
