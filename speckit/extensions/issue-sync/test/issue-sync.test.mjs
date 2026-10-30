@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'vitest'
 import {
   branchServes,
   cacheDir,
@@ -97,7 +97,7 @@ test('writing the tasks keeps the rest of the description', () => {
   assert.match(second, /^Closes #189\n\nSummary\./)
   assert.match(second, /## Test guard\n\n\| File \|$/)
   assert.equal(readTasks(second), '- [x] T001\n')
-  assert.equal(second.match(/speckit-tasks:start/g).length, 1)
+  assert.equal(second.match(/speckit-tasks:start/g)?.length, 1)
 })
 
 test('tasks written to an empty description become the whole section', () => {
@@ -166,7 +166,11 @@ test('a push creates the new, updates the changed and leaves the unchanged', () 
     { path: 'tasks.md', content: 'fresh' },
   ]
   assert.deepEqual(
-    planPush(files, comments).map(({ kind, path, id }) => ({ kind, path, id })),
+    planPush(files, comments).map((action) => ({
+      kind: action.kind,
+      path: action.path,
+      id: action.kind === 'update' ? action.id : undefined,
+    })),
     [
       { kind: 'update', path: 'plan.md', id: 3 },
       { kind: 'create', path: 'tasks.md', id: undefined },

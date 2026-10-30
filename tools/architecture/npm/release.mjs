@@ -82,13 +82,18 @@ export function writePackages({ version, binaries, view, out }) {
   return [...names, launcher.name]
 }
 
-if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const [version, binaries, view, out] = process.argv.slice(2)
+/**
+ * The command line: `node release.mjs <version> <binaries> <view> <out>`.
+ * @param {string[]} argv
+ * @param {(line: string) => void} print where each package's directory goes
+ * @param {(line: string) => void} refuse where the usage goes
+ * @returns {number} the exit status
+ */
+export function main(argv, print, refuse) {
+  const [version, binaries, view, out] = argv
   if (version === undefined || binaries === undefined || view === undefined || out === undefined) {
-    console.error(
-      'usage: node release.mjs <version> <binaries directory> <view directory> <output directory>',
-    )
-    process.exit(1)
+    refuse('usage: node release.mjs <version> <binaries directory> <view directory> <output directory>')
+    return 1
   }
   for (const name of writePackages({
     version,
@@ -96,6 +101,11 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
     view: resolve(view),
     out: resolve(out),
   })) {
-    console.log(join(resolve(out), name.replace('/', '__')))
+    print(join(resolve(out), name.replace('/', '__')))
   }
+  return 0
+}
+
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = main(process.argv.slice(2), console.log, console.error)
 }

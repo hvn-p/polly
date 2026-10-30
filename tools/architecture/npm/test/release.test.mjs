@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
-import { LAUNCHER, nextVersion, PLATFORMS, writePackages } from '../release.mjs'
+import { describe, it } from 'vitest'
+import { LAUNCHER, main, nextVersion, PLATFORMS, writePackages } from '../release.mjs'
 
 describe('release', () => {
   it('starts at 0.1.0, then bumps the patch of the version last published', () => {
@@ -53,5 +53,41 @@ describe('release', () => {
     assert.equal(JSON.parse(readFileSync(schema, 'utf8')).title, 'Rules')
     assert.equal(launcher.license, 'MIT')
     assert.match(readFileSync(join(out, name.replace('/', '__'), 'LICENSE'), 'utf8'), /^MIT License/)
+  })
+  it('writes the packages from its command line and prints the directory of each', () => {
+    const binaries = mkdtempSync(join(tmpdir(), 'binaries-'))
+    for (const platform of PLATFORMS) {
+      mkdirSync(join(binaries, platform.key))
+      writeFileSync(join(binaries, platform.key, 'architecture-analyzer'), 'binary')
+    }
+    const view = mkdtempSync(join(tmpdir(), 'view-'))
+    const out = mkdtempSync(join(tmpdir(), 'packages-'))
+    /** @type {string[]} */
+    const printed = []
+    const refusal = () => assert.fail('nothing to refuse')
+    assert.equal(
+      main(['0.1.5', binaries, view, out], (line) => printed.push(line), refusal),
+      0,
+    )
+    const name = JSON.parse(readFileSync(join(LAUNCHER, 'package.json'), 'utf8')).name
+    assert.deepEqual(
+      printed,
+      [...PLATFORMS.map(({ key }) => `${name}-${key}`), name].map((each) =>
+        join(out, each.replace('/', '__')),
+      ),
+    )
+  })
+
+  it('names its usage when an argument is missing', () => {
+    /** @type {string[]} */
+    const printed = []
+    const output = () => assert.fail('nothing to print on stdout')
+    assert.equal(
+      main(['0.1.5'], output, (line) => printed.push(line)),
+      1,
+    )
+    assert.deepEqual(printed, [
+      'usage: node release.mjs <version> <binaries directory> <view directory> <output directory>',
+    ])
   })
 })

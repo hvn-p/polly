@@ -2,7 +2,16 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    projects: ['apps/*', 'dev', 'packages/*', 'plugin', 'scripts', 'tools/architecture/ui'],
+    projects: [
+      'apps/*',
+      'dev',
+      'packages/*',
+      'plugin',
+      'scripts',
+      'speckit/extensions/issue-sync',
+      'tools/architecture/npm',
+      'tools/architecture/ui',
+    ],
     coverage: {
       provider: 'v8',
       // The gate reads the text report; nothing is written into the repository.
@@ -14,25 +23,22 @@ export default defineConfig({
         'packages/*/src/**/*.ts',
         'plugin/src/**/*.ts',
         'scripts/**/*.{ts,mjs}',
+        'speckit/extensions/*/scripts/**/*.mjs',
+        'tools/architecture/analyzer/identity.mjs',
+        'tools/architecture/npm/**/*.{js,mjs}',
         'tools/architecture/ui/src/**/*.{ts,tsx}',
       ],
+      // Each exclusion's reason is recorded in scripts/checks/strict-configs.mjs,
+      // which refuses one it does not record.
       exclude: [
         '**/*.test.{ts,tsx}',
         '**/test/**',
         '**/vitest.config.ts',
-        // Process entry points: the tests run them as the processes they are
-        // (the supervisor by dev:up), and V8 coverage does not follow a child
-        // process.
         'dev/src/supervisor/main.ts',
-        // The plugin's monitor: its tests spawn its committed bundle, as Claude
-        // Code runs it.
         'plugin/src/agent-events.ts',
-        // The driven agent run: on demand, never in CI (nr dev:e2e).
+        'tools/architecture/npm/launcher/bin/architecture.js',
         'dev/src/e2e/claude.ts',
-        // Applied by the tests' global setups, in their own process; the
-        // startup tests check the schema they produce.
         'packages/migrations/src/migrations/**',
-        // Installed and tested by the baudrier plugin.
         'scripts/checks/agents-md.mjs',
       ],
       thresholds: { lines: 90 },

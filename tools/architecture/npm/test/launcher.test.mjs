@@ -3,11 +3,15 @@ import { spawnSync } from 'node:child_process'
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'vitest'
 import { LAUNCHER } from '../release.mjs'
 
 // The launcher installed in a project, with the given platform packages next to it,
 // and the view's build inside it unless told otherwise.
+/**
+ * @param {string[]} platforms
+ * @param {{ view?: boolean }} [options]
+ */
 function installed(platforms, { view = true } = {}) {
   const project = mkdtempSync(join(tmpdir(), 'project-'))
   const modules = join(project, 'node_modules')
@@ -44,7 +48,8 @@ describe('launcher', () => {
   it('serves the view it carries in watch mode, unless told another', () => {
     const launcher = installed([here])
     const view = join(launcher, '..', '..', 'view')
-    const run = (...args) => spawnSync(process.execPath, [launcher, ...args], { encoding: 'utf8' }).stdout
+    const run = (/** @type {string[]} */ ...args) =>
+      spawnSync(process.execPath, [launcher, ...args], { encoding: 'utf8' }).stdout
     assert.equal(run('watch', '--port', '0'), `analyzer watch --port 0 --ui ${view}\n`)
     assert.equal(run('watch', '--ui', 'mine'), 'analyzer watch --ui mine\n')
     assert.equal(run('json'), 'analyzer json\n')

@@ -98,7 +98,6 @@ jobs:
       # migration without its regenerated types fails here.
       - run: pnpm run generate && git diff --exit-code packages/database/src/generated
       - run: pnpm exec vitest run --coverage
-      - run: pnpm run test:repo
 
   # A required check: it always reports, and skips its steps when the pull
   # request leaves the compute service's sources as they are on its base.

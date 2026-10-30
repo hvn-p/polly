@@ -3,14 +3,16 @@
 // (constitution principle XI): every tsconfig.json extends tsconfig.base.json
 // without turning a strictness option off, the base keeps all of them, Biome
 // keeps its recommended rules and fails on a warning, and every
-// pyproject.toml keeps ruff on all rules and mypy strict.
+// pyproject.toml keeps ruff on all rules and mypy strict. Every source file of
+// the project's own code is type-checked by a tsconfig and measured by the
+// coverage gate, unless this guard records why not (principles XI and XII).
 //
 // Usage: node scripts/checks/strict-configs.mjs [root]
 
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dirname, join, matchesGlob, relative, resolve, sep } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { report } from './report.mjs'
 
 // The value each strictness option must hold, in the base and everywhere else.
@@ -76,6 +78,36 @@ const BIOME_ALLOWED_EXCLUDES = {
   'scripts/checks/agents-md.mjs': 'installed and tested by the baudrier plugin',
   '.claude/hooks/agents-md-reminder.mjs': 'installed and tested by the baudrier plugin',
 }
+
+// Source files that are not the project's own code to check, and why.
+/** @type {Record<string, string>} */
+const SOURCE_EXCLUDES = {
+  'plugin/monitors/**': 'bundled by esbuild from plugin/src (nr bundles)',
+  'scripts/checks/agents-md.mjs': 'installed and tested by the baudrier plugin',
+}
+
+// Source files the coverage gate may leave out, and why.
+/** @type {Record<string, string>} */
+const COVERAGE_EXCLUDES = {
+  '**/*.test.{ts,tsx}': 'tests',
+  '**/test/**': 'test support',
+  '**/vitest.config.ts': 'test configuration',
+  '**/vite.config.ts': 'build configuration, run by Vite',
+  '**/*.d.ts': 'declarations, which hold no code to run',
+  'vitest.setup.ts': 'test setup, tested by scripts/checks/outbound-network.test.ts',
+  'dev/src/supervisor/main.ts':
+    'a process entry point: the tests run it as the process it is (dev:up), and V8 coverage does not follow a child process',
+  'plugin/src/agent-events.ts':
+    "the plugin's monitor: its tests spawn its committed bundle, as Claude Code runs it",
+  'tools/architecture/npm/launcher/bin/architecture.js':
+    "the analyzer's published launcher: its tests run it as npm installs it, in a child process",
+  'dev/src/e2e/claude.ts': 'the driven agent run: on demand, never in CI (nr dev:e2e)',
+  'packages/migrations/src/migrations/**':
+    "applied by the tests' global setups, in their own process; the startup tests check the schema they produce",
+}
+
+const SOURCE_EXTENSIONS = /\.(ts|tsx|mts|cts|js|mjs|cjs)$/
+const JAVASCRIPT = /\.(js|mjs|cjs)$/
 
 const SKIPPED_DIRECTORIES = new Set([
   'node_modules',
@@ -300,6 +332,137 @@ function checkCargo(root, violations) {
 
 /**
  * @param {string} root
+ * @param {string} directory
+ * @param {string[]} found
+ * @returns {string[]} the source files under root, as paths relative to it
+ */
+function findSources(root, directory = root, found = []) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (!SKIPPED_DIRECTORIES.has(entry.name) && !entry.name.startsWith('.')) {
+        findSources(root, join(directory, entry.name), found)
+      }
+    } else if (SOURCE_EXTENSIONS.test(entry.name)) {
+      found.push(relative(root, join(directory, entry.name)).split(sep).join('/'))
+    }
+  }
+  return found
+}
+
+/**
+ * @param {string} path
+ * @param {Record<string, string>} patterns
+ */
+function matchesAny(path, patterns) {
+  return Object.keys(patterns).some((pattern) => matchesGlob(path, pattern))
+}
+
+/**
+ * Whether a tsconfig's include or exclude entry, relative to its directory, holds a file:
+ * a path names that file or everything under that directory, a pattern is a glob.
+ * @param {string} file relative to the repository
+ * @param {string} entry
+ * @param {string} directory the tsconfig's directory, relative to the repository
+ */
+function covers(file, entry, directory) {
+  const target = join(directory, entry).split(sep).join('/')
+  if (/[*?]/.test(entry)) {
+    return matchesGlob(file, target)
+  }
+  return target === '.' || file === target || file.startsWith(`${target}/`)
+}
+
+/**
+ * The files each tsconfig type-checks, read from its include, files and exclude, as tsc
+ * reads them; JavaScript only under checkJs.
+ * @param {string} root
+ * @param {string[]} sources relative to root
+ * @returns {Set<string>}
+ */
+function typeCheckedFiles(root, sources) {
+  /** @type {Set<string>} */
+  const checked = new Set()
+  for (const path of findFiles(root, 'tsconfig.json')) {
+    const config = readJson(path)
+    const directory = relative(root, dirname(path))
+    const checkJs = config.compilerOptions?.checkJs === true
+    /** @type {string[]} */
+    const include = config.include ?? (config.files === undefined ? ['**/*'] : [])
+    /** @type {string[]} */
+    const exclude = config.exclude ?? []
+    /** @type {string[]} */
+    const files = config.files ?? []
+    for (const file of sources) {
+      const listed =
+        files.some((entry) => covers(file, entry, directory)) ||
+        (include.some((entry) => covers(file, entry, directory)) &&
+          !exclude.some((entry) => covers(file, entry, directory)))
+      if (listed && (checkJs || !JAVASCRIPT.test(file))) {
+        checked.add(file)
+      }
+    }
+  }
+  return checked
+}
+
+/**
+ * @param {string} root
+ * @returns {{ include: string[], exclude: string[] } | undefined}
+ */
+function coverageOf(root) {
+  const path = join(root, 'vitest.config.ts')
+  if (!existsSync(path)) {
+    return undefined
+  }
+  const script =
+    'const { test } = (await import(process.argv[1])).default; console.log(JSON.stringify(test.coverage))'
+  const output = execFileSync(
+    process.execPath,
+    ['--input-type=module', '-e', script, pathToFileURL(path).href],
+    { encoding: 'utf8', cwd: root },
+  )
+  const coverage = JSON.parse(output)
+  return { include: coverage.include ?? [], exclude: coverage.exclude ?? [] }
+}
+
+/**
+ * @param {string} root
+ * @param {string[]} violations
+ */
+function checkSources(root, violations) {
+  const sources = findSources(root).filter((file) => !matchesAny(file, SOURCE_EXCLUDES))
+  const checked = typeCheckedFiles(root, sources)
+  for (const file of sources) {
+    if (!checked.has(file)) {
+      violations.push(`${file}: no tsconfig type-checks it; include it in one (with checkJs for JavaScript)`)
+    }
+  }
+
+  const coverage = coverageOf(root)
+  if (coverage === undefined) {
+    return
+  }
+  for (const pattern of coverage.exclude) {
+    if (!Object.hasOwn(COVERAGE_EXCLUDES, pattern) && !Object.hasOwn(SOURCE_EXCLUDES, pattern)) {
+      violations.push(
+        `vitest.config.ts: coverage.exclude leaves out ${pattern}; record its reason in this guard`,
+      )
+    }
+  }
+  for (const file of sources) {
+    const measured =
+      coverage.include.some((pattern) => matchesGlob(file, pattern)) &&
+      !coverage.exclude.some((pattern) => matchesGlob(file, pattern))
+    if (!measured && !matchesAny(file, COVERAGE_EXCLUDES)) {
+      violations.push(
+        `${file}: outside the coverage gate; add it to the coverage include of vitest.config.ts, or record its exclusion and reason in this guard`,
+      )
+    }
+  }
+}
+
+/**
+ * @param {string} root
  * @returns {string[]} one line per violation, empty when every configuration is strict
  */
 export function checkStrictConfigs(root) {
@@ -309,6 +472,7 @@ export function checkStrictConfigs(root) {
   checkBiome(root, violations)
   checkPyprojects(root, violations)
   checkCargo(root, violations)
+  checkSources(root, violations)
   return violations
 }
 

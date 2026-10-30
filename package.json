@@ -18,9 +18,8 @@
     "lint": "biome check --error-on-warnings . && pnpm run lint:architecture",
     "lint:architecture": "node scripts/checks/architecture.mjs check",
     "lint:fix": "biome check --write .",
-    "typecheck": "tsc -p scripts && pnpm -r --no-bail run typecheck",
-    "test": "vitest run && pnpm run test:repo",
-    "test:repo": "node --test 'speckit/extensions/*/test/*.test.mjs' 'tools/architecture/npm/test/*.test.mjs'",
+    "typecheck": "tsc -p scripts && tsc -p tools/architecture/npm && tsc -p speckit/extensions/issue-sync && pnpm -r --no-bail run typecheck",
+    "test": "vitest run",
     "generate": "pnpm --filter @polly/migrations run generate",
     "build": "node scripts/build/processes.ts"
   },

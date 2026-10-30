@@ -205,4 +205,88 @@ describe('strict-configs guard', () => {
       )
     }
   })
+
+  describe('source files outside the checks', () => {
+    const typed = JSON.stringify({
+      extends: '../tsconfig.base.json',
+      include: ['src', '../vitest.config.ts'],
+    })
+    const vitestConfig = (include: string[], exclude: string[] = []) =>
+      `export default { test: { coverage: { include: ${JSON.stringify(include)}, exclude: ${JSON.stringify(exclude)} } } }\n`
+
+    it('accepts a file a tsconfig type-checks and the coverage gate measures', () => {
+      const root = fixture({
+        'tsconfig.base.json': base,
+        'pkg/tsconfig.json': typed,
+        'pkg/src/a.ts': 'export const a = 1\n',
+        'pkg/src/a.test.ts': 'export {}\n',
+        'vitest.config.ts': vitestConfig(['pkg/src/**/*.ts'], ['**/*.test.{ts,tsx}']),
+      })
+      expect(checkStrictConfigs(root)).toEqual([])
+    })
+
+    it('refuses a source file no tsconfig includes', () => {
+      const root = fixture({
+        'tsconfig.base.json': base,
+        'pkg/tsconfig.json': typed,
+        'pkg/src/a.ts': 'export const a = 1\n',
+        'pkg/tool/b.mjs': 'export const b = 1\n',
+        'vitest.config.ts': vitestConfig(['pkg/**/*.{ts,mjs}']),
+      })
+      expect(checkStrictConfigs(root)).toEqual([
+        'pkg/tool/b.mjs: no tsconfig type-checks it; include it in one (with checkJs for JavaScript)',
+      ])
+    })
+
+    it('refuses a JavaScript file a tsconfig lists without checkJs', () => {
+      const root = fixture({
+        'tsconfig.base.json': base,
+        'pkg/tsconfig.json': JSON.stringify({
+          extends: '../tsconfig.base.json',
+          compilerOptions: { allowJs: true },
+          include: ['src', '../vitest.config.ts'],
+        }),
+        'pkg/src/a.mjs': 'export const a = 1\n',
+        'vitest.config.ts': vitestConfig(['pkg/src/**/*.mjs']),
+      })
+      expect(checkStrictConfigs(root)).toEqual([
+        'pkg/src/a.mjs: no tsconfig type-checks it; include it in one (with checkJs for JavaScript)',
+      ])
+    })
+
+    it('refuses a source file the coverage gate leaves out without a recorded exclusion', () => {
+      const root = fixture({
+        'tsconfig.base.json': base,
+        'pkg/tsconfig.json': JSON.stringify({
+          extends: '../tsconfig.base.json',
+          include: ['src', 'tool', '../vitest.config.ts'],
+        }),
+        'pkg/src/a.ts': 'export const a = 1\n',
+        'pkg/src/legacy.ts': 'export const legacy = 1\n',
+        'pkg/tool/b.ts': 'export const b = 1\n',
+        'vitest.config.ts': vitestConfig(['pkg/src/**/*.ts'], ['pkg/src/legacy.ts']),
+      })
+      expect(checkStrictConfigs(root)).toEqual([
+        'vitest.config.ts: coverage.exclude leaves out pkg/src/legacy.ts; record its reason in this guard',
+        'pkg/src/legacy.ts: outside the coverage gate; add it to the coverage include of vitest.config.ts, or record its exclusion and reason in this guard',
+        'pkg/tool/b.ts: outside the coverage gate; add it to the coverage include of vitest.config.ts, or record its exclusion and reason in this guard',
+      ])
+    })
+
+    it('leaves out what the guard records: generated output, tests and their configuration', () => {
+      const root = fixture({
+        'tsconfig.base.json': base,
+        'plugin/tsconfig.json': JSON.stringify({
+          extends: '../tsconfig.base.json',
+          include: ['src', 'test', '../vitest.config.ts'],
+        }),
+        'plugin/src/a.ts': 'export const a = 1\n',
+        'plugin/test/support.ts': 'export const support = 1\n',
+        'plugin/monitors/agent-events.mjs': 'export const bundled = 1\n',
+        'plugin/dist/main.js': 'export const built = 1\n',
+        'vitest.config.ts': vitestConfig(['plugin/src/**/*.ts'], ['**/test/**']),
+      })
+      expect(checkStrictConfigs(root)).toEqual([])
+    })
+  })
 })
