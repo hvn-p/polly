@@ -169,6 +169,9 @@ export async function up({ root, prerequisites, infrastructure, out, warn }: UpO
           await infra.compute.release(compute, resources.identity)
         }
         compute = used.fingerprint
+        // Recorded before the supervisor starts: if it fails, dev:down still
+        // releases the service this worktree now uses.
+        writeState(worktree, { ...readState(worktree), compute })
       }
       const started = infra.application.processes(env)
       supervisor = await infra.supervisor.start({ root, processes: started, env })

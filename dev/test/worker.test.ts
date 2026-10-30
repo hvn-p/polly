@@ -115,6 +115,33 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     ])
   })
 
+  it('a dev:up whose supervisor fails to start after taking a compute service leaves it for dev:down to release', async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/leak-a', compute)
+    const envFile = join(a.root, '.env.local')
+    writeFileSync(
+      envFile,
+      readFileSync(envFile, 'utf8').replace(/^POLLY_WORKER_MODE=.*$/m, 'POLLY_WORKER_MODE=real'),
+    )
+    await stopSupervisor(a.root, a.infra)
+    const failing: Infrastructure = {
+      ...a.infra,
+      supervisor: {
+        ...a.infra.supervisor,
+        start: async () => {
+          throw new Error('the supervisor did not start')
+        },
+      },
+    }
+    await expect(
+      up({ root: a.root, ...loaded(failing), out: () => undefined, warn: () => undefined }),
+    ).rejects.toThrow('the supervisor did not start')
+    expect(compute.users.get('fp-main')).toEqual(new Set([a.identity]))
+
+    await down({ root: a.root, infra: a.infra, out: () => undefined })
+    expect(compute.users.has('fp-main')).toBe(false)
+  })
+
   it('C31: dev:up of a worktree left in real mode starts its service, and says when it is its own', async () => {
     const compute = fakeCompute()
     const a = await worktree('feature/up-a', compute)
