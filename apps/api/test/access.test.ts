@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { refusal } from '../src/contracts/agent-events.ts'
+import { refusal } from '../src/contracts/refusals.ts'
 import { testServer } from './support/server.ts'
 
 const server = await testServer({ POLLY_ENV: 'local' })

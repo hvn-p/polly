@@ -119,9 +119,20 @@ export function openApiDocument(
   operations: Record<string, Operation>,
 ): Record<string, unknown> {
   const json = (schema: ZodType) => ({ 'application/json': { schema: jsonSchemaOf(schema) } })
+  // Every refusal is the contract's Refusal, its code narrowed to the operation's.
+  const listed = schemas['Refusal']
+  if (!(listed instanceof z.ZodObject) || !(listed.shape['code'] instanceof z.ZodEnum)) {
+    throw new Error(`${name}: an API contract defines its Refusal schema, an object whose code is an enum`)
+  }
+  const codes: readonly unknown[] = listed.shape['code'].options
   const paths: Record<string, Record<string, unknown>> = {}
   for (const [id, operation] of Object.entries(operations)) {
-    const refusal = z.object({ code: z.enum(operation.refusals as [string, ...string[]]) })
+    for (const code of operation.refusals) {
+      if (!codes.includes(code)) {
+        throw new Error(`${name}: ${id} refuses with ${code}, which the Refusal schema does not list`)
+      }
+    }
+    const refusal = listed.extend({ code: z.enum(operation.refusals as [string, ...string[]]) })
     const ok =
       operation.events === undefined
         ? {
@@ -247,16 +258,14 @@ export function clientModule(source: string, document: Record<string, unknown>):
   const streams: string[] = []
   const streamTable: string[] = []
   const responses: string[] = []
-  const refusals = new Set<string>()
+  const refusal = components['Refusal'] as { properties?: { code?: { enum?: string[] } } } | undefined
+  const refusals = refusal?.properties?.code?.enum ?? []
   for (const [path, methods] of Object.entries(
     document['paths'] as Record<string, Record<string, DocumentOperation>>,
   )) {
     for (const [method, operation] of Object.entries(methods)) {
       const id = operation.operationId
       const codes = operation['x-refusals'] ?? []
-      for (const code of codes) {
-        refusals.add(code)
-      }
       const content = operation.responses['200']?.content ?? {}
       const answer = content['application/json']?.schema
       const entry = `{ method: '${method.toUpperCase()}', path: '${path}', refusals: [${codes.map((c) => `'${c}'`).join(', ')}] }`

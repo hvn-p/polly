@@ -9,10 +9,14 @@ import { CONTRACTS, type Contract, generate, type Operation, render } from './ge
 const repositoryRoot = join(import.meta.dirname, '..', '..')
 
 const event = z.object({ type: z.literal('test') })
+const refusal = z.object({
+  code: z.enum(['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED', 'EVENT_CODE_NOT_BOUND']),
+  reason: z.string().max(512).optional(),
+})
 const contract: Contract = {
   name: 'events',
   source: 'api/events.ts',
-  load: async () => ({ Event: event }),
+  load: async () => ({ Event: event, Refusal: refusal }),
   operations: async () => ({
     getEvent: { method: 'GET', path: '/events', access: 'public', response: event, refusals: [] },
   }),
@@ -87,7 +91,7 @@ const agentEvent = z.discriminatedUnion('type', [z.object({ type: z.literal('tes
 const api: Contract = {
   name: 'api',
   source: 'api/contract.ts',
-  load: async () => ({ Learner: learner, Code: code, AgentEvent: agentEvent }),
+  load: async () => ({ Learner: learner, Code: code, AgentEvent: agentEvent, Refusal: refusal }),
   operations: async (): Promise<Record<string, Operation>> => ({
     getMe: {
       method: 'GET',
@@ -126,14 +130,14 @@ describe('API contract generation', () => {
     expect(bind.requestBody.content['application/json'].schema.properties.code).toMatchObject({
       maxLength: 43,
     })
-    expect(bind.responses.default.content['application/json'].schema.properties.code.enum).toEqual([
-      'UNAUTHORIZED',
-      'INVALID_EVENT_CODE',
-    ])
+    const refused = bind.responses.default.content['application/json'].schema
+    expect(refused.properties.code.enum).toEqual(['UNAUTHORIZED', 'INVALID_EVENT_CODE'])
+    expect(refused.properties.reason).toMatchObject({ type: 'string', maxLength: 512 })
+    expect(refused.required).toEqual(['code'])
     expect(document.paths['/api/agent-events'].get.responses['200'].content).toHaveProperty(
       'text/event-stream',
     )
-    expect(Object.keys(document.components.schemas)).toEqual(['Learner', 'Code', 'AgentEvent'])
+    expect(Object.keys(document.components.schemas)).toEqual(['Learner', 'Code', 'AgentEvent', 'Refusal'])
   })
 
   it('writes the client types: one per schema, the operations, the streams and every refusal code', async () => {
@@ -144,9 +148,23 @@ describe('API contract generation', () => {
     expect(client).toContain('bindEventCode: { body: { code: string }; response: { bound: true } }')
     expect(client).toContain('getMe: { body: undefined; response: { learnerId: string } }')
     expect(client).toContain("agentEvents: { path: '/api/agent-events'")
-    expect(client).toContain(
-      "export const REFUSAL_CODES = ['EVENT_CODE_REVOKED', 'INVALID_EVENT_CODE', 'UNAUTHORIZED'] as const",
+    expect(client.replace(/\s+/g, ' ')).toContain(
+      "export const REFUSAL_CODES = [ 'EVENT_CODE_NOT_BOUND', 'EVENT_CODE_REVOKED', 'INVALID_EVENT_CODE', 'UNAUTHORIZED', ] as const",
     )
+  })
+
+  it("refuses an operation's refusal that the Refusal schema does not list, or a contract without one", async () => {
+    const stray: Contract = {
+      ...api,
+      operations: async () => ({
+        getMe: { method: 'GET', path: '/api/me', access: 'learner', response: learner, refusals: ['GONE'] },
+      }),
+    }
+    await expect(render(stray)).rejects.toThrow(
+      'api: getMe refuses with GONE, which the Refusal schema does not list',
+    )
+    const bare: Contract = { ...api, load: async () => ({ Learner: learner }) }
+    await expect(render(bare)).rejects.toThrow('api: an API contract defines its Refusal schema')
   })
 
   it("lists each stream's event types and refusals, for a client that checks them at runtime", async () => {
@@ -189,6 +207,7 @@ describe('contract guard', () => {
     const unbounded: Contract = {
       ...contract,
       load: async () => ({
+        Refusal: refusal,
         Event: z.object({
           note: z.string(),
           items: z.array(z.object({ count: z.number().min(0) })),
@@ -213,7 +232,7 @@ describe('contract guard', () => {
     await generate(root, [contract])
     const changed: Contract = {
       ...contract,
-      load: async () => ({ Event: z.object({ type: z.literal('other') }) }),
+      load: async () => ({ Event: z.object({ type: z.literal('other') }), Refusal: refusal }),
     }
     expect(await checkContracts(root, [changed])).toHaveLength(2)
     expect(await checkContracts(freshRoot(), [contract])).toEqual([

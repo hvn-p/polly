@@ -1,7 +1,7 @@
 import { apiResource, MCP_CLIENT_ID } from '@polly/identity'
 import { hash } from '@polly/kernel'
 import { describe, expect, it } from 'vitest'
-import { refusal } from '../src/contracts/agent-events.ts'
+import { refusal } from '../src/contracts/refusals.ts'
 import { claimsOf, createLearner, exchangeToken, mcpAccessToken } from './support/oauth.ts'
 import { testServer } from './support/server.ts'
 

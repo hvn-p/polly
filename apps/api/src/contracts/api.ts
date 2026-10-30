@@ -4,7 +4,8 @@
 // client of packages/contract; the routes are registered from it.
 
 import { z } from 'zod'
-import { agentEvent, eventCode, refusal } from './agent-events.ts'
+import { agentEvent, eventCode } from './agent-events.ts'
+import { type RefusalCode, refusal } from './refusals.ts'
 
 export const learner = z.object({ learnerId: z.string().min(1).max(64), name: z.string().min(1).max(256) })
 
@@ -77,4 +78,7 @@ export const operations = {
     events: agentEvent,
     refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED', 'EVENT_CODE_NOT_BOUND'],
   },
-} as const
+} as const satisfies Record<
+  string,
+  { readonly refusals: readonly RefusalCode[]; readonly [key: string]: unknown }
+>

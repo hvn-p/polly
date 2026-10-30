@@ -8,9 +8,8 @@
 import { bindingOf, connectEventStream, type EventCodeStore } from '@polly/back'
 import type { Clock } from '@polly/platform'
 import { Refusal } from '@polly/platform'
-import type { z } from 'zod'
-import type { refusalCode } from '../contracts/agent-events.ts'
 import { operations } from '../contracts/api.ts'
+import type { RefusalCode } from '../contracts/refusals.ts'
 import type { Guard, RouteRegistry } from '../routes.ts'
 
 const BINDING_CHECK_MS = 1_000
@@ -18,7 +17,7 @@ const UNBOUND_LIMIT_MS = 120_000
 const KEEPALIVE_MS = 15_000
 
 // The stream's refusals are its contract's.
-function refused(code: z.infer<typeof refusalCode>, message: string): Refusal {
+function refused(code: RefusalCode, message: string): Refusal {
   return new Refusal(code, message)
 }
 

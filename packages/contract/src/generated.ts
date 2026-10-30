@@ -21,6 +21,8 @@ export type AgentEvent = { type: 'test' }
 export type Refusal = {
   code:
     | 'UNAUTHORIZED'
+    | 'INVALID_EMAIL_OR_PASSWORD'
+    | 'INVALID_OAUTH_REQUEST'
     | 'INVALID_EVENT_CODE'
     | 'EVENT_CODE_REVOKED'
     | 'EVENT_CODE_NOT_BOUND'
