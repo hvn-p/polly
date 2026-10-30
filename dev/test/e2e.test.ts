@@ -62,10 +62,10 @@ describe('nr dev:e2e outcome', () => {
       return { failures: [], transcript: '' }
     }
     await expect(
-      e2e({ root, infra, scenario: 'smoke', out, client, tools: async () => 'agent-browser', driver }),
+      e2e({ root, infra, scenario: 'smoke', out, client, tools: async () => 'script (util-linux)', driver }),
     ).rejects.toMatchObject({
       code: 'MISSING_PREREQUISITE',
-      message: expect.stringContaining('agent-browser'),
+      message: expect.stringContaining('script (util-linux)'),
     })
     expect(driven).toBe(false)
   })

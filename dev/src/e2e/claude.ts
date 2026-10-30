@@ -33,7 +33,6 @@ function capture(command: string, args: readonly string[], env: NodeJS.ProcessEn
   })
 }
 
-// Strips terminal escapes from what a pseudo-terminal printed.
 // A command run in a pseudo-terminal, with its output accumulated.
 function inTerminal(command: string[], env: NodeJS.ProcessEnv, cwd: string) {
   const child = spawn('script', ['-qfec', command.map(shellQuoted).join(' '), '/dev/null'], {
