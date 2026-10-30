@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App.tsx'
 import { type Feed, type FeedState, snapshotFeed } from './feed.ts'
 import { fixture } from './test/fixture.ts'
@@ -586,6 +586,33 @@ describe("the analyzer's version", () => {
       'no version: built before versions existed, or without Node',
       '81585432026-10-30 00:35no local changessources f-view',
     ])
+  })
+
+  it('keeps the warning and the top bar when a report in another format breaks a part of the view', async () => {
+    const file = 'packages/back/src/flows/buy/index.ts'
+    const report = fixture()
+    // What an analyzer older than the view sends: edges without their uses.
+    report.edges = report.edges.map(({ uses: _, ...older }) => older as (typeof report.edges)[number])
+    const silenced = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    render(
+      <App
+        feed={feedOf(
+          { report, analyzer: null, analyzerFormat: null },
+          { [file]: "import type { Price } from '@shop/kernel'\n" },
+        )}
+        identity={view}
+        format={viewFormat}
+      />,
+    )
+    await act(async () => {
+      fireEvent.click(within(side()).getByRole('button', { name: /index.ts:3/ }))
+    })
+    silenced.mockRestore()
+    expect(banner()?.classList.contains('format')).toBe(true)
+    expect(screen.getByText('architecture')).toBeDefined()
+    expect(screen.getByText(/could not be drawn from the analyzer's report/).getAttribute('role')).toBe(
+      'status',
+    )
   })
 
   it('says nothing when both come from the same sources, or before the analyzer answered', () => {

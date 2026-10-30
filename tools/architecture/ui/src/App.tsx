@@ -2,7 +2,15 @@
 // status, tabs, counts), the trail of views visited, the current view, and the
 // source panel.
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import {
+  Component,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import type { Feed, FeedState } from './feed.ts'
 import { readSeen, writeSeen } from './feed.ts'
 import { type DiffLine, type FormatGap, formatDiff, formatGap } from './format.ts'
@@ -241,6 +249,34 @@ function VersionWarning({
   )
 }
 
+// A part of the view that fails to draw from the report (one in a format the
+// view does not read) says so in its place, and the rest of the view, the
+// warning above all, stays up. It tries again with the next report or file.
+class Contained extends Component<{ children: ReactNode; attempt: unknown }, { failed: boolean }> {
+  override state = { failed: false }
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true }
+  }
+
+  override componentDidUpdate(previous: { attempt: unknown }): void {
+    if (this.state.failed && previous.attempt !== this.props.attempt) {
+      this.setState({ failed: false })
+    }
+  }
+
+  override render(): ReactNode {
+    return this.state.failed ? (
+      <p className="contained" role="status">
+        This part could not be drawn from the analyzer's report. Rebuild the analyzer, as the warning above
+        says.
+      </p>
+    ) : (
+      this.props.children
+    )
+  }
+}
+
 // identity: the analyzer's sources this view was built from; null when its
 // build could not read them.
 // format: the format of the analyzer's report this view was built to read.
@@ -383,36 +419,40 @@ export function App({
             <p className="waiting">Waiting for the analyzer’s first report…</p>
           ) : (
             <ViewContext.Provider value={view}>
-              {route.page === 'module' ? (
-                <ModulePage id={route.arg ?? ''} />
-              ) : route.page === 'breaches' ? (
-                <BreachesPage />
-              ) : route.page === 'changes' ? (
-                <ChangesPage history={state.history} seen={seen} onSeen={markSeen} />
-              ) : route.page === 'rules' ? (
-                <RulesPage tier={route.arg} />
-              ) : (
-                <Matrix
-                  folds={folds ?? { groups: view.model.foldedGroups, tiers: new Set() }}
-                  onFolds={setFolds}
-                  selection={selection ?? firstBreach(view.model)}
-                  onSelect={setSelection}
-                  zoom={zoom}
-                  onZoom={setZoom}
-                />
-              )}
+              <Contained attempt={`${hash} ${state.updatedAt}`}>
+                {route.page === 'module' ? (
+                  <ModulePage id={route.arg ?? ''} />
+                ) : route.page === 'breaches' ? (
+                  <BreachesPage />
+                ) : route.page === 'changes' ? (
+                  <ChangesPage history={state.history} seen={seen} onSeen={markSeen} />
+                ) : route.page === 'rules' ? (
+                  <RulesPage tier={route.arg} />
+                ) : (
+                  <Matrix
+                    folds={folds ?? { groups: view.model.foldedGroups, tiers: new Set() }}
+                    onFolds={setFolds}
+                    selection={selection ?? firstBreach(view.model)}
+                    onSelect={setSelection}
+                    zoom={zoom}
+                    onZoom={setZoom}
+                  />
+                )}
+              </Contained>
             </ViewContext.Provider>
           )}
         </main>
       </div>
       {view === undefined ? null : (
         <ViewContext.Provider value={view}>
-          <SourcePanel
-            open={source}
-            visible={sourceShown}
-            snapshot={state.status === 'snapshot'}
-            onClose={() => setSourceShown(false)}
-          />
+          <Contained attempt={`${source?.file} ${source?.line} ${state.updatedAt}`}>
+            <SourcePanel
+              open={source}
+              visible={sourceShown}
+              snapshot={state.status === 'snapshot'}
+              onClose={() => setSourceShown(false)}
+            />
+          </Contained>
         </ViewContext.Provider>
       )}
     </>

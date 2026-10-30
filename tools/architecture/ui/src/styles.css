@@ -1679,3 +1679,9 @@ fieldset.zoom {
   font-size: 12px;
   color: var(--ink);
 }
+
+/* A part of the view that could not be drawn from the analyzer's report. */
+.contained {
+  margin: 20px;
+  color: var(--ink-2);
+}
