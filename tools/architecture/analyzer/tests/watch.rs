@@ -27,7 +27,11 @@ fn c66_a_forbidden_import_is_pushed_within_a_second() {
         "import { connect } from '@t/database'\nexport const serve = connect\n",
     );
     let next = pushed(&rx, Duration::from_secs(1)).expect("a graph within 1 s");
-    assert_eq!(next["violations"][0]["rule"], "only-from");
+    let violation = &next["violations"][0];
+    assert_eq!(violation["rule"], "only-from");
+    assert_eq!(violation["file"], "apps/api/src/routes.ts");
+    assert_eq!(violation["line"], 1);
+    assert_eq!(violation["fix"], "Only main.ts imports an adapter.");
 }
 
 #[test]
@@ -230,7 +234,53 @@ fn a_rules_change_is_pushed() {
     assert_eq!(next["violations"][0]["rule"], "tier");
 }
 
+/// The CPU time a process has used, in hundredths of a second, and its resident
+/// memory, in KB: from /proc on Linux.
 #[cfg(target_os = "linux")]
+fn usage(pid: u32) -> (u64, u64) {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap();
+    let ticks: u64 = stat
+        .rsplit(')')
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .skip(11)
+        .take(2)
+        .map(|f| f.parse::<u64>().unwrap())
+        .sum();
+    let status = std::fs::read_to_string(format!("/proc/{pid}/status")).unwrap();
+    let rss_kb = status
+        .lines()
+        .find(|l| l.starts_with("VmRSS"))
+        .unwrap()
+        .split_whitespace()
+        .nth(1)
+        .unwrap()
+        .parse()
+        .unwrap();
+    // Clock ticks, at 100 per second.
+    (ticks, rss_kb)
+}
+
+/// The same from ps on macOS, whose time reads `[[dd-]hh:]mm:ss.cc`.
+#[cfg(target_os = "macos")]
+fn usage(pid: u32) -> (u64, u64) {
+    let output = std::process::Command::new("ps")
+        .args(["-o", "time=,rss=", "-p", &pid.to_string()])
+        .output()
+        .unwrap();
+    let text = String::from_utf8(output.stdout).unwrap();
+    let mut fields = text.split_whitespace();
+    let time = fields.next().unwrap();
+    let rss_kb = fields.next().unwrap().parse().unwrap();
+    let (whole, hundredths) = time.split_once('.').unwrap_or((time, "0"));
+    let seconds = whole
+        .split([':', '-'])
+        .fold(0, |total, part| total * 60 + part.parse::<u64>().unwrap());
+    (seconds * 100 + hundredths.parse::<u64>().unwrap(), rss_kb)
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn c74_an_idle_watch_on_the_repository_uses_no_cpu_and_little_memory() {
     use std::io::{BufRead, BufReader};
@@ -249,36 +299,16 @@ fn c74_an_idle_watch_on_the_repository_uses_no_cpu_and_little_memory() {
         .read_line(&mut ready)
         .unwrap();
     assert!(ready.contains("http://127.0.0.1:"), "{ready}");
-    let proc = format!("/proc/{}", child.id());
-    let cpu = || {
-        let stat = std::fs::read_to_string(format!("{proc}/stat")).unwrap();
-        let fields: Vec<u64> = stat
-            .rsplit(')')
-            .next()
-            .unwrap()
-            .split_whitespace()
-            .skip(11)
-            .take(2)
-            .map(|f| f.parse().unwrap())
-            .collect();
-        fields[0] + fields[1]
-    };
     std::thread::sleep(Duration::from_secs(1));
-    let before = cpu();
+    let (before, _) = usage(child.id());
     std::thread::sleep(Duration::from_secs(10));
-    let used = cpu() - before;
-    let status = std::fs::read_to_string(format!("{proc}/status")).unwrap();
-    let rss_kb: u64 = status
-        .lines()
-        .find(|l| l.starts_with("VmRSS"))
-        .unwrap()
-        .split_whitespace()
-        .nth(1)
-        .unwrap()
-        .parse()
-        .unwrap();
+    let (after, rss_kb) = usage(child.id());
     child.kill().unwrap();
     child.wait().unwrap();
-    assert_eq!(used, 0, "clock ticks used while idle");
+    assert_eq!(
+        after - before,
+        0,
+        "hundredths of a second of CPU used while idle"
+    );
     assert!(rss_kb < 20 * 1024, "resident memory {rss_kb} KB");
 }
