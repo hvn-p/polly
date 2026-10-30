@@ -67,9 +67,14 @@ export function formatGap(expected: Node, served: Node): FormatGap | undefined {
     return undefined
   }
   const [viewFields, analyzerFields] = [fieldsOf(expected), fieldsOf(served)]
+  // A field once, not again for each field under it.
+  const topmost = (fields: string[]) =>
+    fields.filter(
+      (field) => !fields.some((other) => field.startsWith(`${other}.`) || field.startsWith(`${other}[]`)),
+    )
   return {
-    missing: [...viewFields].filter((field) => !analyzerFields.has(field)),
-    unknown: [...analyzerFields].filter((field) => !viewFields.has(field)),
+    missing: topmost([...viewFields].filter((field) => !analyzerFields.has(field))),
+    unknown: topmost([...analyzerFields].filter((field) => !viewFields.has(field))),
   }
 }
 

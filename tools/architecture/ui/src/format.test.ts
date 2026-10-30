@@ -42,6 +42,18 @@ describe('the gap between two report formats', () => {
     })
   })
 
+  it('names a missing or unknown field once, without the fields under it', () => {
+    const uses = {
+      type: 'array',
+      items: { type: 'object', properties: { line: { type: 'integer' }, column: { type: 'integer' } } },
+    }
+    const { uses: _, ...older } = edge
+    expect(formatGap(format({ ...edge, uses }), format(older, { base2: uses }))).toEqual({
+      missing: ['report.edges[].uses'],
+      unknown: ['report.base2'],
+    })
+  })
+
   it('still differs when only a field changed its type', () => {
     expect(formatGap(format(edge), format({ ...edge, from: { type: 'integer' } }))).toEqual({
       missing: [],
