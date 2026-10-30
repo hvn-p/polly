@@ -59,4 +59,12 @@ describe('the learner routes of the contract', () => {
       expect(await response.json()).toMatchObject({ code: 'INVALID_EVENT_CODE' })
     }
   })
+  it("POST /api/event-codes reads its body through the contract's schema: a code of another type is malformed", async () => {
+    const { apiToken } = await tokens()
+    for (const body of [{ code: 43 }, { code: null }, { code: ['x'.repeat(43)] }]) {
+      const response = await bind(apiToken, body)
+      expect({ body, status: response.status }).toEqual({ body, status: 400 })
+      expect(await response.json()).toMatchObject({ code: 'INVALID_EVENT_CODE' })
+    }
+  })
 })

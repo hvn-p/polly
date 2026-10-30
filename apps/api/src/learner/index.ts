@@ -1,9 +1,10 @@
 // The learner's routes of the contract: who the request names, and binding an
-// event listener's code to them. Each calls one flow; the event code is checked
-// exactly by the back, so a malformed one gets its named refusal.
+// event listener's code to them. Each calls one flow; a body is read through the
+// contract's schema, and a malformed event code gets its named refusal.
 
 import { describeLearner, type EventCodeStore, type LearnerDirectory, startLesson } from '@polly/back'
-import { operations } from '../contracts/api.ts'
+import { Refusal } from '@polly/platform'
+import { eventCodeBinding, operations } from '../contracts/api.ts'
 import type { RouteRegistry } from '../routes.ts'
 
 export function registerLearnerRoutes(
@@ -23,9 +24,14 @@ export function registerLearnerRoutes(
     path: bindEventCode.path,
     access: bindEventCode.access,
     handle: async (request, { learnerId }) => {
-      const body = (await request.json().catch(() => undefined)) as { code?: unknown } | undefined
-      const code = typeof body?.code === 'string' ? body.code : ''
-      return Response.json(await startLesson({ codes }, learnerId, code))
+      const parsed = eventCodeBinding.safeParse(await request.json().catch(() => undefined))
+      if (!parsed.success) {
+        throw new Refusal(
+          'INVALID_EVENT_CODE',
+          'the event code must be the 43 characters your event listener printed',
+        )
+      }
+      return Response.json(await startLesson({ codes }, learnerId, parsed.data.code))
     },
   })
 }
