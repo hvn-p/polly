@@ -10,11 +10,12 @@ use oxc_span::{GetSpan, SourceType, Span};
 use oxc_syntax::module_record::{
     ExportExportName, ExportImportName, ImportImportName, ModuleRecord, RequestedModule,
 };
+use schemars::JsonSchema;
 use serde::Serialize;
 
 /// Where a file uses a name it imports: its line from 1, and its columns from 0 in UTF-16
 /// code units, as the view's text counts them.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Use {
     /// The line, from 1.

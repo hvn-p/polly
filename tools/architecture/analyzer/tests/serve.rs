@@ -125,6 +125,16 @@ fn serves_the_view_the_report_and_its_updates() {
     let (status, json) = body(&address, "/graph.json?x=1");
     assert_eq!(status, 200);
     assert!(json.contains(r#""id":"a""#), "{json}");
+    // The identity of the sources it was built from, for the view to compare
+    // with its own.
+    let (status, identity) = body(&address, "/version.json");
+    assert_eq!(status, 200);
+    assert_eq!(identity, architecture_analyzer::IDENTITY);
+    assert!(identity.contains(r#""fingerprint":""#), "{identity}");
+    // The format of what it sends, for the view to compare with the one it reads.
+    let (status, format) = body(&address, "/report.schema.json");
+    assert_eq!(status, 200);
+    assert_eq!(format, architecture_analyzer::report_schema());
     assert_eq!(body(&address, "/../secret").0, 404);
     assert_eq!(body(&address, "/missing.css").0, 404);
 

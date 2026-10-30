@@ -239,6 +239,8 @@ fn answer(
                 .unwrap_or_default();
             request.respond(json(report))
         }
+        "/version.json" => request.respond(json(crate::IDENTITY.to_string())),
+        "/report.schema.json" => request.respond(json(crate::report_schema())),
         "/history.json" => {
             let history = state
                 .lock()

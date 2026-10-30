@@ -1,0 +1,450 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "What the architecture analyzer sends its view",
+  "type": "object",
+  "properties": {
+    "report": {
+      "$ref": "#/$defs/Report"
+    },
+    "change": {
+      "$ref": "#/$defs/Change"
+    }
+  },
+  "$defs": {
+    "Report": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "description": "The repository's name, from its root manifest."
+        },
+        "tiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Tier"
+          },
+          "description": "The rules' tiers, top first."
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Module"
+          },
+          "description": "The modules."
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Edge"
+          },
+          "description": "The imports between modules."
+        },
+        "technologies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Technology"
+          },
+          "description": "The imports of technologies."
+        },
+        "violations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Violation"
+          },
+          "description": "Every rule broken."
+        },
+        "base": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BaseDiff"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What the tree adds and removes against its base, when one is given."
+        }
+      },
+      "required": ["tiers", "modules", "edges", "technologies", "violations"],
+      "description": "The analysis of the repository, as the view reads it."
+    },
+    "Tier": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Its identifier, used by `mayImport`."
+        },
+        "group": {
+          "type": "string",
+          "description": "The stack it belongs to (back, web, dev…), for the view."
+        },
+        "name": {
+          "type": "string",
+          "description": "Its name, for people."
+        },
+        "criterion": {
+          "type": "string",
+          "description": "What a module must meet to belong here."
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Where its modules are; a `*` segment makes one module per directory."
+        },
+        "mayImport": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MayImport"
+          },
+          "description": "The tiers its modules may import, its own included when peers may."
+        },
+        "isolated": {
+          "type": ["string", "null"],
+          "description": "Set when two of its modules never import each other: the fix.",
+          "default": null
+        },
+        "technologies": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          },
+          "description": "The technologies it may import; absent, any.",
+          "default": null
+        },
+        "fix": {
+          "type": "string",
+          "description": "The fix of an import it may not make."
+        },
+        "typesFix": {
+          "type": ["string", "null"],
+          "description": "The fix of a value imported where only types may be.",
+          "default": null
+        },
+        "technologyFix": {
+          "type": ["string", "null"],
+          "description": "The fix of a technology it may not use.",
+          "default": null
+        }
+      },
+      "required": ["id", "group", "name", "criterion", "paths", "mayImport", "fix"],
+      "description": "One tier: where its modules are and what they may import."
+    },
+    "MayImport": {
+      "anyOf": [
+        {
+          "type": "string",
+          "description": "Any import of that tier."
+        },
+        {
+          "$ref": "#/$defs/Condition",
+          "description": "An import of that tier under conditions."
+        }
+      ],
+      "description": "A tier that may be imported, with its conditions."
+    },
+    "Condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tier": {
+          "type": "string",
+          "description": "The tier."
+        },
+        "onlyFrom": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Only these files (globs) may import it.",
+          "default": []
+        },
+        "typesOnly": {
+          "type": "boolean",
+          "description": "Only types may be imported from it.",
+          "default": false
+        }
+      },
+      "required": ["tier"],
+      "description": "The conditions on importing a tier."
+    },
+    "Module": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Its path, relative to the root."
+        },
+        "tier": {
+          "type": "string",
+          "description": "Its tier."
+        },
+        "package": {
+          "type": "string",
+          "description": "The package it is in."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Its files."
+        }
+      },
+      "required": ["id", "tier", "package", "files"],
+      "description": "A module: the files under one tier path."
+    },
+    "Edge": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "The importing module."
+        },
+        "to": {
+          "type": "string",
+          "description": "The imported module."
+        },
+        "file": {
+          "type": "string",
+          "description": "The importing file."
+        },
+        "line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "description": "The import's line."
+        },
+        "endLine": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "description": "The import's last line."
+        },
+        "spec": {
+          "type": "string",
+          "description": "The specifier as written."
+        },
+        "typeOnly": {
+          "type": "boolean",
+          "description": "Whether it carries types only."
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The names it takes."
+        },
+        "uses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Use"
+          },
+          "description": "Where the file uses the names that reach this module."
+        }
+      },
+      "required": ["from", "to", "file", "line", "endLine", "spec", "typeOnly", "names", "uses"],
+      "description": "One file's import of another module."
+    },
+    "Use": {
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "description": "The line, from 1."
+        },
+        "column": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "description": "Where the name starts in its line."
+        },
+        "endColumn": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "description": "Where it ends."
+        }
+      },
+      "required": ["line", "column", "endColumn"],
+      "description": "Where a file uses a name it imports: its line from 1, and its columns from 0 in UTF-16\ncode units, as the view's text counts them."
+    },
+    "Technology": {
+      "type": "object",
+      "properties": {
+        "module": {
+          "type": ["string", "null"],
+          "description": "The importing module, if the file is in one."
+        },
+        "file": {
+          "type": "string",
+          "description": "The importing file."
+        },
+        "line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "description": "The import's line."
+        },
+        "name": {
+          "type": "string",
+          "description": "The package, or `node:<module>`."
+        }
+      },
+      "required": ["file", "line", "name"],
+      "description": "One file's import of a technology: an external package or a Node built-in."
+    },
+    "Violation": {
+      "type": "object",
+      "properties": {
+        "rule": {
+          "type": "string",
+          "description": "The rule: tier, isolated, types-only, only-from, index, package-entry, technology,\nundeclared, unresolved, run-only, no-tier, cycle, root-manifest."
+        },
+        "file": {
+          "type": "string",
+          "description": "The file, relative to the root."
+        },
+        "line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "description": "The line, from 1."
+        },
+        "message": {
+          "type": "string",
+          "description": "What is wrong."
+        },
+        "fix": {
+          "type": "string",
+          "description": "What to do."
+        }
+      },
+      "required": ["rule", "file", "line", "message", "fix"],
+      "description": "A rule broken, where, and how to fix it."
+    },
+    "BaseDiff": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "The base's git reference."
+        },
+        "head": {
+          "type": ["string", "null"],
+          "description": "The branch checked out, when the tree is on one."
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "description": "Module pairs imported here and not in the base."
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "description": "Module pairs imported in the base and not here."
+        }
+      },
+      "required": ["ref", "added", "removed"],
+      "description": "The module imports a tree adds and removes against its base."
+    },
+    "Change": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "description": "When, in milliseconds since the Unix epoch."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The files whose change caused it, relative to the root."
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "description": "Module pairs imported now and not before."
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "description": "Module pairs imported before and not now."
+        },
+        "breaches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Violation"
+          },
+          "description": "Rules broken now and not before."
+        },
+        "fixed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Violation"
+          },
+          "description": "Rules broken before and not now."
+        }
+      },
+      "required": ["at", "files", "added", "removed", "breaches", "fixed"],
+      "description": "One change to the architecture, as the session's history keeps it."
+    }
+  }
+}

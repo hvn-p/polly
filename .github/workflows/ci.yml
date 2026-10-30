@@ -128,7 +128,7 @@ jobs:
 
   # A required check: the repository's architecture is checked on every pull
   # request; the analyzer is built and tested only when the pull request
-  # changes it, its committed schema included.
+  # changes it, its committed schemas included.
   analyzer:
     runs-on: ubuntu-latest
     defaults:
@@ -140,7 +140,7 @@ jobs:
           fetch-depth: 0
       - id: sources
         run: |
-          git diff --quiet "origin/$GITHUB_BASE_REF...HEAD" -- . ../npm/launcher/architecture.rules.schema.json \
+          git diff --quiet "origin/$GITHUB_BASE_REF...HEAD" -- . ../npm/launcher/architecture.rules.schema.json ../ui/report.schema.json \
             || echo "changed=true" >> "$GITHUB_OUTPUT"
       # rust-toolchain.toml pins the toolchain, which rustup installs on first use.
       - if: steps.sources.outputs.changed == 'true'

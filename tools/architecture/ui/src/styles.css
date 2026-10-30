@@ -52,6 +52,8 @@ code {
   --mute: #8c8a84;
   --breach: #ff5a36;
   --breach-ground: #3a1a12;
+  /* The analyzer sends a format the view does not read: never a breach. */
+  --warn: #e8a33d;
   --ok-ground: #1a1a19;
   --cond: #262523;
   --added: #9bd3a0;
@@ -73,7 +75,7 @@ code {
 }
 .app {
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
   height: 100vh;
 }
 .top {
@@ -84,6 +86,119 @@ code {
   height: 52px;
   border-bottom: 1px solid var(--line);
   background: var(--ground);
+}
+.version-warning {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  column-gap: 16px;
+  row-gap: 8px;
+  padding: 12px 20px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--raise);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.version-warning h2 {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+.version-warning .mark {
+  position: relative;
+  width: 9px;
+  height: 9px;
+  background: var(--ink);
+}
+/* A square ring leaving the mark, again and again, for as long as the gap
+   holds: the eye goes to it from anywhere in the view. */
+.version-warning .mark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--ink);
+  animation: version-pulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+@keyframes version-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+/* The graver level: the mark blinks to the warning colour, its ring with it. */
+.version-warning.format {
+  border-bottom-color: var(--warn);
+}
+.version-warning.format .mark {
+  animation: version-blink 1s steps(1, end) infinite;
+}
+.version-warning.format .mark::after {
+  border-color: var(--warn);
+}
+@keyframes version-blink {
+  50% {
+    background: var(--warn);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .version-warning .mark::after,
+  .version-warning.format .mark {
+    animation: none;
+  }
+  .version-warning.format .mark {
+    background: var(--warn);
+  }
+}
+.version-warning .consequence {
+  grid-column: 2;
+  margin: 0;
+  color: var(--mute);
+}
+.version-warning dl {
+  grid-column: 1 / span 2;
+  display: grid;
+  grid-template-columns: max-content max-content;
+  justify-content: start;
+  column-gap: 14px;
+  row-gap: 4px;
+  margin: 0;
+  padding-left: 19px;
+}
+.version-warning dt {
+  color: var(--mute);
+}
+.version-warning dd {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--mute);
+}
+.version-warning .differs {
+  color: var(--ink);
+  font-weight: 600;
+}
+.version-warning .fix {
+  grid-column: 3;
+  grid-row: 2;
+  align-self: end;
+  justify-self: end;
+  margin: 0;
+}
+.version-warning code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
 }
 .brand {
   font-weight: 700;

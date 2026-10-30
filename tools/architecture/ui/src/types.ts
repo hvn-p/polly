@@ -80,3 +80,14 @@ export interface Change {
   breaches: Violation[]
   fixed: Violation[]
 }
+
+// The analyzer's sources an analyzer or a view was built from (identity.mjs).
+export interface Identity {
+  fingerprint: string
+  commit: string
+  // ISO 8601.
+  date: string
+  modified: boolean
+  // When modified: when the latest local change was saved, ISO 8601.
+  changed?: string
+}

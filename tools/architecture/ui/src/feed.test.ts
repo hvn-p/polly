@@ -43,6 +43,36 @@ afterEach(() => {
 })
 
 describe('the live feed', () => {
+  it("reads the analyzer's identity on each connection, null when it reports none", async () => {
+    const identity = {
+      fingerprint: 'f1',
+      commit: 'abc1234',
+      date: '2026-10-30T00:33:00+01:00',
+      modified: false,
+    }
+    const format = { type: 'object', properties: {} }
+    const fetch = respond({
+      '/version.json': { status: 200, body: JSON.stringify(identity) },
+      '/report.schema.json': { status: 200, body: JSON.stringify(format) },
+    })
+    const feed = liveFeed({ fetch, EventSource: FakeEvents as unknown as typeof EventSource, now: () => 42 })
+    expect(feed.get().analyzer).toBeUndefined()
+    FakeEvents.last?.onopen?.()
+    await tick()
+    expect(feed.get().analyzer).toEqual(identity)
+    expect(feed.get().analyzerFormat).toEqual(format)
+
+    const older = liveFeed({
+      fetch: respond({}),
+      EventSource: FakeEvents as unknown as typeof EventSource,
+      now: () => 42,
+    })
+    FakeEvents.last?.onopen?.()
+    await tick()
+    expect(older.get().analyzer).toBeNull()
+    expect(older.get().analyzerFormat).toBeNull()
+  })
+
   it('takes the report from the event stream and the history from the server', async () => {
     const fetch = respond({ '/history.json': { status: 200, body: JSON.stringify([change]) } })
     const feed = liveFeed({ fetch, EventSource: FakeEvents as unknown as typeof EventSource, now: () => 42 })

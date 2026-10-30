@@ -68,3 +68,39 @@ fn a_rules_file_may_name_its_schema() {
     );
     assert_eq!(analyze(tree.path(), None).unwrap().violations, vec![]);
 }
+
+/// The report's format, which the view is built against.
+fn committed_format() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../ui/report.schema.json")
+}
+
+#[test]
+fn the_committed_report_format_is_the_generated_one() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_architecture-analyzer"))
+        .arg("report-schema")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let generated: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let on_disk: serde_json::Value = std::fs::read_to_string(committed_format())
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default();
+    assert!(
+        on_disk == generated,
+        "{} differs from the analyzer's report: in tools/architecture/analyzer, run \
+         `cargo run -- report-schema > ../ui/report.schema.json`, then format it",
+        committed_format().display()
+    );
+    // The fields the view reads from what the analyzer sends.
+    let edge = &generated["$defs"]["Edge"]["properties"];
+    assert!(edge["uses"].is_object(), "{generated}");
+    assert!(
+        generated["properties"]["report"].is_object()
+            && generated["properties"]["change"].is_object()
+    );
+}

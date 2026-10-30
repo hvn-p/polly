@@ -13,6 +13,7 @@ mod workspace;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+use schemars::JsonSchema;
 use serde::Serialize;
 
 pub use graph::{Edge, Module, Technology, Violation};
@@ -24,8 +25,12 @@ pub use watch::{Change, Update, watch};
 /// The rules file, at the root.
 pub const RULES_FILE: &str = "architecture.rules.json";
 
+/// The identity of the sources this analyzer was built from, as JSON (see
+/// `build.rs`).
+pub const IDENTITY: &str = env!("ANALYZER_IDENTITY");
+
 /// The analysis of the repository, as the view reads it.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Report {
     /// The repository's name, from its root manifest.
@@ -45,7 +50,7 @@ pub struct Report {
 }
 
 /// The module imports a tree adds and removes against its base.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct BaseDiff {
     /// The base's git reference.
     #[serde(rename = "ref")]
@@ -271,6 +276,24 @@ pub fn analyze(root: &Path, base: Option<&str>) -> Result<Report, String> {
 #[must_use]
 pub fn schema() -> String {
     let schema = schemars::schema_for!(Rules);
+    serde_json::to_string_pretty(&schema).unwrap_or_default() + "\n"
+}
+
+/// The JSON Schema of what the analyzer sends the view: its report, and each
+/// change of the session's history. The view compares it with the one it was
+/// built against, and warns when they differ.
+#[must_use]
+pub fn report_schema() -> String {
+    let mut generator = schemars::SchemaGenerator::default();
+    let report = generator.subschema_for::<Report>();
+    let change = generator.subschema_for::<watch::Change>();
+    let schema = serde_json::json!({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "What the architecture analyzer sends its view",
+        "type": "object",
+        "properties": { "report": report, "change": change },
+        "$defs": generator.definitions(),
+    });
     serde_json::to_string_pretty(&schema).unwrap_or_default() + "\n"
 }
 

@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 
 use oxc_resolver::{ResolveOptions, Resolver};
+use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::glob;
@@ -12,7 +13,7 @@ use crate::rules::{MayImport, Rules, Tier};
 use crate::workspace::Package;
 
 /// A module: the files under one tier path.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Module {
     /// Its path, relative to the root.
@@ -26,7 +27,7 @@ pub struct Module {
 }
 
 /// One file's import of another module.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Edge {
     /// The importing module.
@@ -50,7 +51,7 @@ pub struct Edge {
 }
 
 /// One file's import of a technology: an external package or a Node built-in.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Technology {
     /// The importing module, if the file is in one.
@@ -64,7 +65,7 @@ pub struct Technology {
 }
 
 /// A rule broken, where, and how to fix it.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, JsonSchema)]
 pub struct Violation {
     /// The rule: tier, isolated, types-only, only-from, index, package-entry, technology,
     /// undeclared, unresolved, run-only, no-tier, cycle, root-manifest.

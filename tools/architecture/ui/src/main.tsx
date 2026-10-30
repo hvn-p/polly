@@ -20,5 +20,5 @@ const feed =
 
 const root = document.getElementById('root')
 if (root !== null) {
-  createRoot(root).render(<App feed={feed} />)
+  createRoot(root).render(<App feed={feed} identity={__ANALYZER_IDENTITY__} format={__REPORT_FORMAT__} />)
 }

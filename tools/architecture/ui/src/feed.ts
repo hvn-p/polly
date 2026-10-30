@@ -2,7 +2,7 @@
 // each change pushed as server-sent events, the session's history, the analyzed
 // files), or a snapshot built into the page.
 
-import type { Change, Report } from './types.ts'
+import type { Change, Identity, Report } from './types.ts'
 
 export interface FeedState {
   report: Report | undefined
@@ -10,6 +10,11 @@ export interface FeedState {
   status: 'connecting' | 'live' | 'offline' | 'snapshot'
   // When the last report arrived, in milliseconds since the epoch.
   updatedAt: number | undefined
+  // The sources the serving analyzer was built from, and the format of what it
+  // sends: null when it reports none, undefined until it answers, or for a
+  // snapshot.
+  analyzer?: Identity | null
+  analyzerFormat?: Record<string, unknown> | null
 }
 
 export interface Feed {
@@ -49,8 +54,17 @@ export interface LiveOptions {
 export function liveFeed({ fetch, EventSource, now }: LiveOptions): Feed {
   const state = store({ report: undefined, history: [], status: 'connecting', updatedAt: undefined })
   const events = new EventSource('/events')
-  // On each connection, the history it may have missed.
+  // On each connection, the history it may have missed, and the analyzer's
+  // identity, since another build may have taken over.
   events.onopen = () => {
+    void fetch('/version.json')
+      .then((response) => (response.ok ? (response.json() as Promise<Identity | null>) : null))
+      .catch(() => null)
+      .then((analyzer) => state.set({ analyzer }))
+    void fetch('/report.schema.json')
+      .then((response) => (response.ok ? (response.json() as Promise<Record<string, unknown>>) : null))
+      .catch(() => null)
+      .then((analyzerFormat) => state.set({ analyzerFormat }))
     void fetch('/history.json')
       .then((response) => (response.ok ? (response.json() as Promise<Change[]>) : undefined))
       .then((history) => {

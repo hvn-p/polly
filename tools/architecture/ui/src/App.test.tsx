@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { App } from './App.tsx'
 import { type Feed, type FeedState, snapshotFeed } from './feed.ts'
 import { fixture } from './test/fixture.ts'
-import type { Change } from './types.ts'
+import type { Change, Identity } from './types.ts'
 
 function feedOf(
   state: Partial<FeedState>,
@@ -450,5 +450,143 @@ describe('the source', () => {
     expect(panel.textContent).toContain('The analyzer does not serve this file')
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(panel.className).not.toContain('open')
+  })
+})
+
+describe("the analyzer's version", () => {
+  const built = (fingerprint: string, commit: string, date: string, changed?: string): Identity => ({
+    fingerprint,
+    commit,
+    date,
+    modified: changed !== undefined,
+    ...(changed === undefined ? {} : { changed }),
+  })
+  const view = built('f-view', '8158543', '2026-10-30T00:35:57+01:00')
+  const banner = () => screen.queryByRole('alert')
+
+  afterEach(cleanup)
+
+  // The two rows of the gap: what the analyzer was built from, what the view expects.
+  const rows = () => {
+    const values = within(banner() as HTMLElement).getAllByRole('definition')
+    return values.map((value) => value.textContent)
+  }
+  const emphasised = () =>
+    [...(banner()?.querySelectorAll('.differs') ?? [])].map((element) => element.textContent)
+
+  it('warns, for good, when the analyzer was built from other sources, setting out the gap', () => {
+    const analyzer = built('f-old', 'da9228a', '2026-10-30T00:31:02+01:00', '2026-10-30T07:41:09+01:00')
+    render(<App feed={feedOf({ analyzer })} identity={view} />)
+    expect(within(banner() as HTMLElement).getByRole('heading').textContent).toBe(
+      'The analyzer was built from other sources than this view',
+    )
+    expect(rows()).toEqual([
+      'da9228a2026-10-30 00:31local changes 2026-10-30 07:41sources f-old',
+      '81585432026-10-30 00:35no local changessources f-view',
+    ])
+    // What differs stands out, in both rows.
+    expect(emphasised()).toEqual([
+      'da9228a',
+      '2026-10-30 00:31',
+      'local changes 2026-10-30 07:41',
+      'sources f-old',
+      '8158543',
+      '2026-10-30 00:35',
+      'no local changes',
+      'sources f-view',
+    ])
+    expect(banner()?.textContent).toContain('cargo build --release')
+    expect(within(banner() as HTMLElement).queryByRole('button')).toBeNull()
+  })
+
+  it('emphasises only the local changes when both come from one commit', () => {
+    const analyzer = built('f-old', '8158543', '2026-10-30T00:35:57+01:00', '2026-10-30T07:41:09+01:00')
+    render(
+      <App
+        feed={feedOf({ analyzer })}
+        identity={{ ...view, modified: true, changed: '2026-10-30T07:47:30+01:00' }}
+      />,
+    )
+    expect(emphasised()).toEqual([
+      'local changes 2026-10-30 07:41',
+      'sources f-old',
+      'local changes 2026-10-30 07:47',
+      'sources f-view',
+    ])
+  })
+
+  it('always shows the gap, through the sources, when every other field is the same', () => {
+    const analyzer = built('f-old', '8158543', '2026-10-30T00:35:57+01:00', '2026-10-30T07:41:09+01:00')
+    render(<App feed={feedOf({ analyzer })} identity={{ ...analyzer, fingerprint: 'f-view' }} />)
+    expect(emphasised()).toEqual(['sources f-old', 'sources f-view'])
+  })
+
+  // Two formats of what the analyzer sends: the view's reads each edge's uses.
+  const formatOf = (edge: Record<string, unknown>) => ({
+    type: 'object',
+    properties: { report: { $ref: '#/$defs/Report' } },
+    $defs: {
+      Report: { type: 'object', properties: { edges: { type: 'array', items: { $ref: '#/$defs/Edge' } } } },
+      Edge: { type: 'object', properties: edge },
+    },
+  })
+  const viewFormat = formatOf({ from: { type: 'string' }, uses: { type: 'array' } })
+
+  it("warns more gravely when the report is not in the view's format, naming the fields apart", () => {
+    const analyzer = built('f-old', 'da9228a', '2026-10-30T00:31:02+01:00')
+    render(
+      <App
+        feed={feedOf({ analyzer, analyzerFormat: formatOf({ from: { type: 'string' } }) })}
+        identity={view}
+        format={viewFormat}
+      />,
+    )
+    expect(banner()?.classList.contains('format')).toBe(true)
+    expect(within(banner() as HTMLElement).getByRole('heading').textContent).toBe(
+      "The analyzer's report is not in this view's format",
+    )
+    expect(banner()?.textContent).toContain('What the view shows is wrong or missing')
+    expect(rows()).toEqual([
+      'report.edges[].uses',
+      'da9228a2026-10-30 00:31no local changessources f-old',
+      '81585432026-10-30 00:35no local changessources f-view',
+    ])
+  })
+
+  it('warns gravely when the analyzer reports no format, as one built before formats existed', () => {
+    render(
+      <App feed={feedOf({ analyzer: null, analyzerFormat: null })} identity={view} format={viewFormat} />,
+    )
+    expect(banner()?.classList.contains('format')).toBe(true)
+    expect(rows()[0]).toBe('no format: built before formats existed')
+  })
+
+  it('stays at the sources level when both send the same format', () => {
+    const analyzer = built('f-old', 'da9228a', '2026-10-30T00:31:02+01:00')
+    render(
+      <App feed={feedOf({ analyzer, analyzerFormat: viewFormat })} identity={view} format={viewFormat} />,
+    )
+    expect(banner()?.classList.contains('format')).toBe(false)
+  })
+
+  it('warns when the analyzer reports no version, as one built before versions existed', () => {
+    render(<App feed={feedOf({ analyzer: null })} identity={view} />)
+    expect(rows()).toEqual([
+      'no version: built before versions existed, or without Node',
+      '81585432026-10-30 00:35no local changessources f-view',
+    ])
+  })
+
+  it('says nothing when both come from the same sources, or before the analyzer answered', () => {
+    render(
+      <App
+        feed={feedOf({ analyzer: built('f-view', 'other', '2026-10-29T10:00:00+01:00') })}
+        identity={view}
+      />,
+    )
+    expect(banner()).toBeNull()
+    cleanup()
+    render(<App feed={feedOf({})} identity={view} />)
+    expect(banner()).toBeNull()
   })
 })

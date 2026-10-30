@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::{Base, RULES_FILE, Report, Tree, Violation, base_pairs, graph, pairs, read, workspace};
@@ -21,7 +22,7 @@ pub struct Update {
 }
 
 /// One change to the architecture, as the session's history keeps it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct Change {
     /// When, in milliseconds since the Unix epoch.
     pub at: u64,
