@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { api } from '../../shared/api/index.ts'
 import type { MessageKey, Translate } from '../../shared/i18n/index.ts'
-import { EMAIL, PASSWORD, signInProblem } from './bounds.ts'
+import { EMAIL, PASSWORD, problemValues, signInProblem } from './bounds.ts'
 
 export function SignInPage({ t }: { t: Translate }) {
   const [problem, setProblem] = useState<MessageKey>()
@@ -57,7 +57,7 @@ export function SignInPage({ t }: { t: Translate }) {
             required
           />
         </label>
-        {problem === undefined ? null : <p role="alert">{t(problem)}</p>}
+        {problem === undefined ? null : <p role="alert">{t(problem, problemValues(problem))}</p>}
         <button type="submit">{t('signIn.submit')}</button>
       </form>
     </main>

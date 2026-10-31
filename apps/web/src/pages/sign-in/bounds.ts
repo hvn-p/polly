@@ -14,3 +14,10 @@ export function signInProblem(email: string, password: string): MessageKey | und
   }
   return undefined
 }
+
+// The values of a problem's message: the bounds it names.
+export function problemValues(problem: MessageKey): Record<string, string> {
+  const bounds =
+    problem === 'signIn.emailInvalid' ? EMAIL : problem === 'signIn.passwordInvalid' ? PASSWORD : undefined
+  return bounds === undefined ? {} : { min: String(bounds.min), max: String(bounds.max) }
+}

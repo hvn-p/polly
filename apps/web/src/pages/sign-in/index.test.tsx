@@ -42,8 +42,30 @@ describe('sign-in page', () => {
     render(<SignInPage t={t} />)
     fillSignIn('a@', 'password-1')
     await submit(en['signIn.submit'])
-    expect(screen.getByRole('alert').textContent).toBe(en['signIn.emailInvalid'])
+    expect(screen.getByRole('alert').textContent).toBe('Enter an email address of 3 to 254 characters.')
     expect(api.call).not.toHaveBeenCalled()
+  })
+
+  it("names the contract's bounds in each field's message, in every language, the catalogue writing none", async () => {
+    const cases = [
+      { key: 'signIn.emailInvalid', email: 'a@', bounds: BOUNDS.SignInRequest.email },
+      { key: 'signIn.passwordInvalid', email: 'a@b.c', bounds: BOUNDS.SignInRequest.password },
+    ] as const
+    for (const [language, catalogue] of Object.entries(catalogues)) {
+      for (const { key, email, bounds } of cases) {
+        expect(catalogue[key]).not.toMatch(/\d/)
+        render(<SignInPage t={translator([language])} />)
+        fireEvent.change(screen.getByLabelText(catalogue['signIn.email']), { target: { value: email } })
+        fireEvent.change(screen.getByLabelText(catalogue['signIn.password']), { target: { value: 'short' } })
+        await submit(catalogue['signIn.submit'])
+        expect(screen.getByRole('alert').textContent).toBe(
+          catalogue[key].replace('{min}', String(bounds.min)).replace('{max}', String(bounds.max)),
+        )
+        expect(screen.getByRole('alert').textContent).toContain(`${bounds.min}`)
+        expect(screen.getByRole('alert').textContent).toContain(`${bounds.max}`)
+        cleanup()
+      }
+    }
   })
 
   it("bounds each field as the API's contract does", () => {
