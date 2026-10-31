@@ -60,6 +60,23 @@ describe('building a Node process', () => {
     expect(readFileSync(paths.outfile, 'utf8')).toContain('console.log(2)')
   })
 
+  it('run twice on the real processes, the script leaves their outputs unwritten the second time', () => {
+    const outputs = PROCESSES.filter(({ output }) => /^apps\/[^/]+\/dist\/main\.js$/.test(output)).map(
+      ({ name, output }) => ({ name, path: join(repositoryRoot, output) }),
+    )
+    expect(outputs.map(({ name }) => name)).toEqual(['api', 'mcp', 'worker'])
+    const build = () =>
+      execFileSync(process.execPath, ['scripts/build/processes.ts', ...outputs.map(({ name }) => name)], {
+        cwd: repositoryRoot,
+        stdio: 'pipe',
+      })
+    const written = () => outputs.map(({ path }) => [statSync(path).mtimeMs, statSync(`${path}.map`).mtimeMs])
+    build()
+    const first = written()
+    build()
+    expect(written()).toEqual(first)
+  }, 60_000)
+
   it('keeps each module of a dev command on its source directory, and only the entry on the bundle', async () => {
     const root = fixture({
       'src/lib/where.ts': [
