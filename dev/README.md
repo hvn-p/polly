@@ -24,7 +24,7 @@ Every command acts on the worktree it runs in.
 | `nr dev:down` | Stops the processes and releases the worktree's databases, bucket and routes. |
 | `nr dev:url` | Prints the worktree's URL. |
 | `nr dev:worker real [--compute <fingerprint>]` / `nr dev:worker fake` | Restarts the worktree's worker with the machine's compute service for its fingerprint of `services/compute` (or the one named), or with the fake analyzer that loads none. Worktrees with the same fingerprint share one service; `nr dev:down` puts the worktree back in fake mode. |
-| `nr dev:e2e <scenario>` | Plays a scenario (`smoke`) in a driven Claude Code session against this worktree, then prints pass or fail and the transcript's path. Needs `claude` signed in and util-linux `script`; never runs in CI. |
+| `nr dev:e2e <scenario>` | Plays a scenario (`smoke`) in a driven Claude Code session against this worktree, then prints pass or fail and the transcript's path. Needs `claude` signed in and util-linux `script`; never runs in CI. macOS ships BSD `script` instead, which the command refuses (`MISSING_PREREQUISITE`): install util-linux and put its `script` first on the `PATH`. |
 | `nr agent` | Starts Claude Code with this worktree's plugin, pointed at this worktree's server. |
 
 worktrunk runs `dev:up` when it creates a worktree and `dev:down` when it
