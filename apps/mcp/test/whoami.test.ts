@@ -1,4 +1,4 @@
-import { createLearner, mcpAccessToken } from '@polly/api/test-support'
+import { createLearner, mcpAccessToken, strictRefusal } from '@polly/api/test-support'
 import { describe, expect, it } from 'vitest'
 import { mcpClient, resultOf } from './support/mcp.ts'
 import { mcpTestServer } from './support/server.ts'
@@ -21,6 +21,7 @@ describe('MCP endpoint and whoami', () => {
     expect(response.headers.get('www-authenticate')).toContain(
       `resource_metadata="${server.config.PUBLIC_URL}/.well-known/oauth-protected-resource/mcp"`,
     )
+    expect(strictRefusal.parse(await response.json()).code).toBe('UNAUTHORIZED')
   })
 
   it('whoami returns the learner the token was issued to', async () => {

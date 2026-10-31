@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { captureLog } from '@polly/api/test-support'
+import { captureLog, strictRefusal } from '@polly/api/test-support'
 import { describe, expect, it } from 'vitest'
 import { startMcpServer } from '../src/main.ts'
 import { mcpTestServer } from './support/server.ts'
@@ -28,6 +28,10 @@ describe("the MCP server's route walk", () => {
         })
         expect({ path, status: response.status }).toEqual({ path, status: 401 })
         expect(response.headers.get('www-authenticate')).toMatch(/^Bearer .*resource_metadata=/)
+        expect({ path, code: strictRefusal.parse(await response.json()).code }).toEqual({
+          path,
+          code: 'UNAUTHORIZED',
+        })
       }
     }
   })
