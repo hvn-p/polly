@@ -6,7 +6,7 @@ import { type BrowserSessions, registerSessionRoutes } from './index.ts'
 const guards: Guards = {
   public: async () => ({}),
   learner: async () => ({ learnerId: 'learner-1' }),
-  'event-code': async () => ({}),
+  'event-code': async () => ({ codeHash: 'hash' }),
 }
 
 // The session routes over an identity that records each call it receives.
