@@ -5,7 +5,7 @@
 
 import { z } from 'zod'
 import { agentEvent, eventCode } from './agent-events.ts'
-import { REFUSAL_STATUS, type RefusalCode, refusal, UNROUTED_STATUS } from './refusals.ts'
+import { REFUSAL_STATUS, type RefusalCode, refusal, UNEXPECTED_STATUS, UNROUTED_STATUS } from './refusals.ts'
 
 export const learner = z.object({ learnerId: z.string().min(1).max(64), name: z.string().min(1).max(256) })
 
@@ -47,7 +47,7 @@ export const operations = {
     status: 200,
     body: signInRequest,
     response: signedIn,
-    refusals: ['INVALID_EMAIL_OR_PASSWORD'],
+    refusals: ['INVALID_EMAIL_OR_PASSWORD', 'INVALID_OAUTH_REQUEST'],
   },
   consent: {
     method: 'POST',
@@ -95,4 +95,4 @@ export const operations = {
   }
 >
 
-export const statuses = { refusals: REFUSAL_STATUS, unrouted: UNROUTED_STATUS }
+export const statuses = { refusals: REFUSAL_STATUS, unrouted: UNROUTED_STATUS, unexpected: UNEXPECTED_STATUS }

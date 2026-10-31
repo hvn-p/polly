@@ -6,8 +6,10 @@
 import { DEMO_ACCOUNT, seedDemoAccount } from '@polly/back'
 import { connect } from '@polly/database'
 import { createIdentity, learnerAccounts } from '@polly/identity'
-import { createLogger } from '@polly/logging'
-import { environment, type Logger, Refusal, readConfig } from '@polly/platform'
+import { createLogSink } from '@polly/logging'
+import { environment, plugLogSink, Refusal, readConfig } from '@polly/platform'
+import { log } from '@polly/platform/log'
+import { COMMAND_REFUSED } from './events.ts'
 
 const COMMANDS = ['seed-demo']
 
@@ -15,12 +17,11 @@ const COMMANDS = ['seed-demo']
 export interface CliIo {
   env: Record<string, string | undefined>
   out: (line: string) => void
-  log: Logger
 }
 
-export async function runCli(argv: readonly string[], { env, out, log }: CliIo): Promise<number> {
+export async function runCli(argv: readonly string[], { env, out }: CliIo): Promise<number> {
   const refuse = (code: string, reason: string): number => {
-    log.error(`${code}: ${reason}`, { code })
+    log(COMMAND_REFUSED, { code, reason })
     return 1
   }
   const [command = ''] = argv
@@ -45,8 +46,7 @@ export async function runCli(argv: readonly string[], { env, out, log }: CliIo):
     return 0
   } catch (error) {
     if (error instanceof Refusal) {
-      log.error(error.text, { code: error.code })
-      return 1
+      return refuse(error.code, error.message)
     }
     throw error
   } finally {
@@ -55,9 +55,9 @@ export async function runCli(argv: readonly string[], { env, out, log }: CliIo):
 }
 
 if (process.argv[1] === import.meta.filename) {
+  plugLogSink(createLogSink({ name: 'polly-api-cli' }))
   process.exitCode = await runCli(process.argv.slice(2), {
     env: environment(),
     out: (line) => console.log(line),
-    log: createLogger({ name: 'polly-api-cli' }),
   })
 }

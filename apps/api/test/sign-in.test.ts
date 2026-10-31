@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { mcpResource, SIGN_IN_BOUNDS } from '@polly/identity'
+import { browserSessions, type Identity, mcpResource, SIGN_IN_BOUNDS } from '@polly/identity'
 import { describe, expect, it } from 'vitest'
 import { signInRequest } from '../src/contracts/api.ts'
 import { createLearner, createPublicClient, headers, signedInCookie } from './support/oauth.ts'
@@ -91,6 +91,36 @@ describe('POST /api/sign-in', () => {
     const { next } = (await response.json()) as { next: string }
     expect(new URL(next, server.config.PUBLIC_URL).pathname).toBe('/consent')
   })
+
+  it('resumes it when the page received parameters the identity did not sign', async () => {
+    const oauthQuery = `${await signInPageQuery()}&utm_source=mail`
+    const { email, password } = await createLearner(server)
+    const response = await post('/api/sign-in', { email, password, oauthQuery })
+    expect(response.status).toBe(200)
+    const { next } = (await response.json()) as { next: string }
+    expect(new URL(next, server.config.PUBLIC_URL).pathname).toBe('/consent')
+  })
+
+  it('refuses an altered authorization request with INVALID_OAUTH_REQUEST, even with the right password', async () => {
+    const altered = (await signInPageQuery()).replace(/state=[^&]*/, 'state=other')
+    const { email, password } = await createLearner(server)
+    const response = await post('/api/sign-in', { email, password, oauthQuery: altered })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ code: 'INVALID_OAUTH_REQUEST' })
+    expect(response.headers.getSetCookie()).toEqual([])
+  })
+
+  it('answers any other refusal of the identity as an unexpected failure, which the API answers 500 and logs', async () => {
+    // An identity refusing for another reason than the learner's: its origin
+    // check, its rate limit.
+    for (const status of [403, 429]) {
+      const identity = { handler: async () => Response.json({}, { status }) } as unknown as Identity
+      const sessions = browserSessions(identity, server.config.PUBLIC_URL)
+      await expect(sessions.signIn({ email: 'a@b.io', password: 'password' }, new Headers())).rejects.toThrow(
+        `the identity answered ${status} to a sign-in`,
+      )
+    }
+  })
 })
 
 describe('POST /api/consent', () => {
@@ -137,6 +167,18 @@ describe('POST /api/consent', () => {
     const response = await post('/api/consent', { accept: true, oauthQuery: altered }, { cookie })
     expect(response.status).toBe(400)
     expect(await response.json()).toMatchObject({ code: 'INVALID_OAUTH_REQUEST' })
+  })
+
+  it('completes it when the page received parameters the identity did not sign', async () => {
+    const { cookie, oauthQuery } = await consentPage()
+    const response = await post(
+      '/api/consent',
+      { accept: true, oauthQuery: `${oauthQuery}&utm_source=mail` },
+      { cookie },
+    )
+    expect(response.status).toBe(200)
+    const { next } = (await response.json()) as { next: string }
+    expect(new URL(next).searchParams.get('code')).toEqual(expect.any(String))
   })
 })
 

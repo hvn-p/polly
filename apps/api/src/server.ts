@@ -4,7 +4,7 @@
 import type { AddressInfo } from 'node:net'
 import { serve } from '@hono/node-server'
 import type { EventCodeStore, LearnerDirectory } from '@polly/back'
-import { type Clock, type Logger, originOf } from '@polly/platform'
+import { type Clock, originOf, type WithTrace } from '@polly/platform'
 import { type Authenticate, learnerGuard, type SessionLearner } from './access.ts'
 import { eventCodeGuard, registerAgentEventRoute } from './agent-events/index.ts'
 import { createApp } from './app.ts'
@@ -25,7 +25,8 @@ export interface ApiPorts {
   // The worktree's origin, the only one a cookie-admitted change comes from.
   origin: string
   clock: Clock
-  log: Logger
+  // Runs each request inside its trace: the logging capacity's.
+  trace: WithTrace
 }
 
 export interface RunningServer {
@@ -58,7 +59,7 @@ export async function serveApi(
   registerSessionRoutes(registry, ports.sessions)
   registerLearnerRoutes(registry, ports.codes, ports.directory)
   registerAgentEventRoute(registry, ports.codes, ports.clock)
-  const app = createApp(registry, ports.log)
+  const app = createApp(registry, ports.trace)
   const server = await new Promise<ReturnType<typeof serve>>((resolve) => {
     const listening = serve({ fetch: app.fetch, hostname, port }, () => resolve(listening))
   })

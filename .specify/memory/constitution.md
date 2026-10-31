@@ -252,6 +252,34 @@ for learners.
 *Verified by*: catalogue tests (every language has exactly the keys of the reference
 catalogue, no empty message); code review, which refuses a hard-coded displayed text.
 
+## Operation
+
+### XIX. A log line is a declared event
+
+The back logs events, never free text. An event has a stable name,
+`<module>.<subject>.<outcome>`, and is declared once, in an `events.ts` of the module that
+emits it, with its category (access, functional, technical, security), its level and what
+to investigate when it appears. The caller names the event and gives its fields; it never
+chooses the level. `error` means the operation failed; `warn`, that a problem was handled
+and the operation succeeded, or a security event worth watching; `info`, a fact of normal
+operation; `debug`, investigation detail, off by default. An expected refusal is no error.
+
+Routes & workflows log access and security; flows, the functional facts they complete;
+adapters, the technical facts nobody above them sees. Domains never log: their decisions
+return as values or refusals. An error is logged once, by the code that handles it. Each
+process has one logger, imported from the socle and written nowhere until its composition
+root plugs the adapter in; the time, process, tier, module, file and trace id are added to
+every line, never by the caller.
+
+Why: logs are read mostly by agents, which search names and follow a trace, not prose;
+levels chosen in one place stay consistent; a telemetry setup plugged in one place is
+never duplicated.
+
+*Verified by*: the build plugin that tags each file's logger, which refuses the import from
+a tier that does not log, with its own test; `scripts/checks/log-events.mjs`, which refuses
+a name declared twice, a declaration outside an `events.ts` and an event never emitted,
+with its own test; code review for the level and logging once.
+
 ## Governance
 
 This constitution prevails over any spec, plan or practice that contradicts it. It changes
@@ -260,4 +288,4 @@ or redefined, MINOR when one is added or materially expanded, PATCH for wording.
 checks the feature against each principle; code review judges the principles that no
 program checks. Day-to-day guidance for agents lives in `AGENTS.md`.
 
-**Version**: 2.0.0 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-10-28
+**Version**: 2.1.0 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-10-31

@@ -107,7 +107,7 @@
       "id": "socle",
       "group": "server",
       "name": "Socle",
-      "criterion": "What every process shares, with no product word and no chosen technology: Refusal, the Logger and Clock ports, the configuration schema, the route registry.",
+      "criterion": "What every process shares, with no product word and no chosen technology: Refusal, the logger and its sink port, the Clock port, the configuration schema, the route registry.",
       "paths": ["packages/platform"],
       "mayImport": [],
       "technologies": ["zod"],
@@ -405,7 +405,7 @@
       "provides": "product values, the hash"
     },
     "@polly/platform": {
-      "provides": "Refusal, the Logger and Clock ports, the configuration schema, the route registry"
+      "provides": "Refusal, the logger and its sink port, the Clock port, the configuration schema, the route registry"
     },
     "@polly/contract": {
       "provides": "the API's generated client and refusal codes"

@@ -1,15 +1,13 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { join } from 'node:path'
 import { DBOSClient } from '@dbos-inc/dbos-sdk'
 import { submitPlaceholderAnalysis } from '@polly/back'
 import { dbosAnalysisQueue } from '@polly/queue'
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it } from 'vitest'
+import { buildWorker, STARTED } from './support/build.ts'
 
-const main = join(import.meta.dirname, '..', 'src', 'main.ts')
-// The worker with its fake analyzer slowed down, so it can be killed in the
-// middle of a task; it says when it starts.
-const slowWorker = join(import.meta.dirname, 'support', 'slow-worker.ts')
+let main = ''
+let slowWorker = ''
 const workers: ChildProcess[] = []
 let client: DBOSClient
 
@@ -30,7 +28,7 @@ async function startWorker({ slow = false } = {}): Promise<{ worker: ChildProces
   await new Promise<void>((resolve, reject) => {
     const read = (chunk: Buffer) => {
       output += chunk.toString()
-      if (output.includes('worker ready')) {
+      if (output.includes(STARTED)) {
         resolve()
       }
     }
@@ -52,6 +50,8 @@ async function until(condition: () => boolean, timeoutMs: number): Promise<void>
 }
 
 beforeAll(async () => {
+  main = await buildWorker('main')
+  slowWorker = await buildWorker('slow-worker')
   client = await DBOSClient.create({ systemDatabaseUrl: inject('testDatabaseUrl'), applicationName: 'polly' })
 })
 

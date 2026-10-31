@@ -20,6 +20,9 @@ export const REFUSAL_STATUS = {
 // A path no route serves: no refusal of the contract, so no body.
 export const UNROUTED_STATUS = 404
 
+// An unexpected failure: no refusal of the contract, so no body.
+export const UNEXPECTED_STATUS = 500
+
 export type RefusalCode = keyof typeof REFUSAL_STATUS
 
 export const refusalCode = z.enum(Object.keys(REFUSAL_STATUS) as [RefusalCode, ...RefusalCode[]])

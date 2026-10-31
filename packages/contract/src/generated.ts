@@ -38,7 +38,12 @@ export interface Operations {
 }
 
 export const OPERATIONS = {
-  signIn: { method: 'POST', path: '/api/sign-in', status: 200, refusals: ['INVALID_EMAIL_OR_PASSWORD'] },
+  signIn: {
+    method: 'POST',
+    path: '/api/sign-in',
+    status: 200,
+    refusals: ['INVALID_EMAIL_OR_PASSWORD', 'INVALID_OAUTH_REQUEST'],
+  },
   consent: {
     method: 'POST',
     path: '/api/consent',
@@ -123,6 +128,9 @@ export const REFUSAL_STATUS = {
 
 // The status of a path no route serves: no refusal of the contract, no body.
 export const UNROUTED_STATUS = 404
+
+// The status of an unexpected failure: no refusal of the contract, no body.
+export const UNEXPECTED_STATUS = 500
 
 // The bounds of each schema's fields, which the API checks: a form checks them first.
 export const BOUNDS = {

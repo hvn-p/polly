@@ -5,7 +5,7 @@
 // It serves nothing while the database is behind the code (SCHEMA_BEHIND), and
 // starts once nr dev:up has migrated it.
 
-import { assertSchemaCurrent, connect, PostgresStore, waitForSchemaCurrent } from '@polly/database'
+import { assertSchemaCurrent, connect, PostgresStore, waitForSchema } from '@polly/database'
 import {
   apiResource,
   authenticator,
@@ -15,16 +15,15 @@ import {
   learnerDirectory,
   registerMcpClient,
 } from '@polly/identity'
-import { createLogger } from '@polly/logging'
+import { runProcess, withTrace } from '@polly/logging'
 import {
   type Clock,
   type Config,
   environment,
-  type Logger,
-  Refusal,
   readConfig,
   readConfigOf,
   systemClock,
+  type WithTrace,
 } from '@polly/platform'
 import { type RunningServer, serveApi } from './server.ts'
 
@@ -41,7 +40,8 @@ export interface ServerOptions {
   // reaches the network.
   fetchClientMetadataResource?: IdentitySettings['fetchClientMetadataResource']
   clock?: Clock
-  log: Logger
+  // Runs each request inside its trace: the logging capacity's.
+  trace: WithTrace
 }
 
 export async function startServer({
@@ -51,7 +51,7 @@ export async function startServer({
   lastMigration,
   fetchClientMetadataResource,
   clock = systemClock,
-  log,
+  trace,
 }: ServerOptions): Promise<RunningServer> {
   const db = connect(config.DATABASE_URL)
   try {
@@ -77,7 +77,7 @@ export async function startServer({
       directory: learnerDirectory(identity),
       origin: new URL(config.PUBLIC_URL).origin,
       clock,
-      log,
+      trace,
     },
   )
   return {
@@ -90,27 +90,20 @@ export async function startServer({
 }
 
 if (process.argv[1] === import.meta.filename) {
-  const log = createLogger({ name: 'polly-api' })
-  try {
-    const env = environment()
-    const config = readConfig(env)
-    const listen = readConfigOf(env, ['POLLY_API_HOST', 'POLLY_API_PORT'])
-    const db = connect(config.DATABASE_URL)
-    await waitForSchemaCurrent(db, { retryMs: 2000, onBehind: (message) => log.warn(message) })
-    await db.destroy()
-    const server = await startServer({
-      config,
-      hostname: listen.POLLY_API_HOST,
-      port: listen.POLLY_API_PORT,
-      log,
-    })
-    log.info('API listening', { url: server.url })
-  } catch (error) {
-    if (error instanceof Refusal) {
-      log.error(error.code, { reason: error.message })
-    } else {
-      log.error('the API stopped', { error })
-    }
-    process.exit(1)
-  }
+  await runProcess({
+    name: 'polly-api',
+    start: async () => {
+      const env = environment()
+      const config = readConfig(env)
+      const listen = readConfigOf(env, ['POLLY_API_HOST', 'POLLY_API_PORT'])
+      await waitForSchema(config.DATABASE_URL, { retryMs: 2000 })
+      const server = await startServer({
+        config,
+        hostname: listen.POLLY_API_HOST,
+        port: listen.POLLY_API_PORT,
+        trace: withTrace,
+      })
+      return { url: server.url }
+    },
+  })
 }

@@ -26,10 +26,12 @@ export interface Operation {
   refusals: readonly string[]
 }
 
-// The HTTP status of each refusal code, and of a path no route serves.
+// The HTTP status of each refusal code, of a path no route serves, and of an
+// unexpected failure.
 export interface Statuses {
   refusals: Record<string, number>
   unrouted: number
+  unexpected: number
 }
 
 export interface Contract {
@@ -201,6 +203,7 @@ export function openApiDocument(
     info: { title: name, version: '0' },
     'x-refusal-status': statuses.refusals,
     'x-unrouted-status': statuses.unrouted,
+    'x-unexpected-status': statuses.unexpected,
     paths,
     components: {
       schemas: Object.fromEntries(
@@ -399,6 +402,9 @@ export function clientModule(source: string, document: Record<string, unknown>):
       '',
       '// The status of a path no route serves: no refusal of the contract, no body.',
       `export const UNROUTED_STATUS = ${String(document['x-unrouted-status'])}`,
+      '',
+      '// The status of an unexpected failure: no refusal of the contract, no body.',
+      `export const UNEXPECTED_STATUS = ${String(document['x-unexpected-status'])}`,
       '',
     )
   }

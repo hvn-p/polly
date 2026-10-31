@@ -5,4 +5,4 @@
 
 export { connect, type Database } from './connection.ts'
 export { PostgresStore } from './postgres-store.ts'
-export { assertSchemaCurrent, SchemaBehind, type SchemaWait, waitForSchemaCurrent } from './schema.ts'
+export { assertSchemaCurrent, SchemaBehind, type SchemaWait, waitForSchema } from './schema.ts'

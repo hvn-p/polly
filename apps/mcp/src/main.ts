@@ -7,18 +7,19 @@
 import { serve } from '@hono/node-server'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { createApiClient } from '@polly/contract'
-import { createLogger } from '@polly/logging'
+import { runProcess, traceparent, withTrace } from '@polly/logging'
 import {
   environment,
-  type Logger,
   originOf,
-  Refusal,
   type Route,
   RouteRegistry,
   readConfigOf,
+  type WithTrace,
 } from '@polly/platform'
+import { log } from '@polly/platform/log'
+import { REQUEST_FAILED, REQUEST_SERVED } from './events.ts'
 import { exchangeToken } from './exchange.ts'
-import { notFound, refusedRequest, unauthorized } from './refusals.ts'
+import { notFound, refusedRequest, unauthorized, unexpected } from './refusals.ts'
 import { TOOLS, type ToolDefinition } from './tools.ts'
 
 export interface McpOptions {
@@ -29,7 +30,10 @@ export interface McpOptions {
   // The API's own address, never through the public origin.
   apiUrl: string
   clientSecret: string
-  log: Logger
+  // Runs each request inside its trace, and gives the traceparent each call
+  // to the API carries: the logging capacity's.
+  trace: WithTrace
+  traceparent: () => string | undefined
   tools?: readonly ToolDefinition[]
 }
 
@@ -48,16 +52,26 @@ export interface RunningMcp {
 
 export async function startMcpServer(options: McpOptions): Promise<RunningMcp> {
   const tools = options.tools ?? TOOLS
+  // Every call to the API carries the request's trace.
+  const fetch = (input: string | URL | Request, init: RequestInit = {}): Promise<Response> => {
+    const headers = new Headers(init.headers)
+    const parent = options.traceparent()
+    if (parent !== undefined) {
+      headers.set('traceparent', parent)
+    }
+    return globalThis.fetch(input, { ...init, headers })
+  }
   const exchange = {
     apiUrl: options.apiUrl,
     apiResource: `${options.publicUrl}/api`,
     clientSecret: options.clientSecret,
+    fetch,
   }
   const handler = createMcpHandler(
     ({ authInfo }) => {
       const server = new McpServer({ name: 'polly', version: '0.0.0' })
       const token = String(authInfo?.token)
-      const api = createApiClient({ baseUrl: options.apiUrl, token: async () => token })
+      const api = createApiClient({ baseUrl: options.apiUrl, token: async () => token, fetch })
       for (const tool of tools) {
         tool(server, api)
       }
@@ -67,18 +81,24 @@ export async function startMcpServer(options: McpOptions): Promise<RunningMcp> {
     // 2025 protocol.
     { legacy: 'stateless' },
   )
-  const requests = options.log.child({ module: 'http' })
-  const fetch = async (request: Request): Promise<Response> => {
-    const started = performance.now()
-    const response = await answer(request)
-    requests.info('request', {
-      method: request.method,
-      path: new URL(request.url).pathname,
-      status: response.status,
-      ms: Math.round(performance.now() - started),
+  // Each request runs inside its trace and is logged once, with identifiers
+  // only; an unexpected error is answered here and logged on that line, the
+  // one place that handles it.
+  const serveRequest = (request: Request): Promise<Response> =>
+    options.trace(request.headers.get('traceparent'), async () => {
+      const started = performance.now()
+      const fields = { method: request.method, path: new URL(request.url).pathname }
+      const ms = () => Math.round(performance.now() - started)
+      try {
+        const response = await answer(request)
+        log(REQUEST_SERVED, { ...fields, status: response.status, ms: ms() })
+        return response
+      } catch (error) {
+        const response = unexpected()
+        log(REQUEST_FAILED, { ...fields, status: response.status, ms: ms(), error })
+        return response
+      }
     })
-    return response
-  }
   const registry = new RouteRegistry<AccessContext>(
     {
       // A token that does not exchange gets the challenge of the OAuth flow.
@@ -106,7 +126,7 @@ export async function startMcpServer(options: McpOptions): Promise<RunningMcp> {
     return route === undefined ? notFound() : registry.handler(route)(request)
   }
   const server = await new Promise<ReturnType<typeof serve>>((resolve) => {
-    const listening = serve({ fetch, hostname: options.hostname, port: options.port }, () =>
+    const listening = serve({ fetch: serveRequest, hostname: options.hostname, port: options.port }, () =>
       resolve(listening),
     )
   })
@@ -122,7 +142,9 @@ export async function startMcpServer(options: McpOptions): Promise<RunningMcp> {
 
 // The server's settings, read from the environment: it reaches the API on the
 // API's own address, never through the public origin.
-export function settingsFrom(env: Record<string, string | undefined>): Omit<McpOptions, 'log' | 'tools'> {
+export function settingsFrom(
+  env: Record<string, string | undefined>,
+): Omit<McpOptions, 'trace' | 'traceparent' | 'tools'> {
   const config = readConfigOf(env, [
     'POLLY_MCP_HOST',
     'POLLY_MCP_PORT',
@@ -141,16 +163,11 @@ export function settingsFrom(env: Record<string, string | undefined>): Omit<McpO
 }
 
 if (process.argv[1] === import.meta.filename) {
-  const log = createLogger({ name: 'polly-mcp' })
-  try {
-    const server = await startMcpServer({ ...settingsFrom(environment()), log })
-    log.info('MCP server listening', { url: server.url })
-  } catch (error) {
-    if (error instanceof Refusal) {
-      log.error(error.code, { reason: error.message })
-    } else {
-      log.error('the MCP server stopped', { error })
-    }
-    process.exit(1)
-  }
+  await runProcess({
+    name: 'polly-mcp',
+    start: async () => {
+      const server = await startMcpServer({ ...settingsFrom(environment()), trace: withTrace, traceparent })
+      return { url: server.url }
+    },
+  })
 }

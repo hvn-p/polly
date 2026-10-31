@@ -2,15 +2,19 @@
 // process refuses to serve on a database behind it.
 
 import { setTimeout as sleep } from 'node:timers/promises'
+import { log } from '@polly/platform/log'
 import { sql } from 'kysely'
-import type { Database } from './connection.ts'
+import { connect, type Database } from './connection.ts'
+import { SCHEMA_BEHIND } from './events.ts'
 import { LAST_MIGRATION } from './generated/last-migration.ts'
 
 export class SchemaBehind extends Error {
   readonly code = 'SCHEMA_BEHIND'
+  readonly missing: string
 
   constructor(missing: string) {
     super(`SCHEMA_BEHIND: ${missing} not applied; run nr dev:up`)
+    this.missing = missing
   }
 }
 
@@ -30,30 +34,35 @@ export async function assertSchemaCurrent(db: Database, last: string = LAST_MIGR
 
 export interface SchemaWait {
   retryMs: number
-  onBehind: (message: string) => void
   // The last migration the database must hold, read on each check; tests name
   // one it lacks.
   last?: string
 }
 
-// Returns once the database holds the code's schema. While it is behind, the
-// refusal is reported once and the check runs again, so every process that
-// opens the database comes up by itself once dev:up has migrated it.
-export async function waitForSchemaCurrent(db: Database, options: SchemaWait): Promise<void> {
+// Returns once the database at this URL holds the code's schema, the step
+// before a process that opens it starts. While it is behind, that is logged
+// once and the check runs again, so every such process comes up by itself once
+// dev:up has migrated the database.
+export async function waitForSchema(databaseUrl: string, options: SchemaWait): Promise<void> {
+  const db = connect(databaseUrl)
   let reported = false
-  for (;;) {
-    try {
-      await assertSchemaCurrent(db, options.last)
-      return
-    } catch (error) {
-      if (!(error instanceof SchemaBehind)) {
-        throw error
+  try {
+    for (;;) {
+      try {
+        await assertSchemaCurrent(db, options.last)
+        return
+      } catch (error) {
+        if (!(error instanceof SchemaBehind)) {
+          throw error
+        }
+        if (!reported) {
+          log(SCHEMA_BEHIND, { missing: error.missing })
+          reported = true
+        }
+        await sleep(options.retryMs)
       }
-      if (!reported) {
-        options.onBehind(error.message)
-        reported = true
-      }
-      await sleep(options.retryMs)
     }
+  } finally {
+    await db.destroy()
   }
 }

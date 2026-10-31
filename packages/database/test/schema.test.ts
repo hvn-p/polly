@@ -1,6 +1,7 @@
+import { type LogRecord, plugLogSink } from '@polly/platform'
 import { sql } from 'kysely'
 import { afterAll, describe, expect, inject, it } from 'vitest'
-import { assertSchemaCurrent, connect, SchemaBehind, waitForSchemaCurrent } from '../src/index.ts'
+import { assertSchemaCurrent, connect, SchemaBehind, waitForSchema } from '../src/index.ts'
 
 const db = connect(inject('testDatabaseUrl'))
 
@@ -39,24 +40,24 @@ describe('schema check', () => {
 })
 
 describe('waiting for the schema', () => {
-  it('C20: waits while the database is behind, reporting it once, then returns once it matches the code', async () => {
-    const behind: string[] = []
+  it('C20: waits while the database is behind, logging it once, then returns once it matches the code', async () => {
+    const records: LogRecord[] = []
+    plugLogSink({ write: (record) => records.push(record) })
     // The fixture's expectation goes once "dev:up has migrated": the check then
     // matches, with no write to the shared test database.
-    const options: Parameters<typeof waitForSchemaCurrent>[1] = {
-      last: '9998_fixture_migrated_later',
-      retryMs: 20,
-      onBehind: (message) => behind.push(message),
-    }
+    const options: Parameters<typeof waitForSchema>[1] = { last: '9998_fixture_migrated_later', retryMs: 20 }
     let done = false
-    const waiting = waitForSchemaCurrent(db, options).then(() => {
+    const waiting = waitForSchema(inject('testDatabaseUrl'), options).then(() => {
       done = true
     })
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(done).toBe(false)
-    expect(behind).toEqual([expect.stringMatching(/^SCHEMA_BEHIND: 9998_fixture_migrated_later/)])
+    const behind = records.map(({ event, fields }) => ({ event: event.name, level: event.level, fields }))
+    expect(behind).toEqual([
+      { event: 'database.schema.behind', level: 'warn', fields: { missing: '9998_fixture_migrated_later' } },
+    ])
     delete options.last
     await waiting
-    expect(behind).toHaveLength(1)
+    expect(records).toHaveLength(1)
   })
 })

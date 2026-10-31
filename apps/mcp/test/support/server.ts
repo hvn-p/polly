@@ -1,4 +1,5 @@
-import { captureLog, type TestServer, testServer } from '@polly/api/test-support'
+import { type TestServer, testServer } from '@polly/api/test-support'
+import { traceparent, withTrace } from '@polly/logging'
 import { afterAll } from 'vitest'
 import { type RunningMcp, startMcpServer } from '../../src/main.ts'
 
@@ -19,7 +20,8 @@ export async function mcpTestServer(...options: Parameters<typeof testServer>): 
     publicUrl: api.config.PUBLIC_URL,
     apiUrl: api.url,
     clientSecret: api.config.MCP_CLIENT_SECRET,
-    log: captureLog().log,
+    trace: withTrace,
+    traceparent,
   })
   afterAll(async () => {
     await mcp.close()

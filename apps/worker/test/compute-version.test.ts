@@ -2,8 +2,9 @@ import { execFileSync, spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
+import { buildWorker, STARTED } from './support/build.ts'
 
-const main = join(import.meta.dirname, '..', 'src', 'main.ts')
+let main = ''
 const service = join(import.meta.dirname, '..', '..', '..', 'services', 'compute')
 const docker = (...args: string[]) => execFileSync('docker', args, { encoding: 'utf8' }).trim()
 let container = ''
@@ -12,6 +13,7 @@ let computeUrl = ''
 // The compute service in its container, reporting another version's
 // fingerprint than the worktree's.
 beforeAll(async () => {
+  main = await buildWorker('main')
   docker('build', '--quiet', '--tag', 'polly-compute:test', service)
   container = docker(
     'run',
@@ -45,7 +47,7 @@ afterAll(() => {
 })
 
 describe("the worker's compute service", { timeout: 60_000 }, () => {
-  it('C32: another version than the worktree warns COMPUTE_VERSION_MISMATCH naming both, and the worker runs', async () => {
+  it('C32: another version than the worktree warns of the mismatch naming both, and the worker runs', async () => {
     const worker = spawn(process.execPath, [main], {
       env: {
         ...process.env,
@@ -63,7 +65,7 @@ describe("the worker's compute service", { timeout: 60_000 }, () => {
     })
     try {
       const deadline = Date.now() + 30_000
-      while (!output.includes('worker ready')) {
+      while (!output.includes(STARTED)) {
         if (Date.now() > deadline || worker.exitCode !== null) {
           throw new Error(`the worker did not start: ${output}`)
         }
@@ -71,7 +73,7 @@ describe("the worker's compute service", { timeout: 60_000 }, () => {
       }
       const warning = output
         .split('\n')
-        .filter((line) => line.includes('COMPUTE_VERSION_MISMATCH'))
+        .filter((line) => line.includes('worker.compute_version.mismatched'))
         .map((line) => JSON.parse(line) as Record<string, unknown>)
       expect(warning).toEqual([
         expect.objectContaining({ level: 'warn', worktree: '0000mine0000', service: '0000other000' }),

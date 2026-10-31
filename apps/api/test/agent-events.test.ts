@@ -10,7 +10,7 @@ import { testServer } from './support/server.ts'
 
 const clock = fakeClock()
 const log = captureLog()
-const server = await testServer({}, { clock, log: log.log })
+const server = await testServer({}, { clock })
 const db = connectDatabase(server.config.DATABASE_URL)
 const streams: StreamReader[] = []
 
@@ -154,7 +154,7 @@ describe('agent-event stream: events', () => {
     }
     // The request log saw the stream's requests, the refused one included.
     expect(log.records()).toContainEqual(
-      expect.objectContaining({ module: 'http', path: '/api/agent-events', status: 400 }),
+      expect.objectContaining({ event: 'api.request.served', path: '/api/agent-events', status: 400 }),
     )
     const lines = [...log.lines, ...logged]
     expect(lines.filter((line) => line.includes(code) || line.includes(code.slice(1)))).toEqual([])

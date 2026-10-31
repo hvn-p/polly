@@ -51,7 +51,6 @@ describe('demo account seed', () => {
     const status = await runCli(['seed-demo'], {
       env: { ...testConfig() },
       out: (line) => lines.push(line),
-      log: captureLog().log,
     })
     expect(status).toBe(0)
     expect(lines).toEqual(['demo account: demo@polly.localhost'])
@@ -60,9 +59,13 @@ describe('demo account seed', () => {
   it('C26: the command line refuses outside the local environment', async () => {
     const capture = captureLog()
     const env = { ...testConfig({ POLLY_ENV: 'production' }) }
-    expect(await runCli(['seed-demo'], { env, out: () => undefined, log: capture.log })).toBe(1)
+    expect(await runCli(['seed-demo'], { env, out: () => undefined })).toBe(1)
     expect(capture.records()).toEqual([
-      expect.objectContaining({ level: 'error', code: 'NOT_LOCAL_ENVIRONMENT' }),
+      expect.objectContaining({
+        level: 'error',
+        event: 'api.command.refused',
+        code: 'NOT_LOCAL_ENVIRONMENT',
+      }),
     ])
   })
 })

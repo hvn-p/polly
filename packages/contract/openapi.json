@@ -11,12 +11,13 @@
     "EVENT_CODE_ALREADY_BOUND": 409
   },
   "x-unrouted-status": 404,
+  "x-unexpected-status": 500,
   "paths": {
     "/api/sign-in": {
       "post": {
         "operationId": "signIn",
         "x-access": "public",
-        "x-refusals": ["INVALID_EMAIL_OR_PASSWORD"],
+        "x-refusals": ["INVALID_EMAIL_OR_PASSWORD", "INVALID_OAUTH_REQUEST"],
         "requestBody": {
           "required": true,
           "content": {
@@ -42,6 +43,22 @@
                 "schema": {
                   "type": "object",
                   "properties": { "next": { "type": "string", "minLength": 1, "maxLength": 2048 } },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["INVALID_OAUTH_REQUEST"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
                   "additionalProperties": false
                 }
               }

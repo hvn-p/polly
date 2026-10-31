@@ -5,7 +5,7 @@
 // answer or writing a status.
 
 import { Refusal } from '@polly/platform'
-import { REFUSAL_STATUS, UNROUTED_STATUS } from './contracts/refusals.ts'
+import { REFUSAL_STATUS, UNEXPECTED_STATUS, UNROUTED_STATUS } from './contracts/refusals.ts'
 
 // What the contract states of an operation's success.
 interface Succeeds {
@@ -27,6 +27,11 @@ function statusOf(code: string): number {
 // A path no route serves: no refusal of the contract, so no code.
 export function notFoundResponse(): Response {
   return new Response(null, { status: UNROUTED_STATUS })
+}
+
+// An unexpected failure: no refusal of the contract, so no code.
+export function unexpectedResponse(): Response {
+  return new Response(null, { status: UNEXPECTED_STATUS })
 }
 
 // An unauthenticated request: UNAUTHORIZED, with the challenge whose

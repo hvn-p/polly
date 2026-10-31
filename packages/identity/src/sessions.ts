@@ -29,6 +29,33 @@ export interface Sessions {
   learnerOf: (headers: Headers) => Promise<string | undefined>
 }
 
+// The part of a page's query string the identity signed: the signature, the
+// list of signed names (ba_param) and the parameters it names. Anything else
+// the page received (a tracking parameter, say) would break the signature.
+// Better Auth's own browser client sends the same; this relay does it for the
+// web, which reaches only Polly's routes.
+function signedPart(oauthQuery: string): string {
+  const params = new URLSearchParams(oauthQuery)
+  const signed = new Set(params.getAll('ba_param'))
+  if (!params.has('sig') || signed.size === 0) {
+    return oauthQuery
+  }
+  const kept = new URLSearchParams()
+  for (const [name, value] of params) {
+    if (name === 'sig' || name === 'ba_param' || signed.has(name)) {
+      kept.append(name, value)
+    }
+  }
+  return kept.toString()
+}
+
+// Better Auth's answer to an authorization request whose signature does not
+// verify: altered, or expired.
+const INVALID_SIGNATURE = 'invalid_signature'
+
+const invalidRequest = () =>
+  new Refusal('INVALID_OAUTH_REQUEST', 'this authorization request is missing, altered or expired')
+
 // What Better Auth reads of the browser's request: its origin for its own
 // cross-site check, its cookie for the session.
 const RELAYED_HEADERS = ['origin', 'cookie', 'user-agent']
@@ -50,28 +77,37 @@ export function browserSessions(identity: Identity, publicUrl: string): Sessions
       }),
     )
   }
+  const bodyOf = async (response: Response): Promise<{ url?: unknown; error?: unknown }> =>
+    (await response.json().catch(() => ({}))) as { url?: unknown; error?: unknown }
   const nextOf = async (response: Response): Promise<string | undefined> => {
-    const { url } = (await response.json().catch(() => ({}))) as { url?: unknown }
+    const { url } = await bodyOf(response)
     return typeof url === 'string' ? url : undefined
   }
   return {
     signIn: async ({ email, password, oauthQuery }, headers) => {
       const response = await relay(
         '/sign-in/email',
-        { email, password, ...(oauthQuery === undefined ? {} : { oauth_query: oauthQuery }) },
+        { email, password, ...(oauthQuery === undefined ? {} : { oauth_query: signedPart(oauthQuery) }) },
         headers,
       )
-      if (response.status >= 500) {
-        throw new Error(`the identity answered ${response.status} to a sign-in`)
+      if (response.status === 401) {
+        throw new Refusal('INVALID_EMAIL_OR_PASSWORD', 'this email and password do not match an account')
+      }
+      if (response.status === 400 && (await bodyOf(response.clone())).error === INVALID_SIGNATURE) {
+        throw invalidRequest()
       }
       if (!response.ok) {
-        throw new Refusal('INVALID_EMAIL_OR_PASSWORD', 'this email and password do not match an account')
+        throw new Error(`the identity answered ${response.status} to a sign-in`)
       }
       const next = await nextOf(response)
       return { ...(next === undefined ? {} : { next }), cookies: response.headers.getSetCookie() }
     },
     consent: async ({ accept, oauthQuery }, headers) => {
-      const response = await relay('/oauth2/consent', { accept, oauth_query: oauthQuery }, headers)
+      const response = await relay(
+        '/oauth2/consent',
+        { accept, oauth_query: signedPart(oauthQuery) },
+        headers,
+      )
       if (response.status === 401) {
         throw new Refusal('UNAUTHORIZED', 'sign in before answering an authorization request')
       }
@@ -80,10 +116,7 @@ export function browserSessions(identity: Identity, publicUrl: string): Sessions
         throw new Error(`the identity answered ${response.status} to a consent`)
       }
       if (next === undefined) {
-        throw new Refusal(
-          'INVALID_OAUTH_REQUEST',
-          'this authorization request is missing, altered or expired',
-        )
+        throw invalidRequest()
       }
       return { next }
     },

@@ -3,42 +3,15 @@
 // fake one by default, the compute service's in real mode. A workflow
 // interrupted by the worker's death resumes when a worker starts again.
 
-import { DBOS } from '@dbos-inc/dbos-sdk'
 import { computeAnalyzer, computeFingerprint, fakeAnalyzer } from '@polly/analysis'
-import { type Analyzer, runPlaceholderAnalysis } from '@polly/back'
-import { connect, waitForSchemaCurrent } from '@polly/database'
-import { createLogger } from '@polly/logging'
-import { environment, type Logger, Refusal, readConfigOf, type Settings } from '@polly/platform'
+import type { Analyzer } from '@polly/back'
+import { waitForSchema } from '@polly/database'
+import { runProcess, withTrace } from '@polly/logging'
+import { environment, Refusal, readConfigOf, type Settings } from '@polly/platform'
+import { log } from '@polly/platform/log'
 import { PLACEHOLDER_ANALYSIS } from '@polly/queue'
-
-export interface WorkerOptions {
-  databaseUrl: string
-  analyzer: Analyzer
-  log: Logger
-}
-
-export async function startWorker({
-  databaseUrl,
-  analyzer,
-  log,
-}: WorkerOptions): Promise<{ close: () => Promise<void> }> {
-  const entry = (level: 'debug' | 'info' | 'warn' | 'error') => (value: unknown) =>
-    typeof value === 'string' ? log[level](value) : log[level]('dbos', { value })
-  DBOS.setConfig({
-    name: 'polly',
-    systemDatabaseUrl: databaseUrl,
-    applicationVersion: PLACEHOLDER_ANALYSIS.applicationVersion,
-    logger: { debug: entry('debug'), info: entry('info'), warn: entry('warn'), error: entry('error') },
-  })
-  DBOS.registerWorkflow((recordingId: string) => runPlaceholderAnalysis({ analyzer }, recordingId), {
-    name: PLACEHOLDER_ANALYSIS.workflowName,
-  })
-  await DBOS.launch()
-  // A queue persists its configuration in the system database: after launch.
-  await DBOS.registerQueue(PLACEHOLDER_ANALYSIS.queueName)
-  log.info('worker ready', { queue: PLACEHOLDER_ANALYSIS.queueName })
-  return { close: () => DBOS.shutdown() }
-}
+import { COMPUTE_VERSION_MISMATCHED, COMPUTE_VERSION_UNKNOWN } from './events.ts'
+import { startWorker } from './worker.ts'
 
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
@@ -66,7 +39,6 @@ export function analyzerFor(
 // one without knowing is not.
 export async function checkComputeVersion(
   config: Pick<Settings, 'POLLY_COMPUTE_URL' | 'POLLY_COMPUTE_FINGERPRINT'>,
-  log: Logger,
   fetch: Fetch,
 ): Promise<void> {
   const baseUrl = config.POLLY_COMPUTE_URL ?? ''
@@ -74,41 +46,39 @@ export async function checkComputeVersion(
   try {
     const service = await computeFingerprint({ baseUrl, fetch })
     if (service !== worktree) {
-      log.warn('COMPUTE_VERSION_MISMATCH', { worktree, service })
+      log(COMPUTE_VERSION_MISMATCHED, { worktree, service })
     }
   } catch (error) {
-    log.warn('the compute service did not report its version', { url: baseUrl, error })
+    log(COMPUTE_VERSION_UNKNOWN, { url: baseUrl, error })
   }
 }
 
 if (process.argv[1] === import.meta.filename) {
-  const log = createLogger({ name: 'polly-worker' })
-  try {
-    const config = readConfigOf(environment(), [
-      'DATABASE_URL',
-      'POLLY_ENV',
-      'POLLY_WORKER_MODE',
-      'POLLY_COMPUTE_URL',
-      'POLLY_COMPUTE_FINGERPRINT',
-    ])
-    const chosen = analyzerFor(config, globalThis.fetch)
-    if ('invalid' in chosen) {
-      throw new Refusal('INVALID_CONFIGURATION', `${chosen.invalid} invalid or missing`)
-    }
-    if (config.POLLY_WORKER_MODE === 'real') {
-      await checkComputeVersion(config, log, globalThis.fetch)
-    }
-    // The workflows read Polly's tables: nothing runs before they exist.
-    const db = connect(config.DATABASE_URL)
-    await waitForSchemaCurrent(db, { retryMs: 2000, onBehind: (message) => log.warn(message) })
-    await db.destroy()
-    await startWorker({ databaseUrl: config.DATABASE_URL, analyzer: chosen.analyzer, log })
-  } catch (error) {
-    if (error instanceof Refusal) {
-      log.error(error.code, { reason: error.message })
-    } else {
-      log.error('the worker stopped', { error })
-    }
-    process.exit(1)
-  }
+  await runProcess({
+    name: 'polly-worker',
+    start: async () => {
+      const config = readConfigOf(environment(), [
+        'DATABASE_URL',
+        'POLLY_ENV',
+        'POLLY_WORKER_MODE',
+        'POLLY_COMPUTE_URL',
+        'POLLY_COMPUTE_FINGERPRINT',
+      ])
+      const chosen = analyzerFor(config, globalThis.fetch)
+      if ('invalid' in chosen) {
+        throw new Refusal('INVALID_CONFIGURATION', `${chosen.invalid} invalid or missing`)
+      }
+      if (config.POLLY_WORKER_MODE === 'real') {
+        await checkComputeVersion(config, globalThis.fetch)
+      }
+      // The workflows read Polly's tables: nothing runs before they exist.
+      await waitForSchema(config.DATABASE_URL, { retryMs: 2000 })
+      return startWorker({
+        databaseUrl: config.DATABASE_URL,
+        analyzer: chosen.analyzer,
+        task: PLACEHOLDER_ANALYSIS,
+        trace: withTrace,
+      })
+    },
+  })
 }

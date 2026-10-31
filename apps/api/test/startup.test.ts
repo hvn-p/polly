@@ -1,10 +1,10 @@
 import { assertSchemaCurrent, connect, type Database } from '@polly/database'
 import { identityOptions } from '@polly/identity'
+import { withTrace } from '@polly/logging'
 import { getMigrations as getAuthMigrations } from 'better-auth/db/migration'
 import { afterAll, describe, expect, inject, it } from 'vitest'
 import { startServer } from '../src/main.ts'
 import { testConfig } from './support/config.ts'
-import { captureLog } from './support/log.ts'
 
 const db: Database = connect(inject('testDatabaseUrl'))
 
@@ -39,7 +39,7 @@ describe('migrations and schema check', () => {
         hostname: '127.0.0.1',
         port: 0,
         lastMigration: '9999_fixture_not_applied',
-        log: captureLog().log,
+        trace: withTrace,
       }),
     ).rejects.toThrow(/SCHEMA_BEHIND/)
   })

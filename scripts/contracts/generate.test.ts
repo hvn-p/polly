@@ -21,6 +21,7 @@ const statuses = async () => ({
     EVENT_CODE_NOT_BOUND: 409,
   },
   unrouted: 404,
+  unexpected: 500,
 })
 const contract: Contract = {
   name: 'events',
@@ -231,6 +232,7 @@ describe('API contract generation', () => {
       EVENT_CODE_NOT_BOUND: 409,
     })
     expect(document['x-unrouted-status']).toBe(404)
+    expect(document['x-unexpected-status']).toBe(500)
     expect(document.paths['/api/me'].get.responses['200'].description).toBe('done')
     const client = (files.get('contract/src/generated.ts') ?? '').replace(/\s+/g, ' ')
     expect(client).toContain("bindEventCode: { method: 'POST', path: '/api/event-codes', status: 201,")
@@ -238,12 +240,13 @@ describe('API contract generation', () => {
       'export const REFUSAL_STATUS = { UNAUTHORIZED: 401, INVALID_EVENT_CODE: 400, EVENT_CODE_REVOKED: 403, EVENT_CODE_NOT_BOUND: 409, } as const',
     )
     expect(client).toContain('export const UNROUTED_STATUS = 404')
+    expect(client).toContain('export const UNEXPECTED_STATUS = 500')
   })
 
   it('refuses a refusal code without a status, or a status for a code the Refusal schema does not list', async () => {
     const missing: Contract = {
       ...api,
-      statuses: async () => ({ refusals: { UNAUTHORIZED: 401 }, unrouted: 404 }),
+      statuses: async () => ({ refusals: { UNAUTHORIZED: 401 }, unrouted: 404, unexpected: 500 }),
     }
     await expect(render(missing)).rejects.toThrow('api: INVALID_EVENT_CODE has no HTTP status')
     const stray: Contract = {
@@ -257,6 +260,7 @@ describe('API contract generation', () => {
           GONE: 410,
         },
         unrouted: 404,
+        unexpected: 500,
       }),
     }
     await expect(render(stray)).rejects.toThrow(

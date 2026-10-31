@@ -1,11 +1,20 @@
-import { createLogger } from '@polly/logging'
-import { Refusal } from '@polly/platform'
+import { type LogRecord, plugLogSink, Refusal, type WithTrace } from '@polly/platform'
 import { describe, expect, it } from 'vitest'
 import { createApp } from './app.ts'
 import { type Guards, type Route, RouteRegistry } from './routes.ts'
 
-// The request log of these tests is read by none of them.
-const quiet = createLogger({ name: 'test', write: () => undefined })
+// Each request runs inside the trace its traceparent names; these record it.
+const traced: string[] = []
+const quiet: WithTrace = (incoming, run) => {
+  traced.push(incoming ?? 'none')
+  return run()
+}
+
+function capture(): LogRecord[] {
+  const records: LogRecord[] = []
+  plugLogSink({ write: (record) => records.push(record) })
+  return records
+}
 
 const guards: Guards = {
   public: async () => ({}),
@@ -55,7 +64,7 @@ describe('route registry', () => {
     )
   })
 
-  it('answers a refusal a route throws with its HTTP translation, and lets any other error through', async () => {
+  it('answers a refusal a route throws with its HTTP translation, and any other error with no body', async () => {
     const registry = new RouteRegistry(guards)
       .add({
         method: 'GET',
@@ -77,7 +86,54 @@ describe('route registry', () => {
     const refused = await app.request('/api/revoked')
     expect(refused.status).toBe(403)
     expect(await refused.json()).toMatchObject({ code: 'EVENT_CODE_REVOKED' })
-    expect((await app.request('/api/broken')).status).toBe(500)
+    const broken = await app.request('/api/broken')
+    expect(broken.status).toBe(500)
+    expect(await broken.text()).toBe('')
+  })
+
+  it('logs each request once, inside its trace: served, or failed with its error', async () => {
+    const records = capture()
+    traced.length = 0
+    const registry = new RouteRegistry(guards)
+      .add({ method: 'GET', path: '/api/open', access: 'public', handle: () => new Response('open') })
+      .add({
+        method: 'GET',
+        path: '/api/broken',
+        access: 'public',
+        handle: () => {
+          throw new Error('broken')
+        },
+      })
+    const app = createApp(registry, quiet)
+    await app.request('/api/open?secret=1', { headers: { traceparent: 'incoming' } })
+    await app.request('/api/mine')
+    await app.request('/api/broken')
+    expect(traced).toEqual(['incoming', 'none', 'none'])
+    expect(records.map(({ event, fields }) => ({ event: event.name, fields }))).toEqual([
+      {
+        event: 'api.request.served',
+        fields: { method: 'GET', path: '/api/open', status: 200, ms: expect.any(Number) },
+      },
+      {
+        event: 'api.request.served',
+        fields: { method: 'GET', path: '/api/mine', status: 404, ms: expect.any(Number) },
+      },
+      {
+        event: 'api.request.failed',
+        fields: {
+          method: 'GET',
+          path: '/api/broken',
+          status: 500,
+          ms: expect.any(Number),
+          error: new Error('broken'),
+        },
+      },
+    ])
+    expect(records[0]?.source).toEqual({
+      tier: 'interfaces',
+      module: 'apps/api/src',
+      file: 'apps/api/src/app.ts',
+    })
   })
 
   it('denies by default: an unregistered path answers 404, with no code outside the contract', async () => {

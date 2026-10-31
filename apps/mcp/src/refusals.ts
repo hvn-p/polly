@@ -5,7 +5,7 @@
 // flow; any other path as not found, with no body.
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
-import { type Outcome, REFUSAL_STATUS, UNROUTED_STATUS } from '@polly/contract'
+import { type Outcome, REFUSAL_STATUS, UNEXPECTED_STATUS, UNROUTED_STATUS } from '@polly/contract'
 import { Refusal } from '@polly/platform'
 
 export function toolResult<T extends Record<string, unknown>>(outcome: Outcome<T>): CallToolResult {
@@ -40,4 +40,9 @@ export function refusedRequest(refusal: Refusal): Response {
 // No refusal of the contract, so no code.
 export function notFound(): Response {
   return new Response(null, { status: UNROUTED_STATUS })
+}
+
+// An unexpected failure: no refusal of the contract, so no code.
+export function unexpected(): Response {
+  return new Response(null, { status: UNEXPECTED_STATUS })
 }
