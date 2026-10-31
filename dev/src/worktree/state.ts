@@ -12,7 +12,8 @@ import type { Worktree } from './worktree.ts'
 
 export interface WorktreeState {
   supervisor?: SupervisorState
-  // The digest of the processes the supervisor was started with.
+  // The digest of the processes the supervisor was started with, and of their
+  // environment.
   processes?: string
   route?: string
   architectureRoute?: string
@@ -22,10 +23,13 @@ export interface WorktreeState {
   compute?: string
 }
 
-// What a supervisor runs, recorded so that dev:up restarts one whose
-// processes changed.
-export function digestOf(processes: readonly SupervisedProcess[]): string {
-  return createHash('sha256').update(JSON.stringify(processes)).digest('hex')
+// What a supervisor runs and the environment its processes read at start,
+// recorded so that dev:up restarts one whose processes or settings changed.
+export function digestOf(processes: readonly SupervisedProcess[], env: Record<string, string>): string {
+  const sorted = Object.fromEntries(Object.entries(env).sort(([a], [b]) => a.localeCompare(b)))
+  return createHash('sha256')
+    .update(JSON.stringify({ processes, env: sorted }))
+    .digest('hex')
 }
 
 export function readState(worktree: Worktree): WorktreeState {

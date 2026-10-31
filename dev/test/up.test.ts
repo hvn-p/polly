@@ -118,6 +118,20 @@ describe('dev:up with faked infrastructure', () => {
     expect(infra.calls.filter((call) => call.startsWith('supervisor.'))).toEqual([])
   })
 
+  it('restarts a running supervisor whose environment changed, its processes reading it at start', async () => {
+    const root = temporaryRepository()
+    const infra = fakeInfrastructure()
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
+    const envFile = join(root, '.env.local')
+    writeFileSync(envFile, `${readFileSync(envFile, 'utf8')}POLLY_EXTRA_SETTING=on\n`)
+    infra.calls.length = 0
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
+    expect(infra.calls.filter((call) => call.startsWith('supervisor.'))).toEqual([
+      expect.stringMatching(/^supervisor\.stop /),
+      'supervisor.start',
+    ])
+  })
+
   it('C3: restarts a dead supervisor, stopping the group it left behind before checking the ports it holds', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()

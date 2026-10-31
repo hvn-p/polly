@@ -109,7 +109,7 @@ export async function worker({
     await infra.supervisor.stop(state.supervisor)
     const processes = infra.application.processes(updated)
     const supervisor: SupervisorState = await infra.supervisor.start({ root, processes, env: updated })
-    writeState(worktree, { ...readState(worktree), supervisor, processes: digestOf(processes) })
+    writeState(worktree, { ...readState(worktree), supervisor, processes: digestOf(processes, updated) })
     out(`worker: ${mode}`)
   } finally {
     await held.release()

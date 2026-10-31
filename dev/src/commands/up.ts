@@ -103,12 +103,12 @@ export async function up({ root, prerequisites, infrastructure, out, warn }: UpO
     const chosen = state.compute !== undefined && state.compute !== recorded ? state.compute : undefined
     const computeChanged = real && (await infra.compute.fingerprintOf(root)) !== recorded
     // A running supervisor is kept only while it runs what this dev:up would
-    // start: a process added, a port newly written to .env.local, or a compute
-    // service to change restarts it.
+    // start: a process added, a setting or port newly written to .env.local,
+    // or a compute service to change restarts it.
     const running =
       state.supervisor !== undefined &&
       infra.supervisor.isRunning(state.supervisor) &&
-      state.processes === digestOf(infra.application.processes(env)) &&
+      state.processes === digestOf(infra.application.processes(env), env) &&
       !computeChanged
     if (!running) {
       if (state.supervisor !== undefined) {
@@ -175,7 +175,7 @@ export async function up({ root, prerequisites, infrastructure, out, warn }: UpO
       }
       const started = infra.application.processes(env)
       supervisor = await infra.supervisor.start({ root, processes: started, env })
-      processes = digestOf(started)
+      processes = digestOf(started, env)
     }
     writeState(worktree, {
       supervisor,
