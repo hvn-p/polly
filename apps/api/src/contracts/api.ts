@@ -82,7 +82,7 @@ export const operations = {
     status: 200,
     events: agentEvent,
     // The event that ends the stream with a refusal, its data a Refusal.
-    error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND'] },
+    error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND', 'EVENT_CODE_REVOKED'] },
     refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED'],
   },
 } as const satisfies Record<

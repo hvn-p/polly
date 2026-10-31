@@ -8,4 +8,12 @@ describe('event stream connection', () => {
     const codeHash = await connectEventStream({ codes: store }, 'c'.repeat(43))
     expect(await bindingOf({ codes: store }, codeHash)).toEqual({ state: 'unbound' })
   })
+
+  it('refuses a code revoked while its connection waits for a binding', async () => {
+    const store: EventCodeStore = {
+      insertIfAbsent: async () => {},
+      find: async () => ({ learnerId: 'learner-1', revoked: true }),
+    }
+    await expect(bindingOf({ codes: store }, 'hash')).rejects.toMatchObject({ code: 'EVENT_CODE_REVOKED' })
+  })
 })

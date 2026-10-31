@@ -11,7 +11,7 @@ var STREAMS = {
     status: 200,
     refusals: ["UNAUTHORIZED", "INVALID_EVENT_CODE", "EVENT_CODE_REVOKED"],
     events: ["test"],
-    error: { event: "error", refusals: ["EVENT_CODE_NOT_BOUND"] }
+    error: { event: "error", refusals: ["EVENT_CODE_NOT_BOUND", "EVENT_CODE_REVOKED"] }
   }
 };
 

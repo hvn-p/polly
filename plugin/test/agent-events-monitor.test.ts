@@ -107,6 +107,22 @@ describe('agent-event monitor', () => {
     }
   })
 
+  it('C50: draws a new code when the stream ends with EVENT_CODE_REVOKED, its code revoked while it waited', async () => {
+    const stub = await stubServer([
+      endWith('event: error\ndata: {"code":"EVENT_CODE_REVOKED","reason":"this event code was revoked"}\n\n'),
+      hang,
+    ])
+    const monitor = startMonitor({ POLLY_EVENTS_URL: stub.url })
+    try {
+      await until(() => stub.requests.length === 2, 8000)
+      const codes = codesOf(monitor.stdout)
+      expect(new Set(codes).size).toBe(2)
+      expect(stub.requests[1]?.authorization).toBe(`Bearer ${codes[1]}`)
+    } finally {
+      await stub.close()
+    }
+  })
+
   it('C57: prints its code nowhere but its code line', async () => {
     const stub = await stubServer([refuse(401, 'UNAUTHORIZED'), sendEvents(TEST_EVENT)])
     const monitor = startMonitor({ POLLY_EVENTS_URL: stub.url })

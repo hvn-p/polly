@@ -105,6 +105,27 @@ describe('agent-event stream: events', () => {
     expect(stream.frames).toEqual([{ event: 'test', data: { type: 'test' } }])
   })
 
+  it('C50: a connection waiting with a code revoked meanwhile ends at once with EVENT_CODE_REVOKED', async () => {
+    const agent = await signedInAgent('revoked-waiting')
+    const code = newCode()
+    const stream = await connect(code)
+    await agent.bind(code)
+    await sql`update agent_event_code set revoked_at = now() where code_hash = ${createHash('sha256').update(code).digest('hex')}`.execute(
+      db,
+    )
+    await clock.advance(1_000)
+    await stream.ended
+    expect(stream.frames).toEqual([
+      {
+        event: 'error',
+        data: {
+          code: 'EVENT_CODE_REVOKED',
+          reason: 'this event code was revoked; use the new one your event listener prints',
+        },
+      },
+    ])
+  })
+
   it('a bound connection gets the test event, then a comment every 15 s', async () => {
     const agent = await signedInAgent('bound')
     const code = newCode()

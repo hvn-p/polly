@@ -54,14 +54,16 @@ describe('refusal translation', () => {
 
 describe('answer translation', () => {
   it("answers each operation with its value, as JSON, with the contract's success status", async () => {
+    // A fixture whose status is not 200, so an answer written with a fixed one fails.
     for (const operation of [
       operations.signIn,
       operations.consent,
       operations.getMe,
       operations.bindEventCode,
+      { status: 202 },
     ]) {
       const response = answer(operation, { done: true })
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(operation.status)
       expect(response.headers.get('content-type')).toMatch(/^application\/json/)
       expect(await response.json()).toEqual({ done: true })
     }
@@ -73,8 +75,10 @@ describe('answer translation', () => {
   })
 
   it("answers a stream as an event stream, with the contract's success status", async () => {
-    const response = streamResponse(operations.agentEvents, new ReadableStream({ start: (c) => c.close() }))
-    expect(response.status).toBe(200)
+    const empty = () => new ReadableStream({ start: (c) => c.close() })
+    expect(streamResponse(operations.agentEvents, empty()).status).toBe(operations.agentEvents.status)
+    expect(streamResponse({ status: 203 }, empty()).status).toBe(203)
+    const response = streamResponse(operations.agentEvents, empty())
     expect(response.headers.get('content-type')).toBe('text/event-stream')
     expect(response.headers.get('cache-control')).toBe('no-cache')
   })
@@ -88,8 +92,8 @@ describe('answer translation', () => {
   })
 
   it('refuses to end a stream with a refusal its contract does not list', () => {
-    expect(() => refusalFrame(operations.agentEvents, new Refusal('EVENT_CODE_REVOKED', 'why'))).toThrow(
-      'EVENT_CODE_REVOKED does not end this stream',
+    expect(() => refusalFrame(operations.agentEvents, new Refusal('INVALID_EVENT_CODE', 'why'))).toThrow(
+      'INVALID_EVENT_CODE does not end this stream',
     )
   })
 })

@@ -53,6 +53,19 @@ export async function bind(store: EventCodeStore, learnerId: string, code: strin
   }
 }
 
+// The binding an admitted connection waits for; a code revoked meanwhile is
+// refused.
+export async function bindingOfAdmitted(
+  store: EventCodeStore,
+  codeHash: string,
+): Promise<Exclude<CodeState, { state: 'revoked' }>> {
+  const state = await stateOf(store, codeHash)
+  if (state.state === 'revoked') {
+    throw refused('EVENT_CODE_REVOKED')
+  }
+  return state
+}
+
 // Admits a connection made with a code, bound or not yet; returns its hash.
 export async function admit(store: EventCodeStore, code: string): Promise<string> {
   const codeHash = hashOf(code)

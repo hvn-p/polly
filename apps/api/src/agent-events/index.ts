@@ -2,7 +2,7 @@
 // connects with its event code in `Authorization: Bearer <code>`, never in the
 // URL. A bound connection gets one test event, then a comment every 15 s. An
 // unbound one gets nothing, checks its binding every second, and is closed
-// after 120 s. It carries no learner data and touches no session log; the
+// after 120 s, or at once when its code is revoked meanwhile. It carries no learner data and touches no session log; the
 // session log's stream replaces it.
 
 import { bindingOf, connectEventStream, type EventCodeStore } from '@polly/back'
@@ -44,19 +44,33 @@ export function registerAgentEventRoute(registry: RouteRegistry, codes: EventCod
         start: async (controller) => {
           const open = () => !request.signal.aborted
           const send = (text: string) => controller.enqueue(encoder.encode(text))
+          const end = (refusal: Refusal) => {
+            send(refusalFrame(agentEvents, refusal))
+            controller.close()
+          }
           const startedAt = clock.now()
-          while (open() && (await bindingOf({ codes }, codeHash)).state !== 'bound') {
+          for (;;) {
+            let binding: Awaited<ReturnType<typeof bindingOf>>
+            try {
+              binding = await bindingOf({ codes }, codeHash)
+            } catch (error) {
+              // A code revoked while it waits: the listener draws a new one.
+              if (error instanceof Refusal) {
+                end(error)
+                return
+              }
+              throw error
+            }
+            if (!open() || binding.state === 'bound') {
+              break
+            }
             if (clock.now() - startedAt >= UNBOUND_LIMIT_MS) {
-              send(
-                refusalFrame(
-                  agentEvents,
-                  refused(
-                    'EVENT_CODE_NOT_BOUND',
-                    'no learner bound this code within 120 s: bind it with start_lesson',
-                  ),
+              end(
+                refused(
+                  'EVENT_CODE_NOT_BOUND',
+                  'no learner bound this code within 120 s: bind it with start_lesson',
                 ),
               )
-              controller.close()
               return
             }
             await clock.sleep(BINDING_CHECK_MS)
