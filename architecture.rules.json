@@ -1,0 +1,437 @@
+{
+  "about": "Polly's architecture: the one source the dependency check and the architecture view read (constitution VII). Tiers top first within each group. A path segment * makes one module per directory; a file belongs to the tier of its longest matching path. A change to this file carries its reason in the pull request.",
+  "ignore": ["**/*.test.ts", "**/*.test.tsx", "**/test/**", "**/vitest.config.ts", "**/vite.config.ts"],
+  "tiers": [
+    {
+      "id": "interfaces",
+      "group": "server",
+      "name": "Routes & workflows",
+      "criterion": "One process each. Parse, authorize, call one flow, answer. Its main.ts, the composition root, alone wires the adapters.",
+      "paths": ["apps/api/src", "apps/mcp/src", "apps/worker/src"],
+      "mayImport": [
+        "flows",
+        {
+          "tier": "domains",
+          "typesOnly": true
+        },
+        {
+          "tier": "adapters",
+          "onlyFrom": ["apps/*/src/main.ts", "apps/*/src/cli.ts"]
+        },
+        "kernel",
+        "socle",
+        "contract"
+      ],
+      "isolated": "Two processes never import each other: share through a package below.",
+      "technologies": [
+        "node:*",
+        "hono",
+        "@hono/node-server",
+        "zod",
+        "@modelcontextprotocol/server",
+        "@dbos-inc/dbos-sdk"
+      ],
+      "fix": "A route calls one flow; only a composition root (main.ts, or cli.ts for a command) imports an adapter package, and hands what it builds to the flows through their ports.",
+      "typesFix": "A route uses a domain's types only: what it needs done goes through a flow.",
+      "technologyFix": "A route speaks HTTP or MCP and validates with Zod; any other technology sits in a capacity package, behind a port."
+    },
+    {
+      "id": "flows",
+      "group": "server",
+      "name": "Flows",
+      "criterion": "One use case each: chain domain calls through their ports, compute nothing, no technology.",
+      "paths": ["packages/back/src/flows/*"],
+      "mayImport": [
+        "domains",
+        {
+          "tier": "kernel",
+          "typesOnly": true
+        },
+        "socle"
+      ],
+      "isolated": "Two flows never import each other: compose them in the process that calls them.",
+      "technologies": [],
+      "fix": "A flow chains domains and computes nothing: move the computation into a domain, the technology into a capacity package behind a port.",
+      "typesFix": "A flow imports only types from the kernel: a value it needs comes from a domain.",
+      "technologyFix": "A flow knows no technology: declare a port in the domain it calls and implement it in a capacity package."
+    },
+    {
+      "id": "domains",
+      "group": "server",
+      "name": "Domains",
+      "criterion": "Product rules. A domain declares a port (an exported interface, in its own words) for what it needs; no technology, no Node built-in.",
+      "paths": ["packages/back/src/domains/*"],
+      "mayImport": ["kernel", "socle"],
+      "isolated": "Two domains never import each other: declare a port in the importing domain and feed it from a flow.",
+      "technologies": [],
+      "fix": "A domain imports only the kernel and the socle.",
+      "technologyFix": "A domain knows no technology: declare a port and implement it in a capacity package."
+    },
+    {
+      "id": "adapters",
+      "group": "server",
+      "name": "Adapters",
+      "criterion": "One package per capacity, named by what it provides: implements the domains' ports with one technology. May depend on a lower capacity, never in a cycle.",
+      "paths": [
+        "packages/database",
+        "packages/identity",
+        "packages/queue",
+        "packages/storage",
+        "packages/logging",
+        "packages/analysis",
+        "packages/migrations"
+      ],
+      "mayImport": [
+        "adapters",
+        {
+          "tier": "domains",
+          "typesOnly": true
+        },
+        "kernel",
+        "socle"
+      ],
+      "fix": "An adapter implements ports: it imports the domains' types, the kernel, the socle and lower capacities, nothing above."
+    },
+    {
+      "id": "kernel",
+      "group": "server",
+      "name": "Kernel",
+      "criterion": "Polly's pure values (ids, the event code, scores) and the one hash function. No rule, no other technology.",
+      "paths": ["packages/kernel"],
+      "mayImport": ["socle"],
+      "technologies": ["node:crypto"],
+      "fix": "The kernel holds values: a rule goes to a domain.",
+      "technologyFix": "The kernel uses node:crypto for its hash and nothing else."
+    },
+    {
+      "id": "socle",
+      "group": "server",
+      "name": "Socle",
+      "criterion": "What every process shares, with no product word and no chosen technology: Refusal, the logger and its sink port, the Clock port, the configuration schema, the route registry.",
+      "paths": ["packages/platform"],
+      "mayImport": [],
+      "technologies": ["zod"],
+      "fix": "The socle imports nothing of Polly.",
+      "technologyFix": "The socle chooses no technology beyond the schema library."
+    },
+    {
+      "id": "contract",
+      "group": "server",
+      "name": "Contract",
+      "criterion": "The API's contract for its interfaces: the types, response schemas, operations and refusal codes generated from the API's routes, never edited by hand, and the small hand-written client that calls them.",
+      "paths": ["packages/contract"],
+      "mayImport": [],
+      "fix": "The contract is generated and imports nothing of Polly."
+    },
+    {
+      "id": "web-app",
+      "group": "web",
+      "name": "Web app",
+      "criterion": "The front end's entry: providers, router, global styles.",
+      "paths": ["apps/web/src/app"],
+      "mayImport": ["web-pages", "web-widgets", "web-features", "web-entities", "web-shared", "contract"],
+      "fix": "Feature-Sliced Design: a layer imports only the layers below it.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
+    },
+    {
+      "id": "web-pages",
+      "group": "web",
+      "name": "Web pages",
+      "criterion": "One screen each.",
+      "paths": ["apps/web/src/pages/*"],
+      "mayImport": ["web-widgets", "web-features", "web-entities", "web-shared", "contract"],
+      "isolated": "Two pages never import each other: move what they share down a layer.",
+      "fix": "Feature-Sliced Design: a page imports only the layers below it.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
+    },
+    {
+      "id": "web-widgets",
+      "group": "web",
+      "name": "Web widgets",
+      "criterion": "Self-contained blocks of a page.",
+      "paths": ["apps/web/src/widgets/*"],
+      "mayImport": ["web-features", "web-entities", "web-shared", "contract"],
+      "isolated": "Two widgets never import each other: move what they share down a layer.",
+      "fix": "Feature-Sliced Design: a widget imports only the layers below it.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
+    },
+    {
+      "id": "web-features",
+      "group": "web",
+      "name": "Web features",
+      "criterion": "One user action each.",
+      "paths": ["apps/web/src/features/*"],
+      "mayImport": ["web-entities", "web-shared", "contract"],
+      "isolated": "Two features never import each other: compose them in a widget or a page.",
+      "fix": "Feature-Sliced Design: a feature imports only entities and shared.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
+    },
+    {
+      "id": "web-entities",
+      "group": "web",
+      "name": "Web entities",
+      "criterion": "Product objects as the front end shows them.",
+      "paths": ["apps/web/src/entities/*"],
+      "mayImport": ["web-shared", "contract"],
+      "isolated": "Two entities never import each other: compose them in a feature.",
+      "fix": "Feature-Sliced Design: an entity imports only shared.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
+    },
+    {
+      "id": "web-shared",
+      "group": "web",
+      "name": "Web shared",
+      "criterion": "No product word: the API client, i18n, UI primitives.",
+      "paths": ["apps/web/src/shared/*"],
+      "mayImport": ["contract"],
+      "isolated": "Two shared segments never import each other: merge them or split what they share.",
+      "fix": "Shared knows no layer above it.",
+      "technologies": ["react", "react-dom"],
+      "technologyFix": "The web reaches the back through the API's contract only, and renders with React: any other technology, an identity provider's client included, stays on the server."
+    },
+    {
+      "id": "plugin",
+      "group": "plugin",
+      "name": "Plugin",
+      "criterion": "The Claude Code plugin's scripts: the monitor. Reaches Polly through the generated contract only.",
+      "paths": ["plugin/monitors", "plugin/src"],
+      "mayImport": ["contract"],
+      "technologies": ["node:*"],
+      "fix": "The plugin reaches Polly through the generated contract only.",
+      "technologyFix": "The monitor is bundled from Node built-ins and the contract only."
+    },
+    {
+      "id": "dev-entry",
+      "group": "dev",
+      "name": "Dev entry",
+      "criterion": "The dev commands' composition root: parses the command line, wires the real adapters.",
+      "paths": ["dev/src/main.ts", "dev/src/real.ts"],
+      "mayImport": [
+        "dev-entry",
+        "dev-commands",
+        "dev-e2e",
+        "dev-worktree",
+        "dev-supervisor",
+        "dev-infra",
+        "dev-machine",
+        "dev-ports",
+        "dev-config",
+        "dev-identity",
+        "socle"
+      ],
+      "fix": "The dev entry wires the tiers below it."
+    },
+    {
+      "id": "dev-commands",
+      "group": "dev",
+      "name": "Dev commands",
+      "criterion": "One command each (up, down, worker, e2e, url, agent), written against the ports.",
+      "paths": ["dev/src/commands"],
+      "mayImport": [
+        "dev-e2e",
+        "dev-worktree",
+        "dev-supervisor",
+        "dev-infra",
+        "dev-machine",
+        "dev-ports",
+        "dev-config",
+        "dev-identity",
+        "socle"
+      ],
+      "fix": "A dev command imports only the dev tiers below it."
+    },
+    {
+      "id": "dev-e2e",
+      "group": "dev",
+      "name": "Dev end-to-end",
+      "criterion": "The driven agent run and its scenarios.",
+      "paths": ["dev/src/e2e"],
+      "mayImport": [
+        "dev-worktree",
+        "dev-supervisor",
+        "dev-infra",
+        "dev-machine",
+        "dev-ports",
+        "dev-config",
+        "dev-identity",
+        "socle",
+        "flows"
+      ],
+      "fix": "The driven run imports only the dev tiers below it, and the demo account's definition."
+    },
+    {
+      "id": "dev-worktree",
+      "group": "dev",
+      "name": "Dev worktree",
+      "criterion": "A worktree's state: its lock, its recorded resources, its session.",
+      "paths": ["dev/src/worktree"],
+      "mayImport": [
+        "dev-supervisor",
+        "dev-infra",
+        "dev-machine",
+        "dev-ports",
+        "dev-config",
+        "dev-identity",
+        "socle"
+      ],
+      "fix": "The worktree tier imports only the dev tiers below it."
+    },
+    {
+      "id": "dev-supervisor",
+      "group": "dev",
+      "name": "Dev supervisor",
+      "criterion": "The process group holding a worktree's processes.",
+      "paths": ["dev/src/supervisor"],
+      "mayImport": ["dev-infra", "dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"],
+      "fix": "The supervisor imports only the dev tiers below it."
+    },
+    {
+      "id": "dev-infra",
+      "group": "dev",
+      "name": "Dev infrastructure",
+      "criterion": "The adapters of the shared infrastructure: compose, Postgres, Garage, portless.",
+      "paths": ["dev/src/infra"],
+      "mayImport": ["dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"],
+      "fix": "An infrastructure adapter imports only the dev tiers below it."
+    },
+    {
+      "id": "dev-machine",
+      "group": "dev",
+      "name": "Dev machine",
+      "criterion": "What the machine provides: prerequisites, locks, dependencies.",
+      "paths": ["dev/src/machine"],
+      "mayImport": ["dev-ports", "dev-config", "dev-identity", "socle"],
+      "fix": "The machine tier imports only the dev tiers below it."
+    },
+    {
+      "id": "dev-ports",
+      "group": "dev",
+      "name": "Dev ports",
+      "criterion": "The interfaces the commands use, which the infrastructure and the fakes implement.",
+      "paths": ["dev/src/ports"],
+      "mayImport": ["dev-config", "dev-identity", "socle"],
+      "fix": "The ports import only the dev tiers below them."
+    },
+    {
+      "id": "dev-config",
+      "group": "dev",
+      "name": "Dev configuration",
+      "criterion": "The worktree's .env.local and its template.",
+      "paths": ["dev/src/config"],
+      "mayImport": ["dev-identity", "socle"],
+      "fix": "The configuration imports only the identity and the kernel."
+    },
+    {
+      "id": "dev-identity",
+      "group": "dev",
+      "name": "Dev identity",
+      "criterion": "A worktree's identity and the resource names derived from it.",
+      "paths": ["dev/src/identity"],
+      "mayImport": ["socle"],
+      "fix": "The identity imports only the kernel."
+    },
+    {
+      "id": "tools",
+      "group": "tools",
+      "name": "Tools",
+      "criterion": "Tooling ready to leave for a repository of its own: imports nothing of Polly.",
+      "paths": ["tools/architecture/ui/src"],
+      "mayImport": [],
+      "fix": "A tool imports nothing of Polly: it reads Polly's files, never its code."
+    },
+    {
+      "id": "scripts",
+      "group": "tools",
+      "name": "Repository scripts",
+      "criterion": "The repository's guards, generators and builds, run by nr and CI: they read Polly's files, never import its code.",
+      "paths": ["scripts"],
+      "mayImport": [],
+      "fix": "A repository script reads Polly's files: it imports nothing of Polly's packages."
+    }
+  ],
+  "packages": {
+    "@polly/api": {
+      "provides": "HTTP API and OAuth server",
+      "technologies": ["node:*", "hono", "@hono/node-server", "zod"]
+    },
+    "@polly/mcp": {
+      "provides": "MCP server",
+      "technologies": ["node:*", "@hono/node-server", "zod", "@modelcontextprotocol/server"]
+    },
+    "@polly/worker": {
+      "provides": "durable workflows",
+      "technologies": ["node:*", "@dbos-inc/dbos-sdk"]
+    },
+    "@polly/web": {
+      "provides": "React front end",
+      "technologies": ["react", "react-dom"]
+    },
+    "@polly/back": {
+      "provides": "flows and domains, no technology"
+    },
+    "@polly/database": {
+      "provides": "connection, table types, all SQL, schema check",
+      "technologies": ["node:*", "kysely", "pg"]
+    },
+    "@polly/migrations": {
+      "provides": "migrations, run as a command",
+      "runOnly": "@polly/migrations is run (its command), never imported: check the schema through @polly/database."
+    },
+    "@polly/identity": {
+      "provides": "who makes a request: Better Auth and the token exchange",
+      "technologies": ["node:*", "better-auth", "@better-auth/*", "kysely"]
+    },
+    "@polly/queue": {
+      "provides": "durable task client",
+      "technologies": ["node:*", "@dbos-inc/dbos-sdk"]
+    },
+    "@polly/storage": {
+      "provides": "object storage",
+      "technologies": ["node:*", "@aws-sdk/client-s3"]
+    },
+    "@polly/logging": {
+      "provides": "structured logs with redaction",
+      "technologies": ["node:*", "pino"]
+    },
+    "@polly/analysis": {
+      "provides": "the compute service's client and the fake analyzer"
+    },
+    "@polly/kernel": {
+      "provides": "product values, the hash"
+    },
+    "@polly/platform": {
+      "provides": "Refusal, the logger and its sink port, the Clock port, the configuration schema, the route registry"
+    },
+    "@polly/contract": {
+      "provides": "the API's generated client and refusal codes"
+    },
+    "@polly/plugin": {
+      "provides": "the Claude Code plugin"
+    },
+    "@polly/scripts": {
+      "provides": "the repository's guards, generators and builds",
+      "runOnly": "The repository scripts are run, never imported: no process depends on them."
+    },
+    "@polly/dev": {
+      "provides": "each worktree's local Polly",
+      "runOnly": "The dev commands are run, never imported: an app never depends on the development environment."
+    }
+  },
+  "root": {
+    "dependencies": [
+      "@biomejs/biome",
+      "@types/node",
+      "@vitest/coverage-v8",
+      "typescript",
+      "vitest",
+      "esbuild",
+      "@hvn-p/architecture"
+    ],
+    "fix": "The root manifest holds only the whole project's tools: declare the dependency in the package that imports it."
+  }
+}

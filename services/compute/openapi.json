@@ -1,0 +1,175 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "compute",
+    "version": "0"
+  },
+  "paths": {
+    "/analyses": {
+      "post": {
+        "summary": "Analyze",
+        "description": "Analyze a recording: a predefined score until the real model arrives with its own feature.",
+        "operationId": "analyze",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Analysis"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "summary": "Version",
+        "description": "Report the fingerprint of the sources the service's image was built from.",
+        "operationId": "version",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Analysis": {
+        "properties": {
+          "recordingId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Recordingid"
+          },
+          "score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score"
+          },
+          "modelLoaded": {
+            "type": "boolean",
+            "title": "Modelloaded"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": ["recordingId", "score", "modelLoaded"],
+        "title": "Analysis",
+        "description": "The analysis of a recording."
+      },
+      "AnalysisRequest": {
+        "properties": {
+          "recordingId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Recordingid"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": ["recordingId"],
+        "title": "AnalysisRequest",
+        "description": "The recording to analyze."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": ["loc", "msg", "type"],
+        "title": "ValidationError"
+      },
+      "Version": {
+        "properties": {
+          "fingerprint": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Fingerprint"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": ["fingerprint"],
+        "title": "Version",
+        "description": "The version of the service's code."
+      }
+    }
+  }
+}

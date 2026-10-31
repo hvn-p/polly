@@ -1,0 +1,11 @@
+{
+  "name": "@polly/plugin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@polly/contract": "workspace:*"
+  }
+}

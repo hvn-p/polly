@@ -7,12 +7,29 @@
     "node": ">=24"
   },
   "scripts": {
-    "lint": "biome check .",
+    "dev:up": "pnpm install --frozen-lockfile >&2 || exit 2; node scripts/build/processes.ts && node dev/dist/main.js up",
+    "dev:down": "node scripts/build/processes.ts && node dev/dist/main.js down",
+    "dev:worker": "node scripts/build/processes.ts && node dev/dist/main.js worker",
+    "dev:e2e": "node scripts/build/processes.ts && node dev/dist/main.js e2e",
+    "dev:url": "node scripts/build/processes.ts && node dev/dist/main.js url",
+    "agent": "node scripts/build/processes.ts && node dev/dist/main.js agent",
+    "contracts": "node scripts/contracts/generate.ts",
+    "bundles": "node scripts/build/bundles.ts",
+    "lint": "biome check --error-on-warnings . && pnpm run lint:architecture",
+    "lint:architecture": "node scripts/checks/architecture.mjs check",
     "lint:fix": "biome check --write .",
-    "test": "pnpm run test:repo",
-    "test:repo": "node --test 'speckit/extensions/*/test/*.test.mjs'"
+    "typecheck": "tsc -p scripts && tsc -p tools/architecture/npm && tsc -p speckit/extensions/issue-sync && pnpm -r --no-bail run typecheck",
+    "test": "vitest run",
+    "generate": "pnpm --filter @polly/migrations run generate",
+    "build": "node scripts/build/processes.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.2"
+    "@biomejs/biome": "2.6.2",
+    "@hvn-p/architecture": "0.1.0",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.0.5",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
   }
 }

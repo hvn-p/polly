@@ -1,0 +1,15 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": ["tools/architecture/ui/src/strips.css"],
+        "createdAt": "2026-10-29T15:58:52.554Z",
+        "reason": "Tier line strips of the Network Line Diagram direction, validated in the T091 mockup (issue #4 comment, tools/architecture/ui/mockup/README.md): the matrix's axes are tiers drawn as coloured lines, not card accents; strips.css holds those strips alone"
+      }
+    ]
+  }
+}

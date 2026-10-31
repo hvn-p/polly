@@ -1,0 +1,471 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "api", "version": "0" },
+  "x-refusal-status": {
+    "UNAUTHORIZED": 401,
+    "INVALID_EMAIL_OR_PASSWORD": 401,
+    "INVALID_OAUTH_REQUEST": 400,
+    "INVALID_EVENT_CODE": 400,
+    "EVENT_CODE_REVOKED": 403,
+    "EVENT_CODE_NOT_BOUND": 409,
+    "EVENT_CODE_ALREADY_BOUND": 409
+  },
+  "x-unrouted-status": 404,
+  "x-unexpected-status": 500,
+  "paths": {
+    "/api/sign-in": {
+      "post": {
+        "operationId": "signIn",
+        "x-access": "public",
+        "x-refusals": ["INVALID_EMAIL_OR_PASSWORD", "INVALID_OAUTH_REQUEST"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "minLength": 3, "maxLength": 254 },
+                  "password": { "type": "string", "minLength": 8, "maxLength": 128 },
+                  "oauthQuery": { "type": "string", "maxLength": 4096 }
+                },
+                "required": ["email", "password"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "next": { "type": "string", "minLength": 1, "maxLength": 2048 } },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["INVALID_OAUTH_REQUEST"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["INVALID_EMAIL_OR_PASSWORD"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/consent": {
+      "post": {
+        "operationId": "consent",
+        "x-access": "learner",
+        "x-refusals": ["UNAUTHORIZED", "INVALID_OAUTH_REQUEST"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accept": { "type": "boolean" },
+                  "oauthQuery": { "type": "string", "maxLength": 4096 }
+                },
+                "required": ["accept", "oauthQuery"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "next": { "type": "string", "minLength": 1, "maxLength": 2048 } },
+                  "required": ["next"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["INVALID_OAUTH_REQUEST"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["UNAUTHORIZED"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "operationId": "getMe",
+        "x-access": "learner",
+        "x-refusals": ["UNAUTHORIZED"],
+        "responses": {
+          "200": {
+            "description": "done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "learnerId": { "type": "string", "minLength": 1, "maxLength": 64 },
+                    "name": { "type": "string", "minLength": 1, "maxLength": 256 }
+                  },
+                  "required": ["learnerId", "name"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["UNAUTHORIZED"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/event-codes": {
+      "post": {
+        "operationId": "bindEventCode",
+        "x-access": "learner",
+        "x-refusals": [
+          "UNAUTHORIZED",
+          "INVALID_EVENT_CODE",
+          "EVENT_CODE_ALREADY_BOUND",
+          "EVENT_CODE_REVOKED"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 43,
+                    "maxLength": 43,
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  }
+                },
+                "required": ["code"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "bound": { "type": "boolean", "const": true } },
+                  "required": ["bound"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["INVALID_EVENT_CODE"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["UNAUTHORIZED"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["EVENT_CODE_REVOKED"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["EVENT_CODE_ALREADY_BOUND"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent-events": {
+      "get": {
+        "operationId": "agentEvents",
+        "x-access": "event-code",
+        "x-refusals": ["UNAUTHORIZED", "INVALID_EVENT_CODE", "EVENT_CODE_REVOKED"],
+        "x-error-event": { "event": "error", "refusals": ["EVENT_CODE_NOT_BOUND", "EVENT_CODE_REVOKED"] },
+        "responses": {
+          "200": {
+            "description": "a stream of events",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": { "type": { "type": "string", "const": "test" } },
+                      "required": ["type"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["INVALID_EVENT_CODE"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["UNAUTHORIZED"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["EVENT_CODE_REVOKED"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Learner": {
+        "type": "object",
+        "properties": {
+          "learnerId": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "required": ["learnerId", "name"],
+        "additionalProperties": false
+      },
+      "SignInRequest": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string", "minLength": 3, "maxLength": 254 },
+          "password": { "type": "string", "minLength": 8, "maxLength": 128 },
+          "oauthQuery": { "type": "string", "maxLength": 4096 }
+        },
+        "required": ["email", "password"],
+        "additionalProperties": false
+      },
+      "SignedIn": {
+        "type": "object",
+        "properties": { "next": { "type": "string", "minLength": 1, "maxLength": 2048 } },
+        "additionalProperties": false
+      },
+      "ConsentRequest": {
+        "type": "object",
+        "properties": {
+          "accept": { "type": "boolean" },
+          "oauthQuery": { "type": "string", "maxLength": 4096 }
+        },
+        "required": ["accept", "oauthQuery"],
+        "additionalProperties": false
+      },
+      "Consented": {
+        "type": "object",
+        "properties": { "next": { "type": "string", "minLength": 1, "maxLength": 2048 } },
+        "required": ["next"],
+        "additionalProperties": false
+      },
+      "EventCodeBinding": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string", "minLength": 43, "maxLength": 43, "pattern": "^[A-Za-z0-9_-]{43}$" }
+        },
+        "required": ["code"],
+        "additionalProperties": false
+      },
+      "Bound": {
+        "type": "object",
+        "properties": { "bound": { "type": "boolean", "const": true } },
+        "required": ["bound"],
+        "additionalProperties": false
+      },
+      "AgentEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": { "type": { "type": "string", "const": "test" } },
+            "required": ["type"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Refusal": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "UNAUTHORIZED",
+              "INVALID_EMAIL_OR_PASSWORD",
+              "INVALID_OAUTH_REQUEST",
+              "INVALID_EVENT_CODE",
+              "EVENT_CODE_REVOKED",
+              "EVENT_CODE_NOT_BOUND",
+              "EVENT_CODE_ALREADY_BOUND"
+            ]
+          },
+          "reason": { "type": "string", "maxLength": 512 }
+        },
+        "required": ["code"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

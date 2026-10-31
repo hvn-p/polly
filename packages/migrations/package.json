@@ -1,0 +1,21 @@
+{
+  "name": "@polly/migrations",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "generate": "node src/generate.ts"
+  },
+  "dependencies": {
+    "@polly/platform": "workspace:*",
+    "kysely": "0.29.7",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "kysely-codegen": "0.20.0"
+  }
+}

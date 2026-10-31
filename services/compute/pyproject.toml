@@ -1,0 +1,43 @@
+[project]
+name = "polly-compute"
+version = "0.0.0"
+description = "Polly's compute service: the analyses that need Python's libraries"
+requires-python = "==3.14.*"
+dependencies = ["fastapi==0.162.0", "uvicorn==0.54.0"]
+
+[dependency-groups]
+dev = ["httpx2==2.16.0", "mypy==2.4.0", "pytest==9.1.1", "pytest-cov==7.1.0", "ruff==0.17.2"]
+
+[build-system]
+requires = ["uv_build==0.13.5"]
+build-backend = "uv_build"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["ALL"]
+# D203/D213 conflict with D211/D212; COM812 conflicts with the formatter; the
+# repository carries no per-file copyright notice (CPY001).
+ignore = ["D203", "D213", "COM812", "CPY001"]
+
+[tool.ruff.lint.flake8-type-checking]
+# FastAPI and Pydantic read the annotations at runtime.
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest asserts with `assert`.
+"tests/**" = ["S101"]
+
+[tool.mypy]
+strict = true
+python_version = "3.14"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=polly_compute --cov-report=term-missing --cov-fail-under=90"
+
+[tool.coverage.run]
+# The process entry: run by @polly/analysis's test, not by pytest.
+omit = ["src/polly_compute/__main__.py"]
