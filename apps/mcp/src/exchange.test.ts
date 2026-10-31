@@ -18,14 +18,32 @@ describe('the token exchange', () => {
     expect(urls).toEqual(['http://127.0.0.1:4000/api/auth/oauth2/token'])
   })
 
-  it('exchanges to nothing on a refusal, or an answer that is not a token response', async () => {
+  it("exchanges to nothing when the identity refuses the exchange, as OAuth's error responses do", async () => {
     for (const answer of [
       Response.json({ error: 'invalid_grant' }, { status: 400 }),
-      Response.json({ access_token: 42 }),
-      Response.json({ access_token: '' }),
-      new Response('not json'),
+      Response.json({ error: 'invalid_client' }, { status: 401 }),
     ]) {
       expect(await exchangeToken({ ...settings, fetch: async () => answer }, 'mcp-token')).toBeUndefined()
     }
+  })
+
+  it('fails, as unexpected, when the identity is down or answers outside OAuth', async () => {
+    for (const answer of [
+      () => new Response('down', { status: 503 }),
+      () => Response.json({ error: 'server_error' }, { status: 500 }),
+      () => Response.json({ access_token: 42 }),
+      () => Response.json({ access_token: '' }),
+      () => new Response('not json'),
+    ]) {
+      await expect(exchangeToken({ ...settings, fetch: async () => answer() }, 'mcp-token')).rejects.toThrow(
+        /^the identity did not answer the token exchange/,
+      )
+    }
+    const unreachable = async () => {
+      throw new TypeError('fetch failed')
+    }
+    await expect(exchangeToken({ ...settings, fetch: unreachable }, 'mcp-token')).rejects.toThrow(
+      'fetch failed',
+    )
   })
 })

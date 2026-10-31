@@ -1,7 +1,9 @@
 // The learner's MCP token, exchanged at the identity's token endpoint (RFC 8693)
 // for a token naming the API as its audience, the MCP server authenticating as
-// its confidential client. A token the identity does not accept exchanges to
-// nothing.
+// its confidential client. A token the identity refuses (an OAuth error
+// response, 400 or 401) exchanges to nothing; an identity that is down or
+// answers outside OAuth is an unexpected failure, never a refusal that would
+// send the client back through OAuth.
 
 import { z } from 'zod'
 
@@ -11,6 +13,8 @@ const tokenResponse = z.object({ access_token: z.string().min(1).max(8192) })
 const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange'
 const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
 export const MCP_CLIENT_ID = 'polly-mcp'
+// The statuses of an OAuth error response (RFC 6749 §5.2).
+const REFUSED = new Set([400, 401])
 
 export interface ExchangeSettings {
   // The API's address, on loopback or the platform's network.
@@ -38,9 +42,14 @@ export async function exchangeToken(
       resource: settings.apiResource,
     }),
   })
-  if (!response.ok) {
+  if (REFUSED.has(response.status)) {
     return undefined
   }
-  const answer = tokenResponse.safeParse(await response.json().catch(() => undefined))
-  return answer.success ? answer.data.access_token : undefined
+  const answer = response.ok
+    ? tokenResponse.safeParse(await response.json().catch(() => undefined))
+    : undefined
+  if (answer?.success !== true) {
+    throw new Error(`the identity did not answer the token exchange: ${response.status}`)
+  }
+  return answer.data.access_token
 }
