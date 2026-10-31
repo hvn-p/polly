@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createApiClient } from './index.ts'
+import { createApiClient, refusalStatus } from './index.ts'
 
 function recordingFetch(answer: Response) {
   const calls: Request[] = []
@@ -66,5 +66,18 @@ describe('API client', () => {
     const odd = recordingFetch(new Response('boom', { status: 502 }))
     const other = createApiClient({ baseUrl: 'http://x', token: async () => 't', fetch: odd.fetch })
     expect(await other.call('getMe')).toEqual({ ok: false, status: 502, code: 'UNEXPECTED' })
+  })
+})
+
+describe('the status of a refusal', () => {
+  it("is the contract's for each of its codes", () => {
+    expect(refusalStatus('EVENT_CODE_REVOKED')).toBe(403)
+    expect(refusalStatus('UNAUTHORIZED')).toBe(401)
+  })
+
+  it('throws for a code the contract does not list, an inherited key included', () => {
+    for (const code of ['NOT_LOCAL_ENVIRONMENT', 'toString']) {
+      expect(() => refusalStatus(code)).toThrow(`${code} is no refusal of the contract`)
+    }
   })
 })

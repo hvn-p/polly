@@ -3,7 +3,14 @@
 // refusal read back by code.
 
 import { z } from 'zod'
-import { OPERATIONS, type Operations, REFUSAL_CODES, RESPONSES, type RefusalCode } from './generated.ts'
+import {
+  OPERATIONS,
+  type Operations,
+  REFUSAL_CODES,
+  REFUSAL_STATUS,
+  RESPONSES,
+  type RefusalCode,
+} from './generated.ts'
 
 export * from './generated.ts'
 
@@ -21,6 +28,15 @@ export interface ApiClient {
     name: N,
     ...body: Arguments<N>
   ) => Promise<Outcome<Operations[N]['response']>>
+}
+
+// The status the contract answers a refusal code with, for each process's
+// translation point; a code the contract does not list is a programming error.
+export function refusalStatus(code: string): number {
+  if (!Object.hasOwn(REFUSAL_STATUS, code)) {
+    throw new Error(`${code} is no refusal of the contract`)
+  }
+  return REFUSAL_STATUS[code as keyof typeof REFUSAL_STATUS]
 }
 
 function isRefusalCode(code: unknown): code is RefusalCode {

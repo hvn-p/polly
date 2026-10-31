@@ -4,8 +4,9 @@
 // Refusal; scripts/checks/refusals.mjs keeps every other file from building an
 // answer or writing a status.
 
+import { refusalStatus } from '@polly/contract'
 import { Refusal } from '@polly/platform'
-import { REFUSAL_STATUS, UNEXPECTED_STATUS, UNROUTED_STATUS } from './contracts/refusals.ts'
+import { UNEXPECTED_STATUS, UNROUTED_STATUS } from './contracts/refusals.ts'
 
 // What the contract states of an operation's success.
 interface Succeeds {
@@ -15,13 +16,6 @@ interface Succeeds {
 // What the contract states of a stream's ending refusal.
 interface EndsWithRefusal {
   readonly error: { readonly event: string; readonly refusals: readonly string[] }
-}
-
-function statusOf(code: string): number {
-  if (!Object.hasOwn(REFUSAL_STATUS, code)) {
-    throw new Error(`${code} is no refusal of the contract`)
-  }
-  return REFUSAL_STATUS[code as keyof typeof REFUSAL_STATUS]
 }
 
 // A path no route serves: no refusal of the contract, so no code.
@@ -43,7 +37,10 @@ export function challengeResponse(challenge: string): Response {
 }
 
 export function refusalResponse(refusal: Refusal): Response {
-  return Response.json({ code: refusal.code, reason: refusal.message }, { status: statusOf(refusal.code) })
+  return Response.json(
+    { code: refusal.code, reason: refusal.message },
+    { status: refusalStatus(refusal.code) },
+  )
 }
 
 // An operation's value, with the cookies the answer sets.

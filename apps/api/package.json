@@ -12,6 +12,7 @@
   "dependencies": {
     "@hono/node-server": "2.1.5",
     "@polly/back": "workspace:*",
+    "@polly/contract": "workspace:*",
     "@polly/database": "workspace:*",
     "@polly/identity": "workspace:*",
     "@polly/kernel": "workspace:*",

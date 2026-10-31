@@ -5,7 +5,7 @@
 // flow; any other path as not found, with no body.
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
-import { type Outcome, REFUSAL_STATUS, UNEXPECTED_STATUS, UNROUTED_STATUS } from '@polly/contract'
+import { type Outcome, refusalStatus, UNEXPECTED_STATUS, UNROUTED_STATUS } from '@polly/contract'
 import { Refusal } from '@polly/platform'
 
 export function toolResult<T extends Record<string, unknown>>(outcome: Outcome<T>): CallToolResult {
@@ -30,11 +30,10 @@ export function unauthorized(publicUrl: string): Response {
 
 // A refusal an access rule or a route throws: its code and reason.
 export function refusedRequest(refusal: Refusal): Response {
-  if (!Object.hasOwn(REFUSAL_STATUS, refusal.code)) {
-    throw new Error(`${refusal.code} is no refusal of the contract`)
-  }
-  const status = REFUSAL_STATUS[refusal.code as keyof typeof REFUSAL_STATUS]
-  return Response.json({ code: refusal.code, reason: refusal.message }, { status })
+  return Response.json(
+    { code: refusal.code, reason: refusal.message },
+    { status: refusalStatus(refusal.code) },
+  )
 }
 
 // No refusal of the contract, so no code.

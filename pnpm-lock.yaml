@@ -196,6 +196,9 @@ importers:
       '@polly/back':
         specifier: workspace:*
         version: link:../../packages/back
+      '@polly/contract':
+        specifier: workspace:*
+        version: link:../../packages/contract
       '@polly/database':
         specifier: workspace:*
         version: link:../../packages/database
