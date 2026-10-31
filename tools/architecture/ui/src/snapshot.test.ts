@@ -1,6 +1,71 @@
 import { describe, expect, it } from 'vitest'
-import { embedSnapshot } from './snapshot.ts'
+import { captureSnapshot, embedSnapshot } from './snapshot.ts'
 import { fixture } from './test/fixture.ts'
+import type { Change } from './types.ts'
+
+describe('a snapshot captured from a live analyzer', () => {
+  const change: Change = {
+    at: 1,
+    files: ['apps/api/src/main.ts'],
+    added: [],
+    removed: [],
+    breaches: [],
+    fixed: [],
+  }
+  // What a watching analyzer serves, path by path.
+  const served = (paths: Record<string, unknown>) => {
+    const asked: string[] = []
+    const get = async (path: string) => {
+      asked.push(path)
+      const body = paths[path]
+      return body === undefined
+        ? new Response('not found', { status: 404 })
+        : new Response(typeof body === 'string' ? body : JSON.stringify(body))
+    }
+    return { get, asked }
+  }
+
+  it('holds its report, history, version, format, and the files its breaches, its changes and the caller name', async () => {
+    const version = { fingerprint: 'f', commit: 'c', date: '2026-10-30T00:00:00+01:00', modified: false }
+    const { get, asked } = served({
+      '/graph.json': fixture(),
+      '/history.json': [change],
+      '/version.json': version,
+      '/report.schema.json': { type: 'object' },
+      '/source/packages/back/src/flows/buy/index.ts': 'buy\n',
+      '/source/apps/web/src/app.tsx': 'app\n',
+      '/source/apps/api/src/main.ts': 'main\n',
+      '/source/apps/api/src/a%20b.ts': 'spaced\n',
+    })
+    const snapshot = await captureSnapshot(get, ['apps/api/src/a b.ts', 'apps/api/src/main.ts'])
+    expect(snapshot).toEqual({
+      report: fixture(),
+      history: [change],
+      analyzer: version,
+      analyzerFormat: { type: 'object' },
+      sources: {
+        'packages/back/src/flows/buy/index.ts': 'buy\n',
+        'apps/web/src/app.tsx': 'app\n',
+        'apps/api/src/main.ts': 'main\n',
+        'apps/api/src/a b.ts': 'spaced\n',
+      },
+    })
+    // Each file read once, though a breach, a change and the caller name it.
+    expect(asked.filter((path) => path === '/source/apps/api/src/main.ts')).toHaveLength(1)
+  })
+
+  it('leaves out what the analyzer does not serve, and refuses one with no report', async () => {
+    const { get } = served({ '/graph.json': { ...fixture(), violations: [] }, '/version.json': null })
+    expect(await captureSnapshot(get)).toEqual({
+      report: { ...fixture(), violations: [] },
+      history: [],
+      analyzer: null,
+      analyzerFormat: null,
+      sources: {},
+    })
+    await expect(captureSnapshot(served({}).get)).rejects.toThrow('/graph.json: 404')
+  })
+})
 
 const page = '<body><div id="root"></div><script type="application/json" id="snapshot"></script></body>'
 

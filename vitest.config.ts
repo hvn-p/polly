@@ -38,6 +38,7 @@ export default defineConfig({
         'plugin/src/agent-events.ts',
         'tools/architecture/npm/launcher/bin/architecture.js',
         'dev/src/e2e/claude.ts',
+        'tools/architecture/ui/src/review-snapshot.ts',
         'packages/migrations/src/migrations/**',
         'scripts/checks/agents-md.mjs',
       ],

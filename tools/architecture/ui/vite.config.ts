@@ -4,6 +4,13 @@
 // A static page from a snapshot: write the report, then build with it:
 //   architecture json --base main > report.json
 //   SNAPSHOT=report.json vite build --outDir snapshot
+//
+// A snapshot may also hold what a live analyzer serves: the session's history,
+// files' content, the analyzer's version and format (src/snapshot.ts). The one
+// a design review captures the breach states from, a breach planted and the
+// analyzer marked as built from other sources, needs a local analyzer build:
+//   node src/review-snapshot.ts review.json
+//   SNAPSHOT=review.json vite build --outDir review
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

@@ -139,7 +139,7 @@ function Code({
     body = (
       <p className="empty">
         {snapshot
-          ? 'A snapshot holds no source.'
+          ? 'The snapshot does not hold this file.'
           : 'The analyzer does not serve this file: it reads only the sources it analyzed.'}
       </p>
     )

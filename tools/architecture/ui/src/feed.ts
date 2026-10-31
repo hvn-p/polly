@@ -1,7 +1,8 @@
 // Where the view's data comes from: the analyzer's watch mode (the report and
 // each change pushed as server-sent events, the session's history, the analyzed
-// files), or a snapshot built into the page.
+// files), or a snapshot built into the page, which may hold the same.
 
+import type { Snapshot } from './snapshot.ts'
 import type { Change, Identity, Report } from './types.ts'
 
 export interface FeedState {
@@ -91,12 +92,19 @@ export function liveFeed({ fetch, EventSource, now }: LiveOptions): Feed {
   }
 }
 
-export function snapshotFeed(report: Report): Feed {
-  const state = store({ report, history: [], status: 'snapshot', updatedAt: undefined })
+export function snapshotFeed(snapshot: Report | Snapshot): Feed {
+  // A bare report holds nothing else.
+  const {
+    report,
+    history = [],
+    sources = {},
+    ...versions
+  } = 'report' in snapshot ? snapshot : { report: snapshot }
+  const state = store({ report, history, status: 'snapshot', updatedAt: undefined, ...versions })
   return {
     get: state.get,
     subscribe: state.subscribe,
-    source: async () => undefined,
+    source: async (file) => (Object.hasOwn(sources, file) ? sources[file] : undefined),
     close: () => {},
   }
 }

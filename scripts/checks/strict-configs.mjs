@@ -103,6 +103,8 @@ const COVERAGE_EXCLUDES = {
   'tools/architecture/npm/launcher/bin/architecture.js':
     "the analyzer's published launcher: its tests run it as npm installs it, in a child process",
   'dev/src/e2e/claude.ts': 'the driven agent run: on demand, never in CI (nr dev:e2e)',
+  'tools/architecture/ui/src/review-snapshot.ts':
+    "the design review's snapshot driver: run by hand against a local analyzer build, which the test job does not have",
   'packages/migrations/src/migrations/**':
     "applied by the tests' global setups, in their own process; the startup tests check the schema they produce",
 }

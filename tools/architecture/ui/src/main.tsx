@@ -10,13 +10,14 @@ import './styles.css'
 import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'
 import { liveFeed, snapshotFeed } from './feed.ts'
+import type { Snapshot } from './snapshot.ts'
 import type { Report } from './types.ts'
 
 const snapshot = document.getElementById('snapshot')?.textContent
 const feed =
   snapshot === undefined || snapshot === null || snapshot.trim() === ''
     ? liveFeed({ fetch: (url) => fetch(url), EventSource, now: Date.now })
-    : snapshotFeed(JSON.parse(snapshot) as Report)
+    : snapshotFeed(JSON.parse(snapshot) as Report | Snapshot)
 
 const root = document.getElementById('root')
 if (root !== null) {

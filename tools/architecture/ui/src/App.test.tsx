@@ -537,6 +537,53 @@ describe('the source', () => {
   })
 })
 
+describe('a snapshot captured from a live analyzer', () => {
+  it('shows from the page alone the breach in its source, the session’s change and the warning', async () => {
+    const file = 'packages/back/src/flows/buy/index.ts'
+    const breach = fixture().violations[0] as Change['breaches'][number]
+    const history: Change[] = [
+      {
+        at: Date.UTC(2026, 9, 29, 13, 0, 0),
+        files: [file],
+        added: [['packages/back/src/flows/buy', 'packages/database']],
+        removed: [],
+        breaches: [breach],
+        fixed: [],
+      },
+    ]
+    const analyzer = {
+      fingerprint: 'planted',
+      commit: 'd927d12',
+      date: '2026-10-30T07:59:36+01:00',
+      modified: false,
+    }
+    const identity = { ...analyzer, fingerprint: 'f-view' }
+    const source =
+      "import type { Price } from '@shop/kernel'\n// pricing\nimport { PostgresStore } from '@shop/database'\n"
+    render(
+      <App
+        feed={snapshotFeed({ report: fixture(), history, sources: { [file]: source }, analyzer })}
+        identity={identity}
+      />,
+    )
+    expect(screen.getByRole('banner').textContent).toContain('snapshot')
+    expect(screen.getByRole('alert').textContent).toContain('sources planted')
+    await act(async () => {
+      fireEvent.click(within(side()).getByRole('button', { name: /index.ts:3/ }))
+    })
+    const panel = screen.getByRole('complementary', { name: 'Source' })
+    expect(panel.querySelector('.breach-line')?.textContent).toContain('Breach, tier.')
+    go('#/changes')
+    expect(view().textContent).toContain('+ back/flows/buy → database')
+    expect(view().textContent).toContain("breach: tier, '@shop/database': Flows may not import Adapters.")
+    go('#/breaches')
+    await act(async () => {
+      fireEvent.click(within(view()).getByRole('button', { name: /app.tsx:7/ }))
+    })
+    expect(panel.textContent).toContain('The snapshot does not hold this file.')
+  })
+})
+
 describe("the analyzer's version", () => {
   const built = (fingerprint: string, commit: string, date: string, changed?: string): Identity => ({
     fingerprint,

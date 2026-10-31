@@ -128,6 +128,30 @@ describe('the snapshot feed', () => {
     feed.subscribe(() => {})()
     feed.close()
   })
+
+  it('holds what a live analyzer served too: its history, its version and format, and the sources it kept', async () => {
+    const history: Change[] = [
+      { at: 1, files: ['apps/api/src/main.ts'], added: [], removed: [], breaches: [], fixed: [] },
+    ]
+    const analyzer = { fingerprint: 'f', commit: 'c', date: '2026-10-30T00:00:00+01:00', modified: false }
+    const feed = snapshotFeed({
+      report: fixture(),
+      history,
+      sources: { 'apps/api/src/main.ts': 'import x\n' },
+      analyzer,
+      analyzerFormat: { type: 'object' },
+    })
+    expect(feed.get()).toMatchObject({
+      status: 'snapshot',
+      history,
+      analyzer,
+      analyzerFormat: { type: 'object' },
+    })
+    expect(feed.get().report?.name).toBe('shop')
+    expect(await feed.source('apps/api/src/main.ts')).toBe('import x\n')
+    expect(await feed.source('apps/web/src/app.tsx')).toBeUndefined()
+    expect(await feed.source('constructor')).toBeUndefined()
+  })
 })
 
 describe('what the viewer has seen', () => {
