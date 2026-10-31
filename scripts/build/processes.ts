@@ -7,7 +7,11 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
-import { type BuildOptions, build, context, type Plugin } from 'esbuild'
+import type { BuildOptions, Plugin } from 'esbuild'
+
+// Loaded when a build runs, so a failure to load it (no install yet) is the
+// build's failure, which exits 2.
+const esbuild = () => import('esbuild')
 
 export interface Process {
   name: string
@@ -116,7 +120,7 @@ function options({ entry, outfile, development = false }: Paths): BuildOptions {
 // identical to the one on disk is left unwritten: a running process that
 // watches its build (node --watch) restarts on a write, changed or not.
 export async function bundleProcess(paths: Paths): Promise<string[]> {
-  const { metafile, outputFiles } = await build({ ...options(paths), write: false })
+  const { metafile, outputFiles } = await (await esbuild()).build({ ...options(paths), write: false })
   for (const { path, contents } of outputFiles) {
     if (!existsSync(path) || !Buffer.from(contents).equals(readFileSync(path))) {
       mkdirSync(dirname(path), { recursive: true })
@@ -128,7 +132,7 @@ export async function bundleProcess(paths: Paths): Promise<string[]> {
 
 // Rebuilds a process on every change to its sources, until killed.
 export async function watchProcess(paths: Paths): Promise<void> {
-  await (await context(options(paths))).watch()
+  await (await (await esbuild()).context(options(paths))).watch()
 }
 
 export function selected(names: string[]): Process[] {

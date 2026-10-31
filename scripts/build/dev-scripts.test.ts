@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -59,5 +59,15 @@ describe('the dev scripts of the root manifest', () => {
     })
     expect(result.status).toBe(2)
     expect(result.stderr).toContain('unknown process nope')
+  })
+
+  it('the build exits 2 when it cannot load esbuild, as before the first install', () => {
+    const uninstalled = mkdtempSync(join(tmpdir(), 'uninstalled-'))
+    copyFileSync(join(repositoryRoot, 'scripts/build/processes.ts'), join(uninstalled, 'processes.ts'))
+    const result = spawnSync(process.execPath, [join(uninstalled, 'processes.ts'), 'dev'], {
+      encoding: 'utf8',
+    })
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("'esbuild'")
   })
 })
