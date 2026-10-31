@@ -243,6 +243,28 @@ describe('strict-configs guard', () => {
       ])
     })
 
+    it("refuses a source file a tsconfig's exclude leaves out, and type-checks one only its files lists", () => {
+      const root = fixture({
+        'tsconfig.base.json': base,
+        'package.json': runs('tsc -p pkg && tsc -p pkg/tsconfig.files.json'),
+        'pkg/tsconfig.json': JSON.stringify({
+          extends: '../tsconfig.base.json',
+          include: ['src', '../vitest.config.ts'],
+          exclude: ['src/legacy.ts'],
+        }),
+        'pkg/tsconfig.files.json': JSON.stringify({ extends: '../tsconfig.base.json', files: ['tool/b.ts'] }),
+        'pkg/src/a.ts': 'export const a = 1\n',
+        'pkg/src/legacy.ts': 'export const legacy = 1\n',
+        'pkg/tool/b.ts': 'export const b = 1\n',
+        'pkg/tool/c.ts': 'export const c = 1\n',
+        'vitest.config.ts': vitestConfig(['pkg/**/*.ts']),
+      })
+      expect(checkStrictConfigs(root)).toEqual([
+        'pkg/src/legacy.ts: no tsconfig type-checks it; include it in one (with checkJs for JavaScript)',
+        'pkg/tool/c.ts: no tsconfig type-checks it; include it in one (with checkJs for JavaScript)',
+      ])
+    })
+
     it('refuses a JavaScript file a tsconfig lists without checkJs', () => {
       const root = fixture({
         'tsconfig.base.json': base,
