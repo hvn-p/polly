@@ -50,7 +50,9 @@ vague idea goes through `/speckit-assess-intake` first. A bug goes through
 - an issue comment starting with `<!-- speckit-artifact: … -->` is an artifact (spec,
   plan…) and is authoritative: the local cache, ignored by git, is only a copy rebuilt
   at each step;
-- the tasks are in the PR description, between the `speckit-tasks` markers;
+- the tasks are in the PR description, between the `speckit-tasks` markers; completed
+  Convergence phases may sit in the PR comment the description links to in their place,
+  which the pull puts back into the cached tasks;
 - comments are read in order: when two decisions contradict each other, the most
   recent wins.
 

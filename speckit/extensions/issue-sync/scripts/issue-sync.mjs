@@ -5,6 +5,9 @@
 // artifact updated in place; how it gets done (tasks.md) lives in a section of
 // the description of its pull request. GitHub is the source: the cache is
 // rebuilt from it before every step, and nothing in it is ever committed.
+// Tasks too long for a description archive their completed Convergence phases,
+// oldest first, in one comment of the pull request; the description keeps a
+// pointer in their place, and a pull puts them back.
 //
 // Usage:
 //   node issue-sync.mjs pull [<issue>] [--dir <dir>] [--prefix <prefix>]
@@ -31,6 +34,12 @@ const TASKS_FILE = 'tasks.md'
 const MARKER = /^<!-- speckit-artifact: (\S+) -->$/
 const TASKS_START = '<!-- speckit-tasks:start -->'
 const TASKS_END = '<!-- speckit-tasks:end -->'
+const ARCHIVE_MARKER = '<!-- speckit-tasks-archive -->'
+const ARCHIVE_POINTER =
+  /^<!-- speckit-tasks-archive: (\d+) -->\n(?:.*\n)*?<!-- speckit-tasks-archive:end -->\n/m
+const COMPLETED_CONVERGENCE = /^## Phase (\d+): Convergence\n/
+// What the pointer to the archive takes in the description, whatever its id and link.
+const POINTER_ROOM = 400
 // GitHub refuses a comment or a description over 65536 characters.
 const MAX_BODY = 65536
 const TEXT_FILE = /\.(md|json|ya?ml|txt)$/
@@ -84,8 +93,21 @@ export function readTasks(body) {
 /**
  * @param {string | null | undefined} body
  * @param {string} tasks
+ * @param {number} [max] GitHub's limit, lowered by tests
  */
-export function writeTasks(body, tasks) {
+export function writeTasks(body, tasks, max = MAX_BODY) {
+  const result = placeTasks(body, tasks)
+  if (result.length > max) {
+    throw new Failure(`the pull request description would be ${result.length} characters: split the tasks.`)
+  }
+  return result
+}
+
+/**
+ * @param {string | null | undefined} body
+ * @param {string} tasks
+ */
+function placeTasks(body, tasks) {
   const content = tasks.endsWith('\n') ? tasks : `${tasks}\n`
   const section = `${TASKS_START}\n${content}${TASKS_END}`
   const text = normalize(body ?? '')
@@ -95,10 +117,81 @@ export function writeTasks(body, tasks) {
     start === -1 || end === -1
       ? [text.trimEnd(), section].filter(Boolean).join('\n\n')
       : text.slice(0, start) + section + text.slice(end + TASKS_END.length)
-  if (result.length > MAX_BODY) {
-    throw new Failure(`the pull request description would be ${result.length} characters: split the tasks.`)
-  }
   return result
+}
+
+/** @param {string} section */
+function isCompletedConvergence(section) {
+  return COMPLETED_CONVERGENCE.test(section) && !/^- \[ \]/m.test(section) && /^- \[[xX]\]/m.test(section)
+}
+
+/** @param {number[]} phases */
+function namePhases(phases) {
+  return phases.length === 1
+    ? `Phase ${phases[0]}, done, is`
+    : `Phases ${phases[0]} to ${phases[phases.length - 1]}, done, are`
+}
+
+// When the tasks do not fit in the description, the completed Convergence
+// phases to archive: the run that starts at the first Convergence phase, as
+// short as fits. Returns null when the tasks fit as they are.
+/**
+ * @param {string | null | undefined} body
+ * @param {string} tasks
+ * @param {number} [max] GitHub's limit, lowered by tests
+ * @returns {{ phases: number[], archived: string, keep: (id: number, url: string) => string } | null}
+ */
+export function planArchive(body, tasks, max = MAX_BODY) {
+  if (placeTasks(body, tasks).length <= max) return null
+  const sections = normalize(tasks).split(/(?=^## )/m)
+  const first = sections.findIndex((section) => COMPLETED_CONVERGENCE.test(section))
+  /** @type {number[]} */
+  const phases = []
+  let end = first
+  while (end !== -1 && end < sections.length && isCompletedConvergence(sections[end] ?? '')) {
+    phases.push(Number(COMPLETED_CONVERGENCE.exec(sections[end] ?? '')?.[1]))
+    end++
+    const before = sections.slice(0, first).join('')
+    const after = sections.slice(end).join('')
+    if (placeTasks(body, before + ' '.repeat(POINTER_ROOM) + after).length <= max) {
+      const run = sections.slice(first, end)
+      return {
+        phases,
+        archived: run.join(''),
+        keep: (id, url) =>
+          `${before}<!-- speckit-tasks-archive: ${id} -->\n${namePhases(phases)} archived in [a comment of this pull request](${url}).\n<!-- speckit-tasks-archive:end -->\n${after}`,
+      }
+    }
+  }
+  const tried =
+    phases.length === 0 ? '' : `, even with ${namePhases(phases).replace(/, done, (is|are)$/, '')} archived`
+  throw new Failure(`the pull request description is over ${max} characters${tried}: split the tasks.`)
+}
+
+/** @param {string} archived */
+export function renderArchive(archived) {
+  return `${ARCHIVE_MARKER}\n## Spec Kit · archived tasks\n\n${archived}`
+}
+
+// The tasks with their archived phases back in place of the pointer;
+// `archiveOf` reads the comment the pointer names.
+/**
+ * @param {string} tasks
+ * @param {(id: number) => string} archiveOf
+ */
+export function restoreTasks(tasks, archiveOf) {
+  const id = ARCHIVE_POINTER.exec(tasks)?.[1]
+  if (id === undefined) return tasks
+  const lines = normalize(archiveOf(Number(id))).split('\n')
+  if (lines[0] !== ARCHIVE_MARKER) throw new Failure(`comment ${id} holds no archived tasks.`)
+  const archived = lines.slice(3).join('\n')
+  return tasks.replace(ARCHIVE_POINTER, () => archived)
+}
+
+/** @param {string | null | undefined} body */
+function archiveIdOf(body) {
+  const id = ARCHIVE_POINTER.exec(readTasks(body) ?? '')?.[1]
+  return id === undefined ? null : Number(id)
 }
 
 // Artifact paths come from comments anyone can write: only plain relative
@@ -311,6 +404,50 @@ function resolveIssue(options) {
   return issue
 }
 
+/**
+ * @param {number} id
+ * @returns {string}
+ */
+function readComment(id) {
+  return JSON.parse(gh(['api', `repos/{owner}/{repo}/issues/comments/${id}`])).body
+}
+
+// Writes the archive of a pull request's tasks, in the comment its description
+// already points to when there is one; returns that comment's id and link.
+/**
+ * @param {PullRequest} pr
+ * @param {string} archived
+ * @returns {{ id: number, url: string }}
+ */
+function writeArchive(pr, archived) {
+  const body = renderArchive(archived)
+  if (body.length > MAX_BODY) {
+    throw new Failure(`the archived tasks would be ${body.length} characters: split the tasks.`)
+  }
+  const id = archiveIdOf(pr.body)
+  /** @type {{ id: number, html_url: string, body: string }} */
+  let comment
+  if (id === null) {
+    comment = JSON.parse(
+      gh(
+        ['api', '--method', 'POST', `repos/{owner}/{repo}/issues/${pr.number}/comments`, '--input', '-'],
+        JSON.stringify({ body }),
+      ),
+    )
+  } else {
+    comment = JSON.parse(gh(['api', `repos/{owner}/{repo}/issues/comments/${id}`]))
+    if (normalize(comment.body) !== body) {
+      comment = JSON.parse(
+        gh(
+          ['api', '--method', 'PATCH', `repos/{owner}/{repo}/issues/comments/${id}`, '--input', '-'],
+          JSON.stringify({ body }),
+        ),
+      )
+    }
+  }
+  return { id: comment.id, url: comment.html_url }
+}
+
 /** @param {Options} options */
 function pull(options) {
   const issue = resolveIssue(options)
@@ -335,7 +472,7 @@ function pull(options) {
   const pr = options.dir ? null : pullRequest(issue)
   const tasks = readTasks(pr?.body)
   if (pr !== null && tasks !== null) {
-    writeFileSync(join(dir, TASKS_FILE), tasks)
+    writeFileSync(join(dir, TASKS_FILE), restoreTasks(tasks, readComment))
     restored.push(`${TASKS_FILE} (PR #${pr.number})`)
   }
   return { issue, pr: pr?.number ?? null, dir, restored }
@@ -356,7 +493,13 @@ function pushTasks(issue, dir) {
     )
   }
   const tasks = readFileSync(path, 'utf8')
-  const body = writeTasks(pr.body, tasks)
+  const archive = planArchive(pr.body, tasks)
+  let kept = tasks
+  if (archive !== null) {
+    const { id, url } = writeArchive(pr, archive.archived)
+    kept = archive.keep(id, url)
+  }
+  const body = writeTasks(pr.body, kept)
   if (body === normalize(pr.body ?? '')) return null
   gh(
     ['api', '--method', 'PATCH', `repos/{owner}/{repo}/pulls/${pr.number}`, '--input', '-'],

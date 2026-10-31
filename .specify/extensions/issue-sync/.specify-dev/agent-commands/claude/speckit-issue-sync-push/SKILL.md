@@ -34,7 +34,10 @@ $ARGUMENTS
 
    Each artifact of the cache becomes one comment of the issue, updated in
    place; `tasks.md` goes to its section of the pull request description, the
-   rest of the description untouched. An unchanged artifact is left alone. When
+   rest of the description untouched. Tasks too long for a description move
+   their completed Convergence phases, oldest first and as few as needed, to
+   one comment of the pull request, which the description links to in their
+   place. An unchanged artifact is left alone. When
    something changed, the note is posted on the issue as a short comment of its
    own, followed by the list of artifacts.
 4. If the script fails, stop and report it: the step is not finished while

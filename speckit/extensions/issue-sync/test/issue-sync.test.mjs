@@ -7,10 +7,13 @@ import {
   isSafePath,
   issueFromBranch,
   parseComment,
+  planArchive,
   planPush,
   readTasks,
+  renderArchive,
   renderComment,
   renderContext,
+  restoreTasks,
   writeTasks,
 } from '../scripts/issue-sync.mjs'
 
@@ -189,4 +192,79 @@ test('an artifact over the GitHub comment limit is refused before anything is se
     () => planPush(files, []),
     (error) => error instanceof Failure && /spec\.md.*split it/.test(error.message),
   )
+})
+
+/** @param {number} number @param {boolean} done @param {number} [size] */
+function phase(number, done, size = 1000) {
+  const title = number < 10 ? `User Story ${number}` : 'Convergence'
+  return `## Phase ${number}: ${title}\n\n- [${done ? 'X' : ' '}] T${number}00 ${'w'.repeat(size)}\n\n`
+}
+
+const longTasks = `# Tasks\n\n${phase(1, true)}${phase(10, true)}${phase(11, true)}${phase(12, true)}${phase(13, false)}`
+
+test('tasks that fit in the description are not archived', () => {
+  assert.equal(planArchive('Closes #189', longTasks), null)
+})
+
+test('tasks over the limit archive the completed Convergence phases, oldest first, as few as fit', () => {
+  const limit = writeTasks('Closes #189', longTasks).length - 1000
+  const plan = planArchive('Closes #189', longTasks, limit)
+  assert.ok(plan)
+  assert.deepEqual(plan.phases, [10, 11])
+  assert.equal(plan.archived, phase(10, true) + phase(11, true))
+  const kept = plan.keep(4242, 'https://github.com/o/r/pull/8#issuecomment-4242')
+  assert.ok(writeTasks('Closes #189', kept, limit).length <= limit)
+  assert.match(kept, /^## Phase 1: User Story 1$/m, 'a story phase stays')
+  assert.match(
+    kept,
+    /Phases 10 to 11, done, are archived in \[a comment of this pull request\]\(https:\/\/github\.com\/o\/r\/pull\/8#issuecomment-4242\)/,
+  )
+  assert.match(kept, /^## Phase 12: Convergence$/m)
+  assert.match(kept, /^## Phase 13: Convergence$/m)
+})
+
+test('an archived phase is named alone when one is enough', () => {
+  const limit = writeTasks('', longTasks).length - 10
+  const plan = planArchive('', longTasks, limit)
+  assert.deepEqual(plan?.phases, [10])
+  assert.match(plan?.keep(1, 'u') ?? '', /Phase 10, done, is archived in/)
+})
+
+test('a phase with an unchecked task, and the phases after it, are never archived', () => {
+  const tasks = `${phase(10, true)}${phase(11, false)}${phase(12, true)}`
+  const limit = writeTasks('', tasks).length - 1000
+  assert.throws(
+    () => planArchive('', tasks, limit),
+    (error) => error instanceof Failure && /even with Phase 10 archived.*split the tasks/.test(error.message),
+  )
+})
+
+test('tasks without a completed Convergence phase over the limit are refused', () => {
+  assert.throws(() => planArchive('', `${phase(1, true)}${phase(10, false)}`, 50), /split the tasks/)
+})
+
+test('the archived phases restore the tasks exactly, through the comment the pointer names', () => {
+  const limit = writeTasks('', longTasks).length - 300
+  const plan = planArchive('', longTasks, limit)
+  assert.ok(plan)
+  const kept = plan.keep(77, 'https://github.com/o/r/pull/8#issuecomment-77')
+  const archive = renderArchive(plan.archived)
+  assert.equal(
+    restoreTasks(kept, () => archive),
+    longTasks,
+  )
+  assert.equal(
+    restoreTasks(kept, () => archive.replace(/\n/g, '\r\n')),
+    longTasks,
+  )
+  assert.equal(
+    restoreTasks(longTasks, () => assert.fail('no archive to read')),
+    longTasks,
+  )
+})
+
+test('a pointer to a comment that is no archive of tasks is refused', () => {
+  const plan = planArchive('', longTasks, writeTasks('', longTasks).length - 300)
+  const kept = plan?.keep(77, 'u') ?? ''
+  assert.throws(() => restoreTasks(kept, () => 'Anyone may comment.'), /comment 77 holds no archived tasks/)
 })

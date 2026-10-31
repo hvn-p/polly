@@ -14,6 +14,7 @@ import { delimiter, join } from 'node:path'
  *   issue: { title: string, body: string | null, url: string, state: string },
  *   comments: RemoteComment[],
  *   pullRequests: { number: number, body: string | null }[],
+ *   pullComments?: RemoteComment[],
  *   fail?: string,
  *   writes: { method: string, path: string, body: string }[],
  * }} State
@@ -37,8 +38,23 @@ if (args[0] === 'issue' && args[1] === 'view') {
   const path = args.find((arg) => arg.startsWith('repos/'))
   const { body } = JSON.parse(readFileSync(0, 'utf8'))
   state.writes.push({ method, path, body })
+  // A comment written answers itself, as GitHub does; a new one joins the
+  // pull request's comments.
+  const id = path.includes('/issues/comments/') ? Number(path.split('/').pop()) : 9000 + state.writes.length
+  const written = { id, body, html_url: 'https://github.com/o/r/pull/8#issuecomment-' + id }
+  if (method === 'POST' && path.endsWith('/comments')) {
+    state.pullComments = [...(state.pullComments ?? []), { ...written, user: null, created_at: 't' }]
+  }
   writeFileSync(file, JSON.stringify(state))
-  console.log('{}')
+  console.log(JSON.stringify(written))
+} else if (args[0] === 'api' && args[1].includes('/issues/comments/')) {
+  const id = Number(args[1].split('/').pop())
+  const found = [...state.comments, ...(state.pullComments ?? [])].find((comment) => comment.id === id)
+  if (!found) {
+    process.stderr.write('HTTP 404: Not Found')
+    process.exit(1)
+  }
+  console.log(JSON.stringify({ ...found, html_url: 'https://github.com/o/r/pull/8#issuecomment-' + id }))
 } else if (args[0] === 'api') {
   console.log(JSON.stringify([state.comments]))
 } else {

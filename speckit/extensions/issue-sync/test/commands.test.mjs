@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, test } from 'vitest'
-import { Failure, main, renderComment, writeTasks } from '../scripts/issue-sync.mjs'
+import { Failure, main, renderArchive, renderComment, writeTasks } from '../scripts/issue-sync.mjs'
 import { fakeTools } from './fake-tools.mjs'
 
 const issue = {
@@ -154,6 +154,95 @@ test('a push that changes nothing writes nothing, not even its note', () => {
 
   assert.deepEqual(main(['push', '--note', 'Nothing.']), { issue: 189, dir, created: [], changed: [] })
   assert.deepEqual(tools.state().writes, [])
+})
+
+/** @param {number} number @param {boolean} done */
+function bigPhase(number, done) {
+  return `## Phase ${number}: Convergence\n\n- [${done ? 'X' : ' '}] T${number}00 ${'w'.repeat(25000)}\n\n`
+}
+
+const bigTasks = `# Tasks\n\n${bigPhase(10, true)}${bigPhase(11, true)}${bigPhase(12, true)}${bigPhase(13, false)}`
+
+test('a push of tasks over the limit archives completed phases in a comment of the pull request, which a pull restores', () => {
+  tools = fakeTools({
+    branch: '189-freeze',
+    issue,
+    comments: [],
+    pullRequests: [{ number: 8, body: 'Closes #189' }],
+  })
+  const dir = '.specify/tmp/issue-189'
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'tasks.md'), bigTasks)
+
+  const pushed = main(['push'])
+  assert.ok('changed' in pushed)
+  assert.deepEqual(pushed.changed, ['tasks.md (PR #8)'])
+
+  const [archive, description] = tools.state().writes
+  assert.deepEqual(archive, {
+    method: 'POST',
+    path: 'repos/{owner}/{repo}/issues/8/comments',
+    body: renderArchive(bigPhase(10, true) + bigPhase(11, true)),
+  })
+  assert.equal(description?.path, 'repos/{owner}/{repo}/pulls/8')
+  assert.ok((description?.body.length ?? 0) <= 65536)
+  assert.match(
+    description?.body ?? '',
+    /Phases 10 to 11, done, are archived in \[a comment of this pull request\]\(https:\/\/github\.com\/o\/r\/pull\/8#issuecomment-9001\)/,
+  )
+
+  const state = tools.state()
+  tools.restore()
+  tools = fakeTools({ ...state, pullRequests: [{ number: 8, body: description?.body ?? '' }] })
+  writeFileSync(join(dir, 'tasks.md'), 'stale')
+  main(['pull'])
+  assert.equal(readFileSync(join(dir, 'tasks.md'), 'utf8'), bigTasks)
+})
+
+test('a push updates the archive the description points to, and leaves it alone when unchanged', () => {
+  const archived = renderArchive(bigPhase(10, true))
+  const pointer =
+    '<!-- speckit-tasks-archive: 55 -->\nPhase 10, done, is archived in [a comment of this pull request](https://github.com/o/r/pull/8#issuecomment-55).\n<!-- speckit-tasks-archive:end -->\n'
+  const kept = `# Tasks\n\n${pointer}${bigPhase(11, true)}${bigPhase(12, false)}`
+  tools = fakeTools({
+    branch: '189-freeze',
+    issue,
+    comments: [],
+    pullComments: [{ id: 55, body: archived, user: null, created_at: 't' }],
+    pullRequests: [{ number: 8, body: writeTasks('', kept) }],
+  })
+  const dir = '.specify/tmp/issue-189'
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    join(dir, 'tasks.md'),
+    `# Tasks\n\n${bigPhase(10, true)}${bigPhase(11, true)}${bigPhase(12, false)}`,
+  )
+  const unchanged = main(['push'])
+  assert.ok('changed' in unchanged)
+  assert.deepEqual(unchanged.changed, [])
+  assert.deepEqual(tools.state().writes, [])
+
+  const grown = `# Tasks\n\n${bigPhase(10, true)}${bigPhase(11, true)}${bigPhase(12, true)}${bigPhase(13, false)}`
+  writeFileSync(join(dir, 'tasks.md'), grown)
+  main(['push'])
+  const [archive, description] = tools.state().writes
+  assert.deepEqual(archive, {
+    method: 'PATCH',
+    path: 'repos/{owner}/{repo}/issues/comments/55',
+    body: renderArchive(bigPhase(10, true) + bigPhase(11, true)),
+  })
+  assert.match(description?.body ?? '', /Phases 10 to 11, done, are archived/)
+})
+
+test('a pull whose archive comment is gone is refused, naming it', () => {
+  const pointer = '<!-- speckit-tasks-archive: 55 -->\nx\n<!-- speckit-tasks-archive:end -->\n'
+  tools = fakeTools({
+    branch: '189-freeze',
+    issue,
+    comments: [],
+    pullRequests: [{ number: 8, body: writeTasks('', pointer) }],
+  })
+  assert.throws(() => main(['pull']), /issues\/comments\/55 failed: HTTP 404/)
 })
 
 test('a push into a given directory under a prefix names its comments with the prefix and sends no tasks', () => {
