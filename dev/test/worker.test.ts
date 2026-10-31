@@ -142,6 +142,30 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     expect(compute.users.has('fp-main')).toBe(false)
   })
 
+  it('a dev:worker real whose supervisor fails to start after switching compute services leaves the new one for dev:down to release', async () => {
+    const compute = fakeCompute()
+    const a = await worktree('feature/switch-leak', compute)
+    await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined, warn: () => undefined })
+    compute.fingerprints.set(a.root, 'fp-new')
+    const failing: Infrastructure = {
+      ...a.infra,
+      supervisor: {
+        ...a.infra.supervisor,
+        start: async () => {
+          throw new Error('the supervisor did not start')
+        },
+      },
+    }
+    await expect(
+      worker({ root: a.root, infra: failing, mode: 'real', out: () => undefined, warn: () => undefined }),
+    ).rejects.toThrow('the supervisor did not start')
+    expect(compute.users.get('fp-new')).toEqual(new Set([a.identity]))
+    expect(compute.users.has('fp-main')).toBe(false)
+
+    await down({ root: a.root, infra: a.infra, out: () => undefined })
+    expect(compute.users.has('fp-new')).toBe(false)
+  })
+
   it('C31: dev:up of a worktree left in real mode starts its service, and says when it is its own', async () => {
     const compute = fakeCompute()
     const a = await worktree('feature/up-a', compute)

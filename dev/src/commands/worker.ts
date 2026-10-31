@@ -102,16 +102,14 @@ export async function worker({
     if (state.compute !== undefined && state.compute !== used?.fingerprint) {
       await infra.compute.release(state.compute, identity)
     }
+    // Recorded before the supervisor starts: if it fails, dev:down still
+    // releases the service this worktree now uses, and only that one.
+    const { compute: _, ...rest } = readState(worktree)
+    writeState(worktree, { ...rest, ...(used === undefined ? {} : { compute: used.fingerprint }) })
     await infra.supervisor.stop(state.supervisor)
     const processes = infra.application.processes(updated)
     const supervisor: SupervisorState = await infra.supervisor.start({ root, processes, env: updated })
-    const { compute: _, ...rest } = readState(worktree)
-    writeState(worktree, {
-      ...rest,
-      supervisor,
-      processes: digestOf(processes),
-      ...(used === undefined ? {} : { compute: used.fingerprint }),
-    })
+    writeState(worktree, { ...readState(worktree), supervisor, processes: digestOf(processes) })
     out(`worker: ${mode}`)
   } finally {
     await held.release()
