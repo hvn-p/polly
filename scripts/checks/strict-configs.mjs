@@ -4,13 +4,14 @@
 // without turning a strictness option off, the base keeps all of them, Biome
 // keeps its recommended rules and fails on a warning, and every
 // pyproject.toml keeps ruff on all rules and mypy strict. Every source file of
-// the project's own code is type-checked by a tsconfig and measured by the
-// coverage gate, unless this guard records why not (principles XI and XII).
+// the project's own code is type-checked by a tsconfig that `pnpm run
+// typecheck` runs and measured by the coverage gate, unless this guard records
+// why not (principles XI and XII).
 //
 // Usage: node scripts/checks/strict-configs.mjs [root]
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, globSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, matchesGlob, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { report } from './report.mjs'
@@ -109,15 +110,24 @@ const COVERAGE_EXCLUDES = {
 const SOURCE_EXTENSIONS = /\.(ts|tsx|mts|cts|js|mjs|cjs)$/
 const JAVASCRIPT = /\.(js|mjs|cjs)$/
 
-const SKIPPED_DIRECTORIES = new Set([
-  'node_modules',
-  '.git',
-  'vendors',
-  '.venv',
-  'dist',
-  '.specify',
-  'target',
-])
+// Directories the walk skips, wherever they are, and why. Any other directory,
+// a dot-directory included, is walked.
+/** @type {Record<string, string>} */
+const SKIPPED_DIRECTORIES = {
+  node_modules: 'installed dependencies',
+  vendors: "the platform's repository, checked in its own",
+  dist: 'build output',
+  target: "the analyzer's Rust build output",
+  '.git': "git's own data",
+  '.venv': "the compute service's Python environment, installed by uv",
+  '.mypy_cache': "mypy's cache",
+  '.pytest_cache': "pytest's cache",
+  '.ruff_cache': "ruff's cache",
+  '.claude': "Claude Code's configuration: installed skills and the baudrier plugin's hook",
+  '.specify': "Spec Kit's installed scripts and extensions, and the feature's artifact cache",
+  '.github': 'the CI workflows, which hold no source file',
+  '.dev': "a worktree's runtime state and logs, written by dev:up",
+}
 
 /**
  * @param {string} root
@@ -129,7 +139,7 @@ const SKIPPED_DIRECTORIES = new Set([
 function findFiles(root, name, directory = root, found = []) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (!SKIPPED_DIRECTORIES.has(entry.name) && !entry.name.startsWith('.')) {
+      if (!Object.hasOwn(SKIPPED_DIRECTORIES, entry.name)) {
         findFiles(root, name, join(directory, entry.name), found)
       }
     } else if (entry.name === name) {
@@ -339,7 +349,7 @@ function checkCargo(root, violations) {
 function findSources(root, directory = root, found = []) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (!SKIPPED_DIRECTORIES.has(entry.name) && !entry.name.startsWith('.')) {
+      if (!Object.hasOwn(SKIPPED_DIRECTORIES, entry.name)) {
         findSources(root, join(directory, entry.name), found)
       }
     } else if (SOURCE_EXTENSIONS.test(entry.name)) {
@@ -373,8 +383,57 @@ function covers(file, entry, directory) {
 }
 
 /**
- * The files each tsconfig type-checks, read from its include, files and exclude, as tsc
- * reads them; JavaScript only under checkJs.
+ * The workspace packages pnpm-workspace.yaml lists, as directories holding a package.json.
+ * @param {string} root
+ * @returns {string[]}
+ */
+function workspacePackages(root) {
+  const path = join(root, 'pnpm-workspace.yaml')
+  if (!existsSync(path)) {
+    return []
+  }
+  const section = /^packages:\n((?:[ \t]+-.*\n?)*)/m.exec(readFileSync(path, 'utf8'))?.[1] ?? ''
+  const patterns = [...section.matchAll(/^[ \t]+-[ \t]*['"]?([^'"\n]+?)['"]?[ \t]*$/gm)].map(
+    (match) => match[1] ?? '',
+  )
+  return patterns
+    .flatMap((pattern) => globSync(pattern, { cwd: root }))
+    .map((directory) => join(root, directory))
+    .filter((directory) => existsSync(join(directory, 'package.json')))
+}
+
+/**
+ * The tsconfigs a typecheck script runs from its directory: `tsc -p <project>`, or
+ * `tsc` alone for the directory's own; at the root, `pnpm -r run typecheck` adds
+ * those each workspace package's typecheck script runs.
+ * @param {string} root
+ * @param {string} directory
+ * @returns {string[]} absolute paths
+ */
+function tsconfigsRun(root, directory) {
+  const script = readJson(join(directory, 'package.json')).scripts?.typecheck ?? ''
+  /** @type {string[]} */
+  const found = []
+  for (const command of String(script)
+    .split('&&')
+    .map((part) => part.trim())) {
+    const tsc = /^tsc\b(.*)$/.exec(command)
+    if (tsc !== null) {
+      const project = /(?:^|\s)(?:-p|--project)\s+(\S+)/.exec(tsc[1] ?? '')?.[1] ?? '.'
+      const path = resolve(directory, project)
+      found.push(path.endsWith('.json') ? path : join(path, 'tsconfig.json'))
+    } else if (directory === root && /^pnpm\b.*\s(?:-r|--recursive)\b.*\brun typecheck\b/.test(command)) {
+      for (const pkg of workspacePackages(root)) {
+        found.push(...tsconfigsRun(root, pkg))
+      }
+    }
+  }
+  return found
+}
+
+/**
+ * The files each tsconfig `pnpm run typecheck` runs type-checks, read from its include,
+ * files and exclude, as tsc reads them; JavaScript only under checkJs.
  * @param {string} root
  * @param {string[]} sources relative to root
  * @returns {Set<string>}
@@ -382,7 +441,8 @@ function covers(file, entry, directory) {
 function typeCheckedFiles(root, sources) {
   /** @type {Set<string>} */
   const checked = new Set()
-  for (const path of findFiles(root, 'tsconfig.json')) {
+  const run = existsSync(join(root, 'package.json')) ? tsconfigsRun(root, root) : []
+  for (const path of new Set(run.filter((config) => existsSync(config)))) {
     const config = readJson(path)
     const directory = relative(root, dirname(path))
     const checkJs = config.compilerOptions?.checkJs === true

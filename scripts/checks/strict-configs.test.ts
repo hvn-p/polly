@@ -211,12 +211,16 @@ describe('strict-configs guard', () => {
       extends: '../tsconfig.base.json',
       include: ['src', '../vitest.config.ts'],
     })
+    // A manifest whose typecheck script runs the given tsconfigs.
+    const runs = (typecheck: string) =>
+      JSON.stringify({ scripts: { lint: 'biome check --error-on-warnings .', typecheck } })
     const vitestConfig = (include: string[], exclude: string[] = []) =>
       `export default { test: { coverage: { include: ${JSON.stringify(include)}, exclude: ${JSON.stringify(exclude)} } } }\n`
 
     it('accepts a file a tsconfig type-checks and the coverage gate measures', () => {
       const root = fixture({
         'tsconfig.base.json': base,
+        'package.json': runs('tsc -p pkg'),
         'pkg/tsconfig.json': typed,
         'pkg/src/a.ts': 'export const a = 1\n',
         'pkg/src/a.test.ts': 'export {}\n',
@@ -228,6 +232,7 @@ describe('strict-configs guard', () => {
     it('refuses a source file no tsconfig includes', () => {
       const root = fixture({
         'tsconfig.base.json': base,
+        'package.json': runs('tsc -p pkg'),
         'pkg/tsconfig.json': typed,
         'pkg/src/a.ts': 'export const a = 1\n',
         'pkg/tool/b.mjs': 'export const b = 1\n',
@@ -241,6 +246,7 @@ describe('strict-configs guard', () => {
     it('refuses a JavaScript file a tsconfig lists without checkJs', () => {
       const root = fixture({
         'tsconfig.base.json': base,
+        'package.json': runs('tsc -p pkg'),
         'pkg/tsconfig.json': JSON.stringify({
           extends: '../tsconfig.base.json',
           compilerOptions: { allowJs: true },
@@ -257,6 +263,7 @@ describe('strict-configs guard', () => {
     it('refuses a source file the coverage gate leaves out without a recorded exclusion', () => {
       const root = fixture({
         'tsconfig.base.json': base,
+        'package.json': runs('tsc -p pkg'),
         'pkg/tsconfig.json': JSON.stringify({
           extends: '../tsconfig.base.json',
           include: ['src', 'tool', '../vitest.config.ts'],
@@ -276,6 +283,7 @@ describe('strict-configs guard', () => {
     it('leaves out what the guard records: generated output, tests and their configuration', () => {
       const root = fixture({
         'tsconfig.base.json': base,
+        'package.json': runs('tsc -p plugin'),
         'plugin/tsconfig.json': JSON.stringify({
           extends: '../tsconfig.base.json',
           include: ['src', 'test', '../vitest.config.ts'],
@@ -287,6 +295,57 @@ describe('strict-configs guard', () => {
         'vitest.config.ts': vitestConfig(['plugin/src/**/*.ts'], ['**/test/**']),
       })
       expect(checkStrictConfigs(root)).toEqual([])
+    })
+
+    it('refuses a source file only a tsconfig the typecheck script does not run includes', () => {
+      const root = fixture({
+        'tsconfig.base.json': base,
+        'package.json': runs('tsc -p pkg'),
+        'pkg/tsconfig.json': typed,
+        'pkg/src/a.ts': 'export const a = 1\n',
+        'other/tsconfig.json': JSON.stringify({ extends: '../tsconfig.base.json', include: ['src'] }),
+        'other/src/b.ts': 'export const b = 1\n',
+        'vitest.config.ts': vitestConfig(['pkg/src/**/*.ts', 'other/src/**/*.ts']),
+      })
+      expect(checkStrictConfigs(root)).toEqual([
+        'other/src/b.ts: no tsconfig type-checks it; include it in one (with checkJs for JavaScript)',
+      ])
+    })
+
+    it("counts the tsconfigs each workspace package's typecheck script runs, through pnpm -r", () => {
+      const root = fixture({
+        'tsconfig.base.json': base,
+        'package.json': runs('tsc -p pkg && pnpm -r --no-bail run typecheck'),
+        'pnpm-workspace.yaml': 'packages:\n  - libs/*\nallowBuilds:\n  esbuild: false\n',
+        'pkg/tsconfig.json': typed,
+        'pkg/src/a.ts': 'export const a = 1\n',
+        'libs/x/package.json': JSON.stringify({ scripts: { typecheck: 'tsc -p .' } }),
+        'libs/x/tsconfig.json': JSON.stringify({ extends: '../../tsconfig.base.json', include: ['src'] }),
+        'libs/x/src/b.ts': 'export const b = 1\n',
+        'libs/y/package.json': JSON.stringify({ scripts: {} }),
+        'libs/y/tsconfig.json': JSON.stringify({ extends: '../../tsconfig.base.json', include: ['src'] }),
+        'libs/y/src/c.ts': 'export const c = 1\n',
+        'vitest.config.ts': vitestConfig(['pkg/src/**/*.ts', 'libs/*/src/**/*.ts']),
+      })
+      expect(checkStrictConfigs(root)).toEqual([
+        'libs/y/src/c.ts: no tsconfig type-checks it; include it in one (with checkJs for JavaScript)',
+      ])
+    })
+
+    it('walks a dot-directory it does not record, and skips the ones it records', () => {
+      const root = fixture({
+        'tsconfig.base.json': base,
+        'package.json': runs('tsc -p pkg'),
+        'pkg/tsconfig.json': typed,
+        'pkg/src/a.ts': 'export const a = 1\n',
+        '.claude/hooks/reminder.mjs': 'export const hook = 1\n',
+        '.specify/scripts/sync.mjs': 'export const sync = 1\n',
+        '.tools/b.ts': 'export const b = 1\n',
+        'vitest.config.ts': vitestConfig(['pkg/src/**/*.ts', '.tools/**/*.ts']),
+      })
+      expect(checkStrictConfigs(root)).toEqual([
+        '.tools/b.ts: no tsconfig type-checks it; include it in one (with checkJs for JavaScript)',
+      ])
     })
   })
 })
