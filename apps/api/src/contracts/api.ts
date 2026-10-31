@@ -5,7 +5,7 @@
 
 import { z } from 'zod'
 import { agentEvent, eventCode } from './agent-events.ts'
-import { type RefusalCode, refusal } from './refusals.ts'
+import { REFUSAL_STATUS, type RefusalCode, refusal, UNROUTED_STATUS } from './refusals.ts'
 
 export const learner = z.object({ learnerId: z.string().min(1).max(64), name: z.string().min(1).max(256) })
 
@@ -44,6 +44,7 @@ export const operations = {
     method: 'POST',
     path: '/api/sign-in',
     access: 'public',
+    status: 200,
     body: signInRequest,
     response: signedIn,
     refusals: ['INVALID_EMAIL_OR_PASSWORD'],
@@ -52,6 +53,7 @@ export const operations = {
     method: 'POST',
     path: '/api/consent',
     access: 'learner',
+    status: 200,
     body: consentRequest,
     response: consented,
     refusals: ['UNAUTHORIZED', 'INVALID_OAUTH_REQUEST'],
@@ -60,6 +62,7 @@ export const operations = {
     method: 'GET',
     path: '/api/me',
     access: 'learner',
+    status: 200,
     response: learner,
     refusals: ['UNAUTHORIZED'],
   },
@@ -67,6 +70,7 @@ export const operations = {
     method: 'POST',
     path: '/api/event-codes',
     access: 'learner',
+    status: 200,
     body: eventCodeBinding,
     response: bound,
     refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_ALREADY_BOUND', 'EVENT_CODE_REVOKED'],
@@ -75,10 +79,20 @@ export const operations = {
     method: 'GET',
     path: '/api/agent-events',
     access: 'event-code',
+    status: 200,
     events: agentEvent,
-    refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED', 'EVENT_CODE_NOT_BOUND'],
+    // The event that ends the stream with a refusal, its data a Refusal.
+    error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND'] },
+    refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED'],
   },
 } as const satisfies Record<
   string,
-  { readonly refusals: readonly RefusalCode[]; readonly [key: string]: unknown }
+  {
+    readonly status: number
+    readonly refusals: readonly RefusalCode[]
+    readonly error?: { readonly event: string; readonly refusals: readonly RefusalCode[] }
+    readonly [key: string]: unknown
+  }
 >
+
+export const statuses = { refusals: REFUSAL_STATUS, unrouted: UNROUTED_STATUS }

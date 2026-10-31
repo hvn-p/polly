@@ -13,13 +13,30 @@ const refusal = z.object({
   code: z.enum(['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED', 'EVENT_CODE_NOT_BOUND']),
   reason: z.string().max(512).optional(),
 })
+const statuses = async () => ({
+  refusals: {
+    UNAUTHORIZED: 401,
+    INVALID_EVENT_CODE: 400,
+    EVENT_CODE_REVOKED: 403,
+    EVENT_CODE_NOT_BOUND: 409,
+  },
+  unrouted: 404,
+})
 const contract: Contract = {
   name: 'events',
   source: 'api/events.ts',
   load: async () => ({ Event: event, Refusal: refusal }),
   operations: async () => ({
-    getEvent: { method: 'GET', path: '/events', access: 'public', response: event, refusals: [] },
+    getEvent: {
+      method: 'GET',
+      path: '/events',
+      access: 'public',
+      status: 200,
+      response: event,
+      refusals: [],
+    },
   }),
+  statuses,
   openapi: 'web/openapi.json',
   client: 'plugin/generated.ts',
 }
@@ -76,7 +93,7 @@ describe('contract generation', () => {
     expect(client).toContain('export type AnalysisRequest = { recordingId: string }')
     expect(client).toContain('export type Detail = Record<string, unknown>')
     expect(client).toContain('analyze: { body: AnalysisRequest; response: Analysis }')
-    expect(client).toContain("analyze: { method: 'POST', path: '/analyses', refusals: [] }")
+    expect(client).toContain("analyze: { method: 'POST', path: '/analyses', status: 200, refusals: [] }")
     expect(client).not.toContain('Streams')
   })
 
@@ -97,6 +114,7 @@ const api: Contract = {
       method: 'GET',
       path: '/api/me',
       access: 'learner',
+      status: 200,
       response: learner,
       refusals: ['UNAUTHORIZED'],
     },
@@ -104,6 +122,7 @@ const api: Contract = {
       method: 'POST',
       path: '/api/event-codes',
       access: 'learner',
+      status: 201,
       body: code,
       response: z.object({ bound: z.literal(true) }),
       refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE'],
@@ -112,10 +131,13 @@ const api: Contract = {
       method: 'GET',
       path: '/api/agent-events',
       access: 'event-code',
+      status: 200,
       events: agentEvent,
+      error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND'] },
       refusals: ['EVENT_CODE_REVOKED'],
     },
   }),
+  statuses,
   openapi: 'contract/openapi.json',
   client: 'contract/src/generated.ts',
 }
@@ -130,10 +152,14 @@ describe('API contract generation', () => {
     expect(bind.requestBody.content['application/json'].schema.properties.code).toMatchObject({
       maxLength: 43,
     })
-    const refused = bind.responses.default.content['application/json'].schema
-    expect(refused.properties.code.enum).toEqual(['UNAUTHORIZED', 'INVALID_EVENT_CODE'])
+    expect(Object.keys(bind.responses)).toEqual(['201', '400', '401'])
+    const refused = bind.responses['401'].content['application/json'].schema
+    expect(refused.properties.code.enum).toEqual(['UNAUTHORIZED'])
     expect(refused.properties.reason).toMatchObject({ type: 'string', maxLength: 512 })
     expect(refused.required).toEqual(['code'])
+    expect(bind.responses['400'].content['application/json'].schema.properties.code.enum).toEqual([
+      'INVALID_EVENT_CODE',
+    ])
     expect(document.paths['/api/agent-events'].get.responses['200'].content).toHaveProperty(
       'text/event-stream',
     )
@@ -147,7 +173,7 @@ describe('API contract generation', () => {
     expect(client).toContain("export type AgentEvent = { type: 'test' }")
     expect(client).toContain('bindEventCode: { body: { code: string }; response: { bound: true } }')
     expect(client).toContain('getMe: { body: undefined; response: { learnerId: string } }')
-    expect(client).toContain("agentEvents: { path: '/api/agent-events'")
+    expect(client.replace(/\s+/g, ' ')).toContain("agentEvents: { path: '/api/agent-events'")
     expect(client.replace(/\s+/g, ' ')).toContain(
       "export const REFUSAL_CODES = [ 'EVENT_CODE_NOT_BOUND', 'EVENT_CODE_REVOKED', 'INVALID_EVENT_CODE', 'UNAUTHORIZED', ] as const",
     )
@@ -157,7 +183,14 @@ describe('API contract generation', () => {
     const stray: Contract = {
       ...api,
       operations: async () => ({
-        getMe: { method: 'GET', path: '/api/me', access: 'learner', response: learner, refusals: ['GONE'] },
+        getMe: {
+          method: 'GET',
+          path: '/api/me',
+          access: 'learner',
+          status: 200,
+          response: learner,
+          refusals: ['GONE'],
+        },
       }),
     }
     await expect(render(stray)).rejects.toThrow(
@@ -176,8 +209,78 @@ describe('API contract generation', () => {
 
   it("lists each stream's event types and refusals, for a client that checks them at runtime", async () => {
     const client = (await render(api)).get('contract/src/generated.ts') ?? ''
+    expect(client.replace(/\s+/g, ' ')).toContain(
+      "agentEvents: { path: '/api/agent-events', status: 200, refusals: ['EVENT_CODE_REVOKED'], events: ['test'], error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND'] }, }",
+    )
+  })
+
+  it("declares the event that ends a stream with a refusal, its data the contract's Refusal", async () => {
+    const document = JSON.parse((await render(api)).get('contract/openapi.json') ?? '')
+    const stream = document.paths['/api/agent-events'].get
+    expect(stream['x-error-event']).toEqual({ event: 'error', refusals: ['EVENT_CODE_NOT_BOUND'] })
+    expect(stream['x-refusals']).toEqual(['EVENT_CODE_REVOKED'])
+  })
+
+  it("writes each operation's success status, and each refusal code's status, into the document and the client", async () => {
+    const files = await render(api)
+    const document = JSON.parse(files.get('contract/openapi.json') ?? '')
+    expect(document['x-refusal-status']).toEqual({
+      UNAUTHORIZED: 401,
+      INVALID_EVENT_CODE: 400,
+      EVENT_CODE_REVOKED: 403,
+      EVENT_CODE_NOT_BOUND: 409,
+    })
+    expect(document['x-unrouted-status']).toBe(404)
+    expect(document.paths['/api/me'].get.responses['200'].description).toBe('done')
+    const client = (files.get('contract/src/generated.ts') ?? '').replace(/\s+/g, ' ')
+    expect(client).toContain("bindEventCode: { method: 'POST', path: '/api/event-codes', status: 201,")
     expect(client).toContain(
-      "agentEvents: { path: '/api/agent-events', refusals: ['EVENT_CODE_REVOKED'], events: ['test'] }",
+      'export const REFUSAL_STATUS = { UNAUTHORIZED: 401, INVALID_EVENT_CODE: 400, EVENT_CODE_REVOKED: 403, EVENT_CODE_NOT_BOUND: 409, } as const',
+    )
+    expect(client).toContain('export const UNROUTED_STATUS = 404')
+  })
+
+  it('refuses a refusal code without a status, or a status for a code the Refusal schema does not list', async () => {
+    const missing: Contract = {
+      ...api,
+      statuses: async () => ({ refusals: { UNAUTHORIZED: 401 }, unrouted: 404 }),
+    }
+    await expect(render(missing)).rejects.toThrow('api: INVALID_EVENT_CODE has no HTTP status')
+    const stray: Contract = {
+      ...api,
+      statuses: async () => ({
+        refusals: {
+          UNAUTHORIZED: 401,
+          INVALID_EVENT_CODE: 400,
+          EVENT_CODE_REVOKED: 403,
+          EVENT_CODE_NOT_BOUND: 409,
+          GONE: 410,
+        },
+        unrouted: 404,
+      }),
+    }
+    await expect(render(stray)).rejects.toThrow(
+      'api: GONE has an HTTP status, but the Refusal schema does not list it',
+    )
+  })
+
+  it("refuses a stream's error refusal that the Refusal schema does not list", async () => {
+    const stray: Contract = {
+      ...api,
+      operations: async () => ({
+        agentEvents: {
+          method: 'GET',
+          path: '/api/agent-events',
+          access: 'event-code',
+          status: 200,
+          events: agentEvent,
+          error: { event: 'error', refusals: ['GONE'] },
+          refusals: [],
+        },
+      }),
+    }
+    await expect(render(stray)).rejects.toThrow(
+      'api: agentEvents refuses with GONE, which the Refusal schema does not list',
     )
   })
 

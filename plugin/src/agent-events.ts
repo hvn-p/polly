@@ -13,8 +13,11 @@ import { STREAMS } from '@polly/contract'
 const RECONNECT_DELAY_MS = 2000
 const UNCONFIGURED_URL = 'https://unconfigured.invalid/api/agent-events'
 
-const EVENT_TYPES: ReadonlySet<unknown> = new Set(STREAMS.agentEvents.events)
-const REFUSALS: ReadonlySet<unknown> = new Set(STREAMS.agentEvents.refusals)
+const { agentEvents } = STREAMS
+const EVENT_TYPES: ReadonlySet<unknown> = new Set(agentEvents.events)
+const REFUSALS: ReadonlySet<unknown> = new Set(agentEvents.refusals)
+// The refusals that end an open stream, sent as its error event.
+const ENDINGS: ReadonlySet<unknown> = new Set(agentEvents.error.refusals)
 // Refusals a new code answers; any other ending is retried with the same code.
 const NEEDS_NEW_CODE = new Set(['EVENT_CODE_REVOKED', 'INVALID_EVENT_CODE'])
 
@@ -62,7 +65,7 @@ async function listen(url: string, code: string): Promise<string | undefined> {
       } catch {
         continue
       }
-      if (event === 'error' && typeof parsed.code === 'string' && REFUSALS.has(parsed.code)) {
+      if (event === agentEvents.error.event && typeof parsed.code === 'string' && ENDINGS.has(parsed.code)) {
         return parsed.code
       }
       if (typeof parsed.type === 'string' && EVENT_TYPES.has(parsed.type)) {

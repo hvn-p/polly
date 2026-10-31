@@ -83,7 +83,15 @@ describe('agent-event stream: events', () => {
     expect(stream.isEnded()).toBe(false)
     await clock.advance(1_000)
     await stream.ended
-    expect(stream.frames).toEqual([{ event: 'error', data: { code: 'EVENT_CODE_NOT_BOUND' } }])
+    expect(stream.frames).toEqual([
+      {
+        event: 'error',
+        data: {
+          code: 'EVENT_CODE_NOT_BOUND',
+          reason: 'no learner bound this code within 120 s: bind it with start_lesson',
+        },
+      },
+    ])
   })
 
   it('C47: a connection waiting with an unbound code gets the test event once start_lesson binds it', async () => {

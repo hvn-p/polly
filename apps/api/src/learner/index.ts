@@ -5,6 +5,7 @@
 import { describeLearner, type EventCodeStore, type LearnerDirectory, startLesson } from '@polly/back'
 import { Refusal } from '@polly/platform'
 import { eventCodeBinding, operations } from '../contracts/api.ts'
+import { answer } from '../refusals.ts'
 import type { RouteRegistry } from '../routes.ts'
 
 export function registerLearnerRoutes(
@@ -17,7 +18,7 @@ export function registerLearnerRoutes(
     method: getMe.method,
     path: getMe.path,
     access: getMe.access,
-    handle: async (_request, { learnerId }) => Response.json(await describeLearner({ directory }, learnerId)),
+    handle: async (_request, { learnerId }) => answer(getMe, await describeLearner({ directory }, learnerId)),
   })
   registry.add({
     method: bindEventCode.method,
@@ -31,7 +32,7 @@ export function registerLearnerRoutes(
           'the event code must be the 43 characters your event listener printed',
         )
       }
-      return Response.json(await startLesson({ codes }, learnerId, parsed.data.code))
+      return answer(bindEventCode, await startLesson({ codes }, learnerId, parsed.data.code))
     },
   })
 }

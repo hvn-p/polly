@@ -38,12 +38,18 @@ export interface Operations {
 }
 
 export const OPERATIONS = {
-  signIn: { method: 'POST', path: '/api/sign-in', refusals: ['INVALID_EMAIL_OR_PASSWORD'] },
-  consent: { method: 'POST', path: '/api/consent', refusals: ['UNAUTHORIZED', 'INVALID_OAUTH_REQUEST'] },
-  getMe: { method: 'GET', path: '/api/me', refusals: ['UNAUTHORIZED'] },
+  signIn: { method: 'POST', path: '/api/sign-in', status: 200, refusals: ['INVALID_EMAIL_OR_PASSWORD'] },
+  consent: {
+    method: 'POST',
+    path: '/api/consent',
+    status: 200,
+    refusals: ['UNAUTHORIZED', 'INVALID_OAUTH_REQUEST'],
+  },
+  getMe: { method: 'GET', path: '/api/me', status: 200, refusals: ['UNAUTHORIZED'] },
   bindEventCode: {
     method: 'POST',
     path: '/api/event-codes',
+    status: 200,
     refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_ALREADY_BOUND', 'EVENT_CODE_REVOKED'],
   },
 } as const
@@ -85,8 +91,10 @@ export interface Streams {
 export const STREAMS = {
   agentEvents: {
     path: '/api/agent-events',
-    refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED', 'EVENT_CODE_NOT_BOUND'],
+    status: 200,
+    refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED'],
     events: ['test'],
+    error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND'] },
   },
 } as const
 
@@ -101,6 +109,20 @@ export const REFUSAL_CODES = [
 ] as const
 
 export type RefusalCode = (typeof REFUSAL_CODES)[number]
+
+// The HTTP status each refusal code is answered with.
+export const REFUSAL_STATUS = {
+  UNAUTHORIZED: 401,
+  INVALID_EMAIL_OR_PASSWORD: 401,
+  INVALID_OAUTH_REQUEST: 400,
+  INVALID_EVENT_CODE: 400,
+  EVENT_CODE_REVOKED: 403,
+  EVENT_CODE_NOT_BOUND: 409,
+  EVENT_CODE_ALREADY_BOUND: 409,
+} as const
+
+// The status of a path no route serves: no refusal of the contract, no body.
+export const UNROUTED_STATUS = 404
 
 // The bounds of each schema's fields, which the API checks: a form checks them first.
 export const BOUNDS = {

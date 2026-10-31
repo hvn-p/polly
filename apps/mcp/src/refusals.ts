@@ -1,11 +1,12 @@
-// The MCP server's refusals, the one place each is built: an API refusal as a
-// tool error starting with its code, which the agent acts on; a request whose
-// token does not exchange as the 401 whose WWW-Authenticate header points the
-// client at the OAuth flow; any other path as not found, with no body.
+// The MCP server's refusals, the one place each is built, with the status the
+// API's contract gives it: an API refusal as a tool error starting with its
+// code, which the agent acts on; a request whose token does not exchange as
+// UNAUTHORIZED, whose WWW-Authenticate header points the client at the OAuth
+// flow; any other path as not found, with no body.
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
-import type { Outcome } from '@polly/contract'
-import type { Refusal } from '@polly/platform'
+import { type Outcome, REFUSAL_STATUS, UNROUTED_STATUS } from '@polly/contract'
+import { Refusal } from '@polly/platform'
 
 export function toolResult<T extends Record<string, unknown>>(outcome: Outcome<T>): CallToolResult {
   if (!outcome.ok) {
@@ -19,23 +20,24 @@ export function toolResult<T extends Record<string, unknown>>(outcome: Outcome<T
 }
 
 export function unauthorized(publicUrl: string): Response {
-  return Response.json(
-    { code: 'UNAUTHORIZED', reason: 'sign in to Polly through OAuth' },
-    {
-      status: 401,
-      headers: {
-        'www-authenticate': `Bearer resource_metadata="${publicUrl}/.well-known/oauth-protected-resource/mcp"`,
-      },
-    },
+  const response = refusedRequest(new Refusal('UNAUTHORIZED', 'sign in to Polly through OAuth'))
+  response.headers.set(
+    'www-authenticate',
+    `Bearer resource_metadata="${publicUrl}/.well-known/oauth-protected-resource/mcp"`,
   )
+  return response
 }
 
 // A refusal an access rule or a route throws: its code and reason.
 export function refusedRequest(refusal: Refusal): Response {
-  return Response.json({ code: refusal.code, reason: refusal.message }, { status: 409 })
+  if (!Object.hasOwn(REFUSAL_STATUS, refusal.code)) {
+    throw new Error(`${refusal.code} is no refusal of the contract`)
+  }
+  const status = REFUSAL_STATUS[refusal.code as keyof typeof REFUSAL_STATUS]
+  return Response.json({ code: refusal.code, reason: refusal.message }, { status })
 }
 
 // No refusal of the contract, so no code.
 export function notFound(): Response {
-  return new Response(null, { status: 404 })
+  return new Response(null, { status: UNROUTED_STATUS })
 }

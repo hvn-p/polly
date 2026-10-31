@@ -5,6 +5,7 @@
 
 import { Refusal } from '@polly/platform'
 import { consentRequest, operations, signInRequest } from '../contracts/api.ts'
+import { answer } from '../refusals.ts'
 import type { RouteRegistry } from '../routes.ts'
 
 // The identity's session port, built by the composition root.
@@ -37,11 +38,7 @@ export function registerSessionRoutes(registry: RouteRegistry, sessions: Browser
         { email, password, ...(oauthQuery === undefined ? {} : { oauthQuery }) },
         request.headers,
       )
-      const response = Response.json(next === undefined ? {} : { next })
-      for (const cookie of cookies) {
-        response.headers.append('set-cookie', cookie)
-      }
-      return response
+      return answer(signIn, next === undefined ? {} : { next }, cookies)
     },
   })
   registry.add({
@@ -56,7 +53,7 @@ export function registerSessionRoutes(registry: RouteRegistry, sessions: Browser
           'this authorization request is missing, altered or expired',
         )
       }
-      return Response.json(await sessions.consent(parsed.data, request.headers))
+      return answer(consent, await sessions.consent(parsed.data, request.headers))
     },
   })
 }

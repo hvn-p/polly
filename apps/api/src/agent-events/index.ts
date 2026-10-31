@@ -10,6 +10,7 @@ import type { Clock } from '@polly/platform'
 import { Refusal } from '@polly/platform'
 import { operations } from '../contracts/api.ts'
 import type { RefusalCode } from '../contracts/refusals.ts'
+import { eventFrame, keepaliveFrame, refusalFrame, streamResponse } from '../refusals.ts'
 import type { Guard, RouteRegistry } from '../routes.ts'
 
 const BINDING_CHECK_MS = 1_000
@@ -31,10 +32,6 @@ export function eventCodeGuard(codes: EventCodeStore): Guard<'event-code'> {
   }
 }
 
-function frame(event: string, data: unknown): string {
-  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
-}
-
 export function registerAgentEventRoute(registry: RouteRegistry, codes: EventCodeStore, clock: Clock): void {
   const { agentEvents } = operations
   registry.add({
@@ -50,27 +47,33 @@ export function registerAgentEventRoute(registry: RouteRegistry, codes: EventCod
           const startedAt = clock.now()
           while (open() && (await bindingOf({ codes }, codeHash)).state !== 'bound') {
             if (clock.now() - startedAt >= UNBOUND_LIMIT_MS) {
-              send(frame('error', { code: 'EVENT_CODE_NOT_BOUND' }))
+              send(
+                refusalFrame(
+                  agentEvents,
+                  refused(
+                    'EVENT_CODE_NOT_BOUND',
+                    'no learner bound this code within 120 s: bind it with start_lesson',
+                  ),
+                ),
+              )
               controller.close()
               return
             }
             await clock.sleep(BINDING_CHECK_MS)
           }
           if (open()) {
-            send(frame('test', { type: 'test' }))
+            send(eventFrame({ type: 'test' }))
           }
           while (open()) {
             await clock.sleep(KEEPALIVE_MS)
             if (open()) {
-              send(': keepalive\n\n')
+              send(keepaliveFrame())
             }
           }
           controller.close()
         },
       })
-      return new Response(stream, {
-        headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' },
-      })
+      return streamResponse(agentEvents, stream)
     },
   })
 }

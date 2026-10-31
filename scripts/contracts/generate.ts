@@ -11,15 +11,25 @@ import { pathToFileURL } from 'node:url'
 import { type ZodType, z } from 'zod'
 
 // One operation of the API: its route, its access rule, what it takes and gives
-// (a JSON response, or a stream of events) and the refusals it may answer.
+// (a JSON response, or a stream of events) with its success status, and the
+// refusals it may answer. A stream may end with a refusal, sent as its error
+// event, whose data is the contract's Refusal.
 export interface Operation {
   method: 'GET' | 'POST'
   path: string
   access: 'public' | 'learner' | 'event-code'
+  status: number
   body?: ZodType
   response?: ZodType
   events?: ZodType
+  error?: { event: string; refusals: readonly string[] }
   refusals: readonly string[]
+}
+
+// The HTTP status of each refusal code, and of a path no route serves.
+export interface Statuses {
+  refusals: Record<string, number>
+  unrouted: number
 }
 
 export interface Contract {
@@ -27,8 +37,10 @@ export interface Contract {
   // Path of the Zod source, from the repository root.
   source: string
   load: () => Promise<Record<string, ZodType>>
-  // An API contract: its operations, its OpenAPI document and its client types.
+  // An API contract: its operations, its statuses, its OpenAPI document and its
+  // client types.
   operations?: () => Promise<Record<string, Operation>>
+  statuses?: () => Promise<Statuses>
   // Or the text of an OpenAPI document another language writes.
   document?: () => Promise<string>
   openapi?: string
@@ -43,6 +55,10 @@ async function sourceModule(source: string): Promise<Record<string, unknown>> {
 
 export function operationsFromSource(source: string): NonNullable<Contract['operations']> {
   return async () => (await sourceModule(source))['operations'] as Record<string, Operation>
+}
+
+export function statusesFromSource(source: string): NonNullable<Contract['statuses']> {
+  return async () => (await sourceModule(source))['statuses'] as Statuses
 }
 
 export function fromSource(source: string): Contract['load'] {
@@ -60,6 +76,7 @@ export const CONTRACTS: Contract[] = [
     source: 'apps/api/src/contracts/api.ts',
     load: fromSource('apps/api/src/contracts/api.ts'),
     operations: operationsFromSource('apps/api/src/contracts/api.ts'),
+    statuses: statusesFromSource('apps/api/src/contracts/api.ts'),
     openapi: 'packages/contract/openapi.json',
     client: 'packages/contract/src/generated.ts',
   },
@@ -117,6 +134,7 @@ export function openApiDocument(
   name: string,
   schemas: Record<string, ZodType>,
   operations: Record<string, Operation>,
+  statuses: Statuses,
 ): Record<string, unknown> {
   const json = (schema: ZodType) => ({ 'application/json': { schema: jsonSchemaOf(schema) } })
   // Every refusal is the contract's Refusal, its code narrowed to the operation's.
@@ -125,14 +143,33 @@ export function openApiDocument(
     throw new Error(`${name}: an API contract defines its Refusal schema, an object whose code is an enum`)
   }
   const codes: readonly unknown[] = listed.shape['code'].options
+  for (const code of codes) {
+    if (!Object.hasOwn(statuses.refusals, String(code))) {
+      throw new Error(`${name}: ${String(code)} has no HTTP status`)
+    }
+  }
+  for (const code of Object.keys(statuses.refusals)) {
+    if (!codes.includes(code)) {
+      throw new Error(`${name}: ${code} has an HTTP status, but the Refusal schema does not list it`)
+    }
+  }
   const paths: Record<string, Record<string, unknown>> = {}
   for (const [id, operation] of Object.entries(operations)) {
-    for (const code of operation.refusals) {
+    for (const code of [...operation.refusals, ...(operation.error?.refusals ?? [])]) {
       if (!codes.includes(code)) {
         throw new Error(`${name}: ${id} refuses with ${code}, which the Refusal schema does not list`)
       }
     }
-    const refusal = listed.extend({ code: z.enum(operation.refusals as [string, ...string[]]) })
+    // One response per refusal status, its code narrowed to the operation's
+    // refusals answered with that status.
+    const refused: Record<string, unknown> = {}
+    for (const status of new Set(operation.refusals.map((code) => statuses.refusals[code]))) {
+      const answered = operation.refusals.filter((code) => statuses.refusals[code] === status)
+      refused[String(status)] = {
+        description: 'a refusal',
+        content: json(listed.extend({ code: z.enum(answered as [string, ...string[]]) })),
+      }
+    }
     const ok =
       operation.events === undefined
         ? {
@@ -149,16 +186,21 @@ export function openApiDocument(
         operationId: id,
         'x-access': operation.access,
         'x-refusals': [...operation.refusals],
+        ...(operation.error === undefined
+          ? {}
+          : { 'x-error-event': { event: operation.error.event, refusals: [...operation.error.refusals] } }),
         ...(operation.body === undefined
           ? {}
           : { requestBody: { required: true, content: json(operation.body) } }),
-        responses: { '200': ok, default: { description: 'a refusal', content: json(refusal) } },
+        responses: { [String(operation.status)]: ok, ...refused },
       },
     }
   }
   return {
     openapi: '3.1.0',
     info: { title: name, version: '0' },
+    'x-refusal-status': statuses.refusals,
+    'x-unrouted-status': statuses.unrouted,
     paths,
     components: {
       schemas: Object.fromEntries(
@@ -225,10 +267,15 @@ function eventTypes(schema: unknown): string[] {
   })
 }
 
+function quoted(values: readonly string[]): string {
+  return values.map((value) => `'${value}'`).join(', ')
+}
+
 // An operation of the OpenAPI document, as openApiDocument writes it.
 interface DocumentOperation {
   operationId: string
   'x-refusals'?: string[]
+  'x-error-event'?: { event: string; refusals: string[] }
   requestBody?: { content: Record<string, { schema: unknown }> }
   responses: Record<string, { content?: Record<string, { schema: unknown }> }>
 }
@@ -289,19 +336,25 @@ export function clientModule(source: string, document: Record<string, unknown>):
   )) {
     for (const [method, operation] of Object.entries(methods)) {
       const id = operation.operationId
-      const codes = operation['x-refusals'] ?? []
-      const content = operation.responses['200']?.content ?? {}
+      const codes = quoted(operation['x-refusals'] ?? [])
+      // The success: the one 2xx response.
+      const [status, success] = Object.entries(operation.responses).find(([key]) => key.startsWith('2')) ?? [
+        '200',
+        undefined,
+      ]
+      const content = success?.content ?? {}
       const answer = content['application/json']?.schema
-      const entry = `{ method: '${method.toUpperCase()}', path: '${path}', refusals: [${codes.map((c) => `'${c}'`).join(', ')}] }`
+      const entry = `{ method: '${method.toUpperCase()}', path: '${path}', status: ${status}, refusals: [${codes}] }`
       if ('text/event-stream' in content) {
         const event = content['text/event-stream']?.schema
+        const error = operation['x-error-event']
         streams.push(`  ${id}: { event: ${typeOf(event)} }`)
         streamTable.push(
-          `  ${id}: { path: '${path}', refusals: [${codes.map((c) => `'${c}'`).join(', ')}], events: [${eventTypes(
-            event,
-          )
-            .map((t) => `'${t}'`)
-            .join(', ')}] },`,
+          `  ${id}: { path: '${path}', status: ${status}, refusals: [${codes}], events: [${quoted(eventTypes(event))}]${
+            error === undefined
+              ? ''
+              : `, error: { event: '${error.event}', refusals: [${quoted(error.refusals)}] }`
+          } },`,
         )
         continue
       }
@@ -336,6 +389,19 @@ export function clientModule(source: string, document: Record<string, unknown>):
     '',
   )
   lines.push('export type RefusalCode = (typeof REFUSAL_CODES)[number]', '')
+  const refusalStatus = document['x-refusal-status'] as Record<string, number> | undefined
+  if (refusalStatus !== undefined) {
+    lines.push(
+      '// The HTTP status each refusal code is answered with.',
+      'export const REFUSAL_STATUS = {',
+      ...Object.entries(refusalStatus).map(([code, status]) => `  ${code}: ${status},`),
+      '} as const',
+      '',
+      '// The status of a path no route serves: no refusal of the contract, no body.',
+      `export const UNROUTED_STATUS = ${String(document['x-unrouted-status'])}`,
+      '',
+    )
+  }
   const bounds = boundsOf(components)
   if (bounds.length > 0) {
     lines.push(
@@ -353,7 +419,15 @@ export async function render(contract: Contract): Promise<Map<string, string>> {
   const schemas = await contract.load()
   const files = new Map<string, string>()
   if (contract.operations !== undefined) {
-    const api = openApiDocument(contract.name, schemas, await contract.operations())
+    if (contract.statuses === undefined) {
+      throw new Error(`${contract.name}: an API contract states its statuses`)
+    }
+    const api = openApiDocument(
+      contract.name,
+      schemas,
+      await contract.operations(),
+      await contract.statuses(),
+    )
     if (contract.openapi !== undefined) {
       files.set(contract.openapi, formatted(contract.openapi, JSON.stringify(api)))
     }

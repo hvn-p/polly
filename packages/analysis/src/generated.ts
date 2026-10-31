@@ -24,8 +24,8 @@ export interface Operations {
 }
 
 export const OPERATIONS = {
-  analyze: { method: 'POST', path: '/analyses', refusals: [] },
-  version: { method: 'GET', path: '/version', refusals: [] },
+  analyze: { method: 'POST', path: '/analyses', status: 200, refusals: [] },
+  version: { method: 'GET', path: '/version', status: 200, refusals: [] },
 } as const
 
 // The JSON Schema of each operation's response, which the client checks.

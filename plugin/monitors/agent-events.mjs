@@ -8,16 +8,20 @@ import { setTimeout as sleep } from "node:timers/promises";
 var STREAMS = {
   agentEvents: {
     path: "/api/agent-events",
-    refusals: ["UNAUTHORIZED", "INVALID_EVENT_CODE", "EVENT_CODE_REVOKED", "EVENT_CODE_NOT_BOUND"],
-    events: ["test"]
+    status: 200,
+    refusals: ["UNAUTHORIZED", "INVALID_EVENT_CODE", "EVENT_CODE_REVOKED"],
+    events: ["test"],
+    error: { event: "error", refusals: ["EVENT_CODE_NOT_BOUND"] }
   }
 };
 
 // plugin/src/agent-events.ts
 var RECONNECT_DELAY_MS = 2e3;
 var UNCONFIGURED_URL = "https://unconfigured.invalid/api/agent-events";
-var EVENT_TYPES = new Set(STREAMS.agentEvents.events);
-var REFUSALS = new Set(STREAMS.agentEvents.refusals);
+var { agentEvents } = STREAMS;
+var EVENT_TYPES = new Set(agentEvents.events);
+var REFUSALS = new Set(agentEvents.refusals);
+var ENDINGS = new Set(agentEvents.error.refusals);
 var NEEDS_NEW_CODE = /* @__PURE__ */ new Set(["EVENT_CODE_REVOKED", "INVALID_EVENT_CODE"]);
 function say(line) {
   process.stdout.write(`${line}
@@ -57,7 +61,7 @@ async function listen(url2, code2) {
       } catch {
         continue;
       }
-      if (event === "error" && typeof parsed.code === "string" && REFUSALS.has(parsed.code)) {
+      if (event === agentEvents.error.event && typeof parsed.code === "string" && ENDINGS.has(parsed.code)) {
         return parsed.code;
       }
       if (typeof parsed.type === "string" && EVENT_TYPES.has(parsed.type)) {

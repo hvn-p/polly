@@ -74,7 +74,10 @@ describe('agent-event monitor', () => {
   })
 
   it('C51: reconnects with the same code when closed with EVENT_CODE_NOT_BOUND', async () => {
-    const stub = await stubServer([endWith('event: error\ndata: {"code":"EVENT_CODE_NOT_BOUND"}\n\n'), hang])
+    const stub = await stubServer([
+      endWith('event: error\ndata: {"code":"EVENT_CODE_NOT_BOUND","reason":"bind it with start_lesson"}\n\n'),
+      hang,
+    ])
     const monitor = startMonitor({ POLLY_EVENTS_URL: stub.url })
     try {
       await until(() => stub.requests.length === 2, 8000)

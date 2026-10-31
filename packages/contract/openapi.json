@@ -1,6 +1,16 @@
 {
   "openapi": "3.1.0",
   "info": { "title": "api", "version": "0" },
+  "x-refusal-status": {
+    "UNAUTHORIZED": 401,
+    "INVALID_EMAIL_OR_PASSWORD": 401,
+    "INVALID_OAUTH_REQUEST": 400,
+    "INVALID_EVENT_CODE": 400,
+    "EVENT_CODE_REVOKED": 403,
+    "EVENT_CODE_NOT_BOUND": 409,
+    "EVENT_CODE_ALREADY_BOUND": 409
+  },
+  "x-unrouted-status": 404,
   "paths": {
     "/api/sign-in": {
       "post": {
@@ -37,7 +47,7 @@
               }
             }
           },
-          "default": {
+          "401": {
             "description": "a refusal",
             "content": {
               "application/json": {
@@ -91,14 +101,30 @@
               }
             }
           },
-          "default": {
+          "400": {
             "description": "a refusal",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": { "type": "string", "enum": ["UNAUTHORIZED", "INVALID_OAUTH_REQUEST"] },
+                    "code": { "type": "string", "enum": ["INVALID_OAUTH_REQUEST"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["UNAUTHORIZED"] },
                     "reason": { "type": "string", "maxLength": 512 }
                   },
                   "required": ["code"],
@@ -132,7 +158,7 @@
               }
             }
           },
-          "default": {
+          "401": {
             "description": "a refusal",
             "content": {
               "application/json": {
@@ -195,22 +221,62 @@
               }
             }
           },
-          "default": {
+          "400": {
             "description": "a refusal",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string",
-                      "enum": [
-                        "UNAUTHORIZED",
-                        "INVALID_EVENT_CODE",
-                        "EVENT_CODE_ALREADY_BOUND",
-                        "EVENT_CODE_REVOKED"
-                      ]
-                    },
+                    "code": { "type": "string", "enum": ["INVALID_EVENT_CODE"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["UNAUTHORIZED"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["EVENT_CODE_REVOKED"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["EVENT_CODE_ALREADY_BOUND"] },
                     "reason": { "type": "string", "maxLength": 512 }
                   },
                   "required": ["code"],
@@ -226,7 +292,8 @@
       "get": {
         "operationId": "agentEvents",
         "x-access": "event-code",
-        "x-refusals": ["UNAUTHORIZED", "INVALID_EVENT_CODE", "EVENT_CODE_REVOKED", "EVENT_CODE_NOT_BOUND"],
+        "x-refusals": ["UNAUTHORIZED", "INVALID_EVENT_CODE", "EVENT_CODE_REVOKED"],
+        "x-error-event": { "event": "error", "refusals": ["EVENT_CODE_NOT_BOUND"] },
         "responses": {
           "200": {
             "description": "a stream of events",
@@ -245,22 +312,46 @@
               }
             }
           },
-          "default": {
+          "400": {
             "description": "a refusal",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string",
-                      "enum": [
-                        "UNAUTHORIZED",
-                        "INVALID_EVENT_CODE",
-                        "EVENT_CODE_REVOKED",
-                        "EVENT_CODE_NOT_BOUND"
-                      ]
-                    },
+                    "code": { "type": "string", "enum": ["INVALID_EVENT_CODE"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["UNAUTHORIZED"] },
+                    "reason": { "type": "string", "maxLength": 512 }
+                  },
+                  "required": ["code"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "a refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string", "enum": ["EVENT_CODE_REVOKED"] },
                     "reason": { "type": "string", "maxLength": 512 }
                   },
                   "required": ["code"],
