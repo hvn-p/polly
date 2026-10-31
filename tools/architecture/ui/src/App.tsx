@@ -2,7 +2,7 @@
 // status, tabs, counts), the trail of views visited, the current view, and the
 // source panel.
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { Feed, FeedState } from './feed.ts'
 import { readSeen, writeSeen } from './feed.ts'
 import { type DiffLine, type FormatGap, formatDiff, formatGap } from './format.ts'
@@ -327,9 +327,12 @@ export function App({
           </span>
           <nav className="tabs" aria-label="Views">
             {TABS.map(([page, label]) => {
+              // No breach shows as a neutral zero, told apart from no report yet.
               const count =
-                page === 'breaches' && model !== undefined && model.report.violations.length > 0 ? (
-                  <span className="count breach">{model.report.violations.length}</span>
+                page === 'breaches' && model !== undefined ? (
+                  <span className={model.report.violations.length > 0 ? 'count breach' : 'count'}>
+                    {model.report.violations.length}
+                  </span>
                 ) : page === 'changes' && unseen > 0 ? (
                   <span className="count new">{unseen}</span>
                 ) : null
@@ -371,10 +374,11 @@ export function App({
                 {labelOfHash(h)}
               </span>
             ) : (
-              <span key={h}>
+              // The separator is an item of its own, so the trail's gap sets it apart.
+              <Fragment key={h}>
                 <a href={h}>{labelOfHash(h)}</a>
                 <span className="sep">›</span>
-              </span>
+              </Fragment>
             ),
           )}
         </nav>

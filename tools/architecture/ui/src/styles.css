@@ -1,5 +1,7 @@
 /* The view's styles, as validated in mockup/index.html, ordered by ascending specificity. */
 
+@import "./strips.css";
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -309,15 +311,14 @@ code {
 .grid {
   position: relative;
 }
+/* In the corner the matrix's headers leave, against the cells without covering them. */
 .mini {
   position: absolute;
-  right: 30px;
-  bottom: 22px;
-  z-index: 8;
+  right: 10px;
+  bottom: 10px;
   background: #121212e6;
   border: 1px solid var(--line);
   border-radius: 4px;
-  box-shadow: 0 8px 24px #0009;
   cursor: pointer;
 }
 .tgroup {
@@ -434,22 +435,11 @@ code {
   width: min(820px, 62vw);
   background: #0e0e0e;
   border-left: 1px solid var(--line);
-  box-shadow: -24px 0 48px #00000080;
   transform: translateX(100%);
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   display: grid;
   grid-template-rows: auto 1fr;
   z-index: 10;
-}
-.k {
-  color: #c6a6d8;
-}
-.s {
-  color: #b9c98f;
-}
-.c {
-  color: #6f6d68;
-  font-style: italic;
 }
 .close {
   border: 1px solid var(--line);
@@ -745,7 +735,6 @@ details.link summary::-webkit-details-marker {
 }
 .m .th-tier {
   vertical-align: top;
-  border-right: 5px solid;
   text-align: left;
 }
 .m .sl {
@@ -765,7 +754,6 @@ details.link summary::-webkit-details-marker {
   padding: 0 10px 0 8px;
 }
 .m .ch-tier {
-  border-bottom: 5px solid;
   text-align: left;
   vertical-align: bottom;
 }
@@ -817,19 +805,19 @@ details.link summary::-webkit-details-marker {
 }
 .m .th-tier {
   vertical-align: top;
-  border-right: 5px solid;
   width: 24px;
 }
+/* A name too long for its tier ends in an ellipsis, a gap before the next tier's. */
 .m .ch-tier {
-  border-bottom: 5px solid;
   text-align: left;
   vertical-align: bottom;
-  padding: 3px 5px;
+  padding: 3px 12px 3px 5px;
   font-weight: 600;
   font-size: 12px;
   color: var(--ink-2);
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
   max-width: 0;
 }
 .m .agg-label {
@@ -985,8 +973,10 @@ details.link summary::-webkit-details-marker {
 .allow .none {
   color: var(--mute);
 }
+/* Its shadow only while open: closed, it would darken the right edge of every view. */
 .src.open {
   transform: none;
+  box-shadow: -24px 0 48px #00000080;
 }
 .src .l {
   display: grid;
@@ -1024,6 +1014,17 @@ details.link summary::-webkit-details-marker {
 }
 .src .empty {
   padding: 16px;
+}
+/* The source's syntax tokens, scoped: other views use these class names too. */
+.src .k {
+  color: #c6a6d8;
+}
+.src .s {
+  color: #b9c98f;
+}
+.src .c {
+  color: #6f6d68;
+  font-style: italic;
 }
 .src .breach-count {
   color: var(--breach);
@@ -1237,9 +1238,6 @@ a.node:hover {
   color: var(--ink-2);
 }
 .tgroup > div:first-child {
-  display: none;
-}
-.tgroup > div:first-child {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1420,7 +1418,9 @@ details.link .imp {
   background: linear-gradient(90deg, transparent, var(--raise) 20%, var(--raise) 80%, transparent);
 }
 .src .l.imp-line {
-  background: linear-gradient(90deg, var(--tc) 0 3px, color-mix(in srgb, var(--tc) 12%, transparent) 3px);
+  background:
+    var(--bar, linear-gradient(var(--tc), var(--tc))) 0 0 / 3px 100% no-repeat,
+    color-mix(in srgb, var(--tc) 12%, transparent);
 }
 .src .l.breach-line {
   background: linear-gradient(90deg, var(--breach) 0 3px, #ff5a3622 3px);

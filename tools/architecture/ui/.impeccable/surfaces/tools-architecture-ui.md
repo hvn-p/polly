@@ -13,6 +13,8 @@ Audience and job: a developer watching an agent code in a worktree, reviewing a 
 
 Constraints: desktop only; English; every relationship shown is one the rules file enforces; tiers collapse because flows and domains keep growing.
 
+Approved comp: `tools/architecture/ui/mockup/index.html`, an HTML composition validated in a headed browser; its `README.md` lists what the build keeps.
+
 ## Direction contract
 
 THESIS: Tiers read as transit lines and modules as stations, so the matrix's axes are line strips in tier order; refuses the grey IDE dependency matrix with numbers in a tree.

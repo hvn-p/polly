@@ -3,7 +3,7 @@
 // The wheel scrolls, Ctrl or Cmd with the wheel (or a pinch) zooms around the
 // pointer, dragging pans, and an overview in the corner moves the view.
 
-import { type CSSProperties, Fragment, useEffect, useLayoutEffect, useRef } from 'react'
+import { type CSSProperties, Fragment, type ReactNode, useEffect, useLayoutEffect, useRef } from 'react'
 import {
   type AxisGroup,
   axis,
@@ -368,21 +368,6 @@ export function Matrix({ folds, onFolds, selection, onSelect, zoom, onZoom }: Ma
             </button>
           </span>
         </div>
-        <canvas
-          className="mini"
-          ref={overview}
-          title="Overview: click or drag to move"
-          onPointerDown={(event) => {
-            event.stopPropagation()
-            event.currentTarget.setPointerCapture?.(event.pointerId)
-            moveTo(event)
-          }}
-          onPointerMove={(event) => {
-            if (event.buttons === 1) {
-              moveTo(event)
-            }
-          }}
-        />
         <div
           className="scroller"
           ref={scroller}
@@ -419,6 +404,23 @@ export function Matrix({ folds, onFolds, selection, onSelect, zoom, onZoom }: Ma
                 foldGroup={foldGroup}
                 foldTier={foldTier}
                 onSelect={onSelect}
+                overview={
+                  <canvas
+                    className="mini"
+                    ref={overview}
+                    title="Overview: click or drag to move"
+                    onPointerDown={(event) => {
+                      event.stopPropagation()
+                      event.currentTarget.setPointerCapture?.(event.pointerId)
+                      moveTo(event)
+                    }}
+                    onPointerMove={(event) => {
+                      if (event.buttons === 1) {
+                        moveTo(event)
+                      }
+                    }}
+                  />
+                }
               />
               <tbody>
                 <Rows
@@ -464,6 +466,8 @@ interface HeadsProps {
   foldGroup: (group: string) => void
   foldTier: (tier: string) => void
   onSelect: (selection: Selection) => void
+  // Drawn in the corner the headers leave, so it never covers a cell.
+  overview: ReactNode
 }
 
 const corner = (
@@ -474,7 +478,7 @@ const corner = (
   </>
 )
 
-function Heads({ tree, items, folds, foldGroup, foldTier, onSelect }: HeadsProps) {
+function Heads({ tree, items, folds, foldGroup, foldTier, onSelect, overview }: HeadsProps) {
   const { model } = useView()
   return (
     <thead>
@@ -521,7 +525,9 @@ function Heads({ tree, items, folds, foldGroup, foldTier, onSelect }: HeadsProps
         )}
       </tr>
       <tr className="h">
-        {corner}
+        <th className="sl c0" />
+        <th className="sl c1" />
+        <th className="sl c2">{overview}</th>
         {items.map((c, j) =>
           c.agg !== undefined ? (
             <th

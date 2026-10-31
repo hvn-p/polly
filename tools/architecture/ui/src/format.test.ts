@@ -82,6 +82,19 @@ describe('the difference between two report formats, line by line', () => {
   })
 
   it('is empty for the same format, whatever the order of its keys', () => {
-    expect(formatDiff(format(edge), JSON.parse(JSON.stringify(format(edge))))).toEqual([])
+    // The same format, every object's keys in reverse order.
+    const reversed = (value: unknown): unknown =>
+      Array.isArray(value)
+        ? value.map(reversed)
+        : typeof value === 'object' && value !== null
+          ? Object.fromEntries(
+              Object.entries(value)
+                .reverse()
+                .map(([key, child]) => [key, reversed(child)]),
+            )
+          : value
+    const other = reversed(format(edge)) as Record<string, unknown>
+    expect(JSON.stringify(other)).not.toBe(JSON.stringify(format(edge)))
+    expect(formatDiff(format(edge), other)).toEqual([])
   })
 })

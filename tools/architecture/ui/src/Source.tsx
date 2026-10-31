@@ -37,6 +37,12 @@ function highlight(line: string): ReactNode[] {
   return out
 }
 
+// The colours as equal bands, top to bottom: the bar of a line reaching several tiers.
+function bands(colours: string[]): string {
+  const step = 100 / colours.length
+  return `linear-gradient(${colours.map((c, k) => `${c} ${k * step}% ${(k + 1) * step}%`).join(', ')})`
+}
+
 // A use of an imported name, in the colour of the tier its import reaches.
 interface Mark {
   column: number
@@ -146,9 +152,14 @@ function Code({
           const broken = breaches.filter((v) => v.line === n || covering.some((e) => e.line === v.line))
           const imports = covering.filter((e) => !hidden.has(e.to))
           const notes = breaches.filter((v) => noteLine(v.line) === n)
-          const target = imports[0]?.to
-          const ends = imports[0]?.endLine === n
-          const tier = target === undefined ? '' : tierOfModule(model, target)
+          // A line reaching several tiers (a barrel) credits each of them, none alone.
+          const colours = [...new Set(imports.map((e) => model.colour[tierOfModule(model, e.to)] ?? ''))]
+          const style =
+            colours.length === 0
+              ? undefined
+              : colours.length === 1
+                ? { '--tc': colours[0] }
+                : { '--tc': 'var(--mute)', '--bar': bands(colours) }
           const classes = [
             'l',
             broken.length > 0 ? 'breach-line' : imports.length > 0 ? 'imp-line' : '',
@@ -158,16 +169,21 @@ function Code({
             <div
               key={n}
               className={classes.filter(Boolean).join(' ')}
-              style={target === undefined ? undefined : ({ '--tc': model.colour[tier] } as CSSProperties)}
+              style={style as CSSProperties | undefined}
               ref={n === open.line ? scrollToTarget : undefined}
             >
               <span>{n}</span>
               <span>{text === '' ? ' ' : marked(text, marks.get(n) ?? [])}</span>
-              {target !== undefined && ends && broken.length === 0 ? (
-                <span className="go">
-                  imports <a href={moduleHref(target)}>{labelOf(model, target)}</a>, {tierName(model, tier)}
-                </span>
-              ) : null}
+              {broken.length === 0
+                ? imports
+                    .filter((e) => e.endLine === n)
+                    .map((e) => (
+                      <span className="go" key={e.to}>
+                        imports <a href={moduleHref(e.to)}>{labelOf(model, e.to)}</a>,{' '}
+                        {tierName(model, tierOfModule(model, e.to))}
+                      </span>
+                    ))
+                : null}
               {notes.map((v) => (
                 <div className="note" key={v.rule}>
                   <b>Breach, {v.rule}.</b> {v.message}

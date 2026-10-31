@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App.tsx'
 import { type Feed, type FeedState, snapshotFeed } from './feed.ts'
 import { fixture } from './test/fixture.ts'
-import type { Change, Identity } from './types.ts'
+import type { Change, Identity, Report } from './types.ts'
 
 function feedOf(
   state: Partial<FeedState>,
@@ -86,6 +86,40 @@ describe('the shell', () => {
     expect(view().textContent).toContain('Waiting for the analyzer')
     act(() => feed.set({ report: fixture() }))
     expect(document.querySelector('table.m')).not.toBeNull()
+  })
+
+  it('counts no breach as zero, in a neutral tone, and counts nothing before the first report', () => {
+    const tab = () => within(screen.getByRole('banner')).getByRole('link', { name: /Breaches/ })
+    render(<App feed={feedOf({ report: { ...fixture(), violations: [] } })} />)
+    expect(tab().textContent).toBe('Breaches0')
+    expect(tab().querySelector('.count')?.classList.contains('breach')).toBe(false)
+    cleanup()
+    render(<App feed={feedOf({ report: undefined, status: 'connecting' })} />)
+    expect(tab().textContent).toBe('Breaches')
+  })
+
+  it('says why a view cannot be drawn, the top bar and the warning kept, and draws it from the next report', () => {
+    // What an analyzer older than the view sends: a report without its technologies.
+    const { technologies: _, ...older } = fixture()
+    const feed = feedOf({ report: older as Report, analyzer: null })
+    const identity = {
+      fingerprint: 'f-view',
+      commit: '8158543',
+      date: '2026-10-30T00:35:57+01:00',
+      modified: false,
+    }
+    go('#/module/apps%2Fapi%2Fsrc')
+    const silenced = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    render(<App feed={feed} identity={identity} />)
+    silenced.mockRestore()
+    expect(within(view()).getByRole('status').textContent).toContain(
+      "This view could not be drawn from the analyzer's report",
+    )
+    expect(screen.getByRole('banner').textContent).toContain('shop')
+    expect(screen.getByRole('alert').textContent).toContain('built from other sources')
+    act(() => feed.set({ report: fixture(), updatedAt: Date.now() + 1000 }))
+    expect(view().textContent).toContain('Technologies hono')
+    expect(within(view()).queryByRole('status')).toBeNull()
   })
 })
 
@@ -207,6 +241,12 @@ describe('the matrix', () => {
     ])
   })
 
+  it('keeps its overview in the corner its headers leave, off the cells', () => {
+    render(<App feed={feedOf({})} />)
+    const overview = screen.getByTitle('Overview: click or drag to move')
+    expect(overview.closest('table.m thead th.sl')).not.toBeNull()
+  })
+
   it('follows the pointer with a band on its row and its column', () => {
     render(<App feed={feedOf({})} />)
     fireEvent.pointerOver(cell('api', 'database'))
@@ -242,6 +282,29 @@ describe('the pages', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     go('#/module/nothing')
     expect(view().textContent).toContain('No module nothing')
+  })
+
+  it('heads each tier of a module’s links with its line and its name', () => {
+    render(<App feed={feedOf({})} />)
+    go('#/module/packages%2Fback%2Fsrc%2Fflows%2Fbuy')
+    const heads = [...view().querySelectorAll('.tgroup > :first-child')]
+    expect(heads.map((head) => head.textContent)).toEqual(['Adapters', 'Kernel', 'Routes'])
+    expect(heads.map((head) => head.querySelector<HTMLElement>('.ln')?.style.background)).toEqual([
+      '#9bb35a',
+      '#5fb3a1',
+      '#d96c5b',
+    ])
+  })
+
+  it('sets each separator of the trail apart, outside the step before it', () => {
+    render(<App feed={feedOf({})} />)
+    go('#/module/packages%2Fback%2Fsrc%2Fflows%2Fbuy')
+    go('#/module/apps%2Fapi%2Fsrc')
+    const trail = screen.getByRole('navigation', { name: 'Where you are' })
+    const separators = [...trail.querySelectorAll('.sep')]
+    expect(separators.length).toBeGreaterThan(0)
+    // The trail spaces its items: a separator is one of them, not the tail of a link's.
+    expect(separators.filter((sep) => sep.parentElement !== trail)).toEqual([])
   })
 
   it('lists the breaches by rule, with their fix', () => {
@@ -358,6 +421,27 @@ describe('the source', () => {
     expect(lines.slice(0, 6).map(notes)).toEqual([0, 0, 1, 0, 0, 2])
     expect(lines[2]?.textContent).toContain('imports kernel, Kernel')
     expect(lines[5]?.textContent).toContain('Breach, tier.')
+  })
+
+  it('annotates each module a line reaches through a barrel with its tier, its tint crediting them all', async () => {
+    const file = 'apps/api/src/main.ts'
+    const source = "import { buy, connect } from '@shop/back'\n"
+    const report = fixture()
+    // One import line reaching a flow and an adapter.
+    report.edges = report.edges.map((e) => (e.file === file ? { ...e, line: 1, endLine: 1 } : e))
+    render(<App feed={feedOf({ report }, { [file]: source })} />)
+    fireEvent.click(cell('api', 'database'))
+    await act(async () => {
+      fireEvent.click(within(side()).getByRole('button', { name: /main.ts:1/ }))
+    })
+    const line = screen.getByRole('complementary', { name: 'Source' }).querySelector<HTMLElement>('pre > .l')
+    expect([...(line?.querySelectorAll('.go') ?? [])].map((note) => note.textContent)).toEqual([
+      'imports back/flows/buy, Flows',
+      'imports database, Adapters',
+    ])
+    // Neither tier's colour tints the line alone: its bar carries both.
+    expect(line?.style.getPropertyValue('--tc')).toBe('var(--mute)')
+    expect(line?.style.getPropertyValue('--bar')).toBe('linear-gradient(#c9a227 0% 50%, #9bb35a 50% 100%)')
   })
 
   it('marks where the file uses each imported name, in its import’s colour', async () => {

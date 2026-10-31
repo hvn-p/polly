@@ -83,6 +83,10 @@ function Lane({
       {tiers.length === 0 ? <p className="empty">None.</p> : null}
       {tiers.map((tier) => (
         <div className="tgroup" key={tier}>
+          <div>
+            <i className="ln" style={{ background: model.colour[tier] }} />
+            {tierName(model, tier)}
+          </div>
           {others
             .filter((m) => tierOfModule(model, m) === tier)
             .map((m) => {
