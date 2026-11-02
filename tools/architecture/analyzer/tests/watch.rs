@@ -359,10 +359,12 @@ fn c74_an_idle_watch_on_the_repository_uses_no_cpu_and_little_memory() {
     let (after, rss_kb) = usage(child.id());
     child.kill().unwrap();
     child.wait().unwrap();
-    assert_eq!(
-        after - before,
-        0,
-        "hundredths of a second of CPU used while idle"
+    // The CPU time read has a resolution of a hundredth, which a sample can round up:
+    // 2 over 10 s is 0.2 %, far under the 6 % an analyzer woken by every read used.
+    assert!(
+        after - before <= 2,
+        "{} hundredths of a second of CPU used while idle",
+        after - before
     );
     assert!(rss_kb < 20 * 1024, "resident memory {rss_kb} KB");
 }
