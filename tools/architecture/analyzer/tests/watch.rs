@@ -100,6 +100,38 @@ fn a_breach_whose_line_moves_is_neither_fixed_nor_broken() {
     assert!(update.change.is_none(), "{:?}", update.change);
 }
 
+#[test]
+fn a_second_breach_like_the_first_is_broken_when_added_and_fixed_when_removed() {
+    let one = "import { connect } from '@t/database'\nexport const serve = connect\n";
+    let two = "import { connect } from '@t/database'\nimport { connect as again } from '@t/database'\nexport const serve = [connect, again]\n";
+    let tree = Tree::valid();
+    tree.write("apps/api/src/routes.ts", one);
+    let (tx, rx) = mpsc::channel();
+    watch(tree.path(), None, tx).unwrap();
+    rx.recv_timeout(Duration::from_secs(5))
+        .expect("the first graph");
+
+    tree.write("apps/api/src/routes.ts", two);
+    let update = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("a graph within 1 s, a second breach added");
+    assert_eq!(update.report.violations.len(), 2);
+    let change = update.change.expect("what changed");
+    assert_eq!(change.breaches.len(), 1, "{:?}", change.breaches);
+    assert_eq!(change.breaches[0].line, 2);
+    assert_eq!(change.fixed, []);
+
+    tree.write("apps/api/src/routes.ts", one);
+    let change = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("a graph within 1 s, the second breach removed")
+        .change
+        .expect("what changed");
+    assert_eq!(change.fixed.len(), 1, "{:?}", change.fixed);
+    assert_eq!(change.fixed[0].line, 2);
+    assert_eq!(change.breaches, []);
+}
+
 const START_LESSON: &str = "packages/back/src/flows/start-lesson/index.ts";
 const START_LESSON_IMPORTS: &str = "import type { Code } from '@t/kernel'\nimport { bind, type EventCodes } from '../../domains/event-codes/index.ts'\n";
 

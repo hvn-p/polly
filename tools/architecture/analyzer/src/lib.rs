@@ -185,6 +185,24 @@ pub(crate) fn unplaced(v: &Violation) -> (&str, &str, &str, &str) {
     (&v.rule, &v.file, &v.message, &v.fix)
 }
 
+/// The violations of `from` that `against` does not hold, each one of `against` matching
+/// at most one: first at the same line, then at any line, an edit having moved it.
+pub(crate) fn unmatched(from: &[Violation], against: &[Violation]) -> Vec<Violation> {
+    let mut left: Vec<&Violation> = against.iter().collect();
+    let mut take = |same: &dyn Fn(&Violation) -> bool| {
+        left.iter()
+            .position(|w| same(w))
+            .map(|i| left.swap_remove(i))
+            .is_some()
+    };
+    let moved: Vec<&Violation> = from.iter().filter(|v| !take(&|w| w == *v)).collect();
+    moved
+        .into_iter()
+        .filter(|v| !take(&|w| unplaced(w) == unplaced(v)))
+        .cloned()
+        .collect()
+}
+
 /// The base a tree is compared with.
 pub(crate) struct Base {
     reference: String,

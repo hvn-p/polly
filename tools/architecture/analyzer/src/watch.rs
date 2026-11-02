@@ -10,7 +10,7 @@ use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::{
-    Base, RULES_FILE, Report, Tree, Violation, base_pairs, graph, pairs, read, unplaced, workspace,
+    Base, RULES_FILE, Report, Tree, Violation, base_pairs, graph, pairs, read, unmatched, workspace,
 };
 
 /// A report the watch sends, with what changed since the one before.
@@ -43,9 +43,6 @@ pub struct Change {
 impl Change {
     fn between(before: &Report, after: &Report, files: Vec<String>) -> Self {
         let (was, now) = (pairs(&before.edges), pairs(&after.edges));
-        // A breach whose line an edit moved is the same breach.
-        let was_broken: BTreeSet<_> = before.violations.iter().map(unplaced).collect();
-        let now_broken: BTreeSet<_> = after.violations.iter().map(unplaced).collect();
         Self {
             at: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -53,18 +50,8 @@ impl Change {
             files,
             added: now.difference(&was).cloned().collect(),
             removed: was.difference(&now).cloned().collect(),
-            breaches: after
-                .violations
-                .iter()
-                .filter(|v| !was_broken.contains(&unplaced(v)))
-                .cloned()
-                .collect(),
-            fixed: before
-                .violations
-                .iter()
-                .filter(|v| !now_broken.contains(&unplaced(v)))
-                .cloned()
-                .collect(),
+            breaches: unmatched(&after.violations, &before.violations),
+            fixed: unmatched(&before.violations, &after.violations),
         }
     }
 
