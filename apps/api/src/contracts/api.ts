@@ -17,7 +17,9 @@ const oauthQuery = z.string().max(4096)
 const next = z.string().min(1).max(2048)
 
 export const signInRequest = z.object({
-  email: z.string().min(3).max(254),
+  // The address format the identity checks, so it never refuses one the
+  // contract let through.
+  email: z.email().min(3).max(254),
   password: z.string().min(8).max(128),
   oauthQuery: oauthQuery.optional(),
 })

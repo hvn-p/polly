@@ -25,7 +25,13 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "email": { "type": "string", "minLength": 3, "maxLength": 254 },
+                  "email": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
                   "password": { "type": "string", "minLength": 8, "maxLength": 128 },
                   "oauthQuery": { "type": "string", "maxLength": 4096 }
                 },
@@ -395,7 +401,13 @@
       "SignInRequest": {
         "type": "object",
         "properties": {
-          "email": { "type": "string", "minLength": 3, "maxLength": 254 },
+          "email": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 254,
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
           "password": { "type": "string", "minLength": 8, "maxLength": 128 },
           "oauthQuery": { "type": "string", "maxLength": 4096 }
         },

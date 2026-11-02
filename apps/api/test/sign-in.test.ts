@@ -73,6 +73,9 @@ describe('POST /api/sign-in', () => {
     for (const attempt of [
       { email, password: 'wrong-password' },
       { email: `${'a'.repeat(250)}@x.io`, password },
+      // An address the identity would refuse: refused by the contract before it.
+      { email: 'abc', password },
+      { email: 'a@b', password },
       { email, password: 'x'.repeat(7) },
       { email, password: 'x'.repeat(129) },
       { email, password, oauthQuery: 'q'.repeat(4097) },
