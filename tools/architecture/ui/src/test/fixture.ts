@@ -156,6 +156,15 @@ export function fixture(): Report {
       head: 'add-buy',
       added: [['packages/back/src/flows/buy', 'packages/database']],
       removed: [['apps/web/src', 'packages/kernel']],
+      breaches: [
+        {
+          rule: 'tier',
+          file: 'packages/back/src/flows/buy/index.ts',
+          line: 3,
+          message: "'@shop/database': Flows may not import Adapters.",
+          fix: 'A flow chains domains.',
+        },
+      ],
     },
   }
 }

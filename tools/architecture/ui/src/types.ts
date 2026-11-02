@@ -68,7 +68,7 @@ export interface Report {
   edges: Edge[]
   technologies: Technology[]
   violations: Violation[]
-  base: { ref: string; head: string | null; added: Pair[]; removed: Pair[] } | null
+  base: { ref: string; head: string | null; added: Pair[]; removed: Pair[]; breaches: Violation[] } | null
 }
 
 // One change to the architecture during the session.

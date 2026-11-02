@@ -373,9 +373,16 @@
             "maxItems": 2
           },
           "description": "Module pairs imported in the base and not here."
+        },
+        "breaches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Violation"
+          },
+          "description": "Rules broken here and not in the base, a breach the base has counting as the\nbase's wherever its line moved."
         }
       },
-      "required": ["ref", "added", "removed"],
+      "required": ["ref", "added", "removed", "breaches"],
       "description": "The module imports a tree adds and removes against its base."
     },
     "Change": {

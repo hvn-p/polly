@@ -1290,8 +1290,21 @@ details.link .imp {
   margin-left: auto;
 }
 .live.offline::before {
-  background: var(--breach);
-  box-shadow: 0 0 0 3px #ff5a3622;
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--ink-2);
+}
+.ch .msg {
+  color: var(--ink);
+}
+.ch .msg .tt2 {
+  font-size: 11px;
+  font-weight: 600;
+  color: #121212;
+  background: var(--c);
+  border-radius: 3px;
+  padding: 1px 6px;
+  margin: 0 4px;
+  white-space: nowrap;
 }
 .live.snapshot::before {
   background: var(--mute);

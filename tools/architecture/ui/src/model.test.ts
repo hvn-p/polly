@@ -161,7 +161,7 @@ describe('a change of the session, in lines', () => {
     ).toEqual([
       { kind: 'added', text: 'back/flows/buy → database' },
       { kind: 'removed', text: 'api → kernel' },
-      { kind: 'breach', text: 'tier, Flows may not import Adapters.' },
+      { kind: 'breach', rule: 'tier', text: 'Flows may not import Adapters.' },
       { kind: 'fixed', text: 'isolated, Two flows.' },
     ])
   })

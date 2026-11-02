@@ -253,10 +253,11 @@ export function zoneOf(model: Model, row: Item, column: Item): Kind {
   return ruleOf(model, row.tier, column.tier).kind
 }
 
-export interface ChangeLine {
-  kind: 'added' | 'removed' | 'breach' | 'fixed'
-  text: string
-}
+// A breach keeps its rule apart from the analyzer's message, which the view
+// shows after it.
+export type ChangeLine =
+  | { kind: 'added' | 'removed' | 'fixed'; text: string }
+  | { kind: 'breach'; rule: string; text: string }
 
 export function changeLines(model: Model, change: Change): ChangeLine[] {
   const pair = ([from, to]: [string, string]) => `${labelOf(model, from)} → ${labelOf(model, to)}`
@@ -264,7 +265,18 @@ export function changeLines(model: Model, change: Change): ChangeLine[] {
   return [
     ...change.added.map((p) => ({ kind: 'added' as const, text: pair(p) })),
     ...change.removed.map((p) => ({ kind: 'removed' as const, text: pair(p) })),
-    ...change.breaches.map((v) => ({ kind: 'breach' as const, text: rule(v) })),
+    ...change.breaches.map((v) => ({ kind: 'breach' as const, rule: v.rule, text: v.message })),
     ...change.fixed.map((v) => ({ kind: 'fixed' as const, text: rule(v) })),
   ]
+}
+
+// An analyzer's message in pieces, each tier it names in parentheses, as in
+// `a (flows) imports b (adapters)`, taken out as that tier.
+export function messageParts(model: Model, message: string): (string | { tier: string })[] {
+  return message
+    .split(/\(([^()\s]+)\)/)
+    .map((part, i) =>
+      i % 2 === 1 && model.tierById.has(part) ? { tier: part } : i % 2 === 1 ? `(${part})` : part,
+    )
+    .filter((part) => part !== '')
 }

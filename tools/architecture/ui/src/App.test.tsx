@@ -333,7 +333,15 @@ describe('the pages', () => {
         files: ['packages/back/src/flows/buy/index.ts'],
         added: [],
         removed: [['apps/web/src', 'packages/kernel']],
-        breaches: [{ rule: 'tier', file: 'x', line: 1, message: 'Flows may not import Adapters.', fix: 'f' }],
+        breaches: [
+          {
+            rule: 'tier',
+            file: 'x',
+            line: 1,
+            message: 'packages/back/src/flows/buy (flows) imports packages/database (adapters)',
+            fix: 'f',
+          },
+        ],
         fixed: [{ rule: 'isolated', file: 'x', line: 2, message: 'Two flows.', fix: 'f' }],
       },
     ]
@@ -344,12 +352,40 @@ describe('the pages', () => {
     expect(view().textContent).toContain('+1 −1')
     expect(view().textContent).toContain('back/flows/buy → database')
     expect(view().textContent).toContain('web → kernel')
-    expect(view().textContent).toContain('breach: tier, Flows may not import Adapters.')
+    const breach = view().querySelector('.unseen .tag.breach')
+    expect(breach?.textContent).toBe('breach: tier')
+    const message = breach?.nextElementSibling
+    expect(message?.textContent).toBe('packages/back/src/flows/buy Flows imports packages/database Adapters')
+    expect([...(message?.querySelectorAll('.tt2') ?? [])].map((chip) => chip.textContent)).toEqual([
+      'Flows',
+      'Adapters',
+    ])
     expect(view().textContent).toContain('fixed: isolated, Two flows.')
     expect(view().querySelectorAll('.unseen')).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Mark all as seen' }))
     expect(view().querySelectorAll('.unseen')).toHaveLength(0)
     expect(screen.getByRole('link', { name: /Changes/ }).textContent).toBe('Changes')
+  })
+
+  it("heads the base's lane with the breaches the branch adds, each opening its file at its line", () => {
+    const [breach] = fixture().violations
+    const second = { ...breach, rule: 'undeclared', file: 'apps/api/src/main.ts', line: 7 } as typeof breach
+    const report = fixture()
+    if (report.base !== null && breach !== undefined && second !== undefined) {
+      report.base.breaches = [breach, second]
+    }
+    render(<App feed={feedOf({ report })} />)
+    go('#/changes')
+    const rows = [...view().querySelectorAll('.lane')][0]?.querySelectorAll('.rows .r') ?? []
+    expect([...rows].slice(0, 2).map((row) => row.textContent)).toEqual([
+      '+2 breachestier, packages/back/src/flows/buy/index.ts:3',
+      'undeclared, apps/api/src/main.ts:7',
+    ])
+    expect(rows[0]?.querySelector('.tag.breach')?.textContent).toBe('+2 breaches')
+    fireEvent.click(
+      within(rows[1] as HTMLElement).getByRole('button', { name: /apps\/api\/src\/main\.ts:7/ }),
+    )
+    expect(document.querySelector('.src')?.textContent).toContain('apps/api/src/main.ts')
   })
 
   it('says when there is no base and no change yet', () => {
@@ -575,7 +611,7 @@ describe('a snapshot captured from a live analyzer', () => {
     expect(panel.querySelector('.breach-line')?.textContent).toContain('Breach, tier.')
     go('#/changes')
     expect(view().textContent).toContain('+ back/flows/buy → database')
-    expect(view().textContent).toContain("breach: tier, '@shop/database': Flows may not import Adapters.")
+    expect(view().textContent).toContain("breach: tier'@shop/database': Flows may not import Adapters.")
     go('#/breaches')
     await act(async () => {
       fireEvent.click(within(view()).getByRole('button', { name: /app.tsx:7/ }))

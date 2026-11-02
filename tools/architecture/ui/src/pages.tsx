@@ -1,7 +1,8 @@
 // The views behind the tabs other than the matrix, and a module's page.
 
-import { changeLines, labelOf, ruleOf, tierName, tierOfModule } from './model.ts'
-import { Chevron, ImportLine, moduleHref, Outward, plural, TierTag, useView } from './parts.tsx'
+import { Fragment } from 'react'
+import { changeLines, labelOf, messageParts, ruleOf, tierName, tierOfModule } from './model.ts'
+import { Chevron, ImportLine, moduleHref, Outward, plural, TierTag, tint, useView } from './parts.tsx'
 import type { Change, Edge, Pair } from './types.ts'
 
 export function ModulePage({ id }: { id: string }) {
@@ -206,6 +207,20 @@ export function ChangesPage({
                 </span>
               </h2>
               <div className="rows">
+                {base.breaches.map((v, i) => (
+                  <div className="r" key={`!${v.rule}:${v.file}:${v.line}`}>
+                    {i === 0 ? (
+                      <span className="tag breach">
+                        +{base.breaches.length} {base.breaches.length === 1 ? 'breach' : 'breaches'}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    <button type="button" className="imp bare" onClick={() => openSource(v.file, v.line)}>
+                      {v.rule}, <span className="file mono">{`${v.file}:${v.line}`}</span>
+                    </button>
+                  </div>
+                ))}
                 {base.added.map((p) => (
                   <div className="r" key={`+${p.join('>')}`}>
                     <span className="plus">added</span>
@@ -255,11 +270,24 @@ export function ChangesPage({
                       >
                         {line.kind === 'added' ? '+' : '−'} {line.text}
                       </span>
+                    ) : line.kind === 'breach' ? (
+                      <Fragment key={line.kind + line.rule + line.text}>
+                        <span className="tag breach">breach: {line.rule}</span>
+                        <span className="msg">
+                          {messageParts(model, line.text).map((part, i) =>
+                            typeof part === 'string' ? (
+                              part
+                            ) : (
+                              // biome-ignore lint/suspicious/noArrayIndexKey: the parts of one fixed message
+                              <span key={i} className="tt2" style={tint(model.colour[part.tier])}>
+                                {tierName(model, part.tier)}
+                              </span>
+                            ),
+                          )}
+                        </span>
+                      </Fragment>
                     ) : (
-                      <span
-                        key={line.kind + line.text}
-                        className={`tag${line.kind === 'breach' ? ' breach' : ''}`}
-                      >
+                      <span key={line.kind + line.text} className="tag">
                         {line.kind}: {line.text}
                       </span>
                     ),

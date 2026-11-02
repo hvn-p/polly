@@ -61,6 +61,9 @@ pub struct BaseDiff {
     pub added: Vec<(String, String)>,
     /// Module pairs imported in the base and not here.
     pub removed: Vec<(String, String)>,
+    /// Rules broken here and not in the base, a breach the base has counting as the
+    /// base's wherever its line moved.
+    pub breaches: Vec<Violation>,
 }
 
 /// One tree's state: its rules, packages and parsed files.
@@ -131,11 +134,18 @@ impl Tree {
         let graph = self.graph(Some(resolver));
         let base = base.map(|base| {
             let now = pairs(&graph.edges);
+            let was_broken: BTreeSet<_> = base.violations.iter().map(unplaced).collect();
             BaseDiff {
                 reference: base.reference.clone(),
                 head: base.head.clone(),
                 added: now.difference(&base.pairs).cloned().collect(),
                 removed: base.pairs.difference(&now).cloned().collect(),
+                breaches: graph
+                    .violations
+                    .iter()
+                    .filter(|v| !was_broken.contains(&unplaced(v)))
+                    .cloned()
+                    .collect(),
             }
         });
         let name = self
@@ -170,11 +180,17 @@ pub(crate) fn pairs(edges: &[Edge]) -> BTreeSet<(String, String)> {
         .collect()
 }
 
+/// A violation without its line, which an edit above it moves.
+fn unplaced(v: &Violation) -> (&str, &str, &str, &str) {
+    (&v.rule, &v.file, &v.message, &v.fix)
+}
+
 /// The base a tree is compared with.
 pub(crate) struct Base {
     reference: String,
     head: Option<String>,
     pairs: BTreeSet<(String, String)>,
+    violations: Vec<Violation>,
 }
 
 /// The branch checked out at `root`, if any.
@@ -232,7 +248,7 @@ fn extract(root: &Path, reference: &str, copy: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// The module imports of a git reference, read from a copy of its tree with the rules of
+/// The module imports and broken rules of a git reference, read from a copy of its tree with the rules of
 /// the tree at `root`.
 pub(crate) fn base_pairs(root: &Path, reference: &str) -> Result<Base, String> {
     let copy = std::env::temp_dir().join(format!("architecture-base-{}", std::process::id()));
@@ -247,16 +263,20 @@ pub(crate) fn base_pairs(root: &Path, reference: &str) -> Result<Base, String> {
             std::fs::copy(root.join(RULES_FILE), copy.join(RULES_FILE))
                 .map_err(|e| format!("{RULES_FILE}: {e}"))
                 .and_then(|_| Tree::load(&copy))
-                .map(|tree| pairs(&tree.graph(None).edges))
+                .map(|tree| {
+                    let graph = tree.graph(None);
+                    (pairs(&graph.edges), graph.violations)
+                })
         } else {
-            Ok(BTreeSet::new())
+            Ok((BTreeSet::new(), Vec::new()))
         }
     });
     let _ = std::fs::remove_dir_all(&copy);
-    result.map(|pairs| Base {
+    result.map(|(pairs, violations)| Base {
         reference: reference.to_string(),
         head: head(root),
         pairs,
+        violations,
     })
 }
 
