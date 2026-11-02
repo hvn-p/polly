@@ -19,7 +19,8 @@ contradicting each other, and the stale one is the one believed.
 | What was just decided | Where it is written |
 |---|---|
 | A principle an agent follows when writing or judging code | The constitution |
-| The product direction, a teaching principle | `PRODUCT.md` |
+| The product direction | `PRODUCT.md` |
+| How Polly teaches: the learner model, the learning rules and their evidence | `LEARNING.md` |
 | A code rule specific to one part of the repository | The `AGENTS.md` closest to what it governs |
 | What a feature must do: spec, plan | Its issue, one comment per Spec Kit artifact |
 | How it is done: the tasks | Its PR description |
