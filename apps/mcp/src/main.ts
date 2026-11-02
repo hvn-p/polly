@@ -50,17 +50,25 @@ export interface RunningMcp {
   close: () => Promise<void>
 }
 
+// A fetch whose every call to the API carries the request's trace, the
+// headers of a Request given as input kept.
+export function tracingFetch(
+  traceparent: () => string | undefined,
+  send: (request: Request) => Promise<Response> = globalThis.fetch,
+): (input: string | URL | Request, init?: RequestInit) => Promise<Response> {
+  return (input, init) => {
+    const request = new Request(input, init)
+    const parent = traceparent()
+    if (parent !== undefined) {
+      request.headers.set('traceparent', parent)
+    }
+    return send(request)
+  }
+}
+
 export async function startMcpServer(options: McpOptions): Promise<RunningMcp> {
   const tools = options.tools ?? TOOLS
-  // Every call to the API carries the request's trace.
-  const fetch = (input: string | URL | Request, init: RequestInit = {}): Promise<Response> => {
-    const headers = new Headers(init.headers)
-    const parent = options.traceparent()
-    if (parent !== undefined) {
-      headers.set('traceparent', parent)
-    }
-    return globalThis.fetch(input, { ...init, headers })
-  }
+  const fetch = tracingFetch(options.traceparent)
   const exchange = {
     apiUrl: options.apiUrl,
     apiResource: `${options.publicUrl}/api`,

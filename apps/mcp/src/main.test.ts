@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { settingsFrom } from './main.ts'
+import { settingsFrom, tracingFetch } from './main.ts'
 
 const env = {
   POLLY_MCP_HOST: '127.0.0.1',
@@ -31,5 +31,30 @@ describe("the MCP server's settings", () => {
     expect(() => settingsFrom({ ...env, POLLY_MCP_HOST: 'localhost', POLLY_API_PORT: '' })).toThrow(
       /^POLLY_MCP_HOST, POLLY_API_PORT invalid or missing/,
     )
+  })
+})
+
+describe("the MCP server's calls to the API", () => {
+  it("carry the request's trace, keeping the headers of a Request given as input", async () => {
+    const sent: Request[] = []
+    const fetch = tracingFetch(
+      () => `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01`,
+      async (input) => {
+        sent.push(input)
+        return new Response()
+      },
+    )
+    await fetch(new Request('http://127.0.0.1:4000/api/me', { headers: { authorization: 'Bearer t' } }))
+    await fetch('http://127.0.0.1:4000/api/me', { headers: { accept: 'application/json' } })
+    expect(sent.map(({ url, headers }) => [url, Object.fromEntries(headers)])).toEqual([
+      [
+        'http://127.0.0.1:4000/api/me',
+        { authorization: 'Bearer t', traceparent: `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01` },
+      ],
+      [
+        'http://127.0.0.1:4000/api/me',
+        { accept: 'application/json', traceparent: `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01` },
+      ],
+    ])
   })
 })

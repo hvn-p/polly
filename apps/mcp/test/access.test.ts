@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { captureLog, strictRefusal } from '@polly/api/test-support'
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import { captureLog, createLearner, mcpAccessToken, strictRefusal } from '@polly/api/test-support'
 import { traceparent, withTrace } from '@polly/logging'
 import { describe, expect, it } from 'vitest'
 import { startMcpServer } from '../src/main.ts'
@@ -114,5 +115,30 @@ describe("the MCP server's log", () => {
         trace_id: trace,
       }),
     ])
+  })
+
+  it("carries the trace to the API requests a tool call makes, not only to the token's exchange", async () => {
+    const { email, password } = await createLearner(server)
+    const token = await mcpAccessToken(server, email, password)
+    const trace = 'e'.repeat(32)
+    const client = new Client({ name: 'polly-tests', version: '1.0.0' })
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(server.mcpUrl), {
+        requestInit: {
+          headers: { authorization: `Bearer ${token}`, traceparent: `00-${trace}-${'f'.repeat(16)}-01` },
+        },
+      }),
+    )
+    try {
+      const log = captureLog()
+      await client.callTool({ name: 'whoami', arguments: {} })
+      const api = log
+        .records()
+        .filter(({ event }) => event === 'api.request.served')
+        .map(({ path, status, trace_id }) => ({ path, status, trace_id }))
+      expect(api).toContainEqual({ path: '/api/me', status: 200, trace_id: trace })
+    } finally {
+      await client.close()
+    }
   })
 })
