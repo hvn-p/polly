@@ -4,36 +4,15 @@
 // that does not log fails the build. The same resolution serves esbuild, which
 // builds every Node process, and Vitest, which runs their tests.
 
-import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import type { Plugin } from 'esbuild'
-import { runWith } from '../checks/analyzer.ts'
+import { type Module, readModules } from '../checks/analyzer.ts'
 
-export interface Module {
-  id: string
-  tier: string
-  files: string[]
-}
+export { type Module, readModules }
 
 const SPECIFIER = '@polly/platform/log'
 const LOGGING_TIERS = ['interfaces', 'flows', 'adapters']
 const VIRTUAL = '\0polly-log:'
-
-export function readModules(root: string): Module[] {
-  const run = runWith(root, ['json'], {
-    exists: existsSync,
-    spawn: (command, args) =>
-      spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }),
-  })
-  if ('failure' in run) {
-    throw new Error(run.failure)
-  }
-  if (run.ran.status !== 0) {
-    throw new Error(`the architecture analyzer failed: ${run.ran.stderr}`)
-  }
-  return (JSON.parse(run.ran.stdout) as { modules: Module[] }).modules
-}
 
 // The module of a file, from the analyzer's last reading; read again when the
 // file is in none, as one created or moved since is.

@@ -3,14 +3,12 @@
 // fake one by default, the compute service's in real mode. A workflow
 // interrupted by the worker's death resumes when a worker starts again.
 
-import { computeAnalyzer, computeFingerprint, fakeAnalyzer } from '@polly/analysis'
+import { checkComputeVersion, computeAnalyzer, fakeAnalyzer } from '@polly/analysis'
 import type { Analyzer } from '@polly/back'
 import { waitForSchema } from '@polly/database'
 import { runProcess, withTrace } from '@polly/logging'
 import { environment, Refusal, readConfigOf, type Settings } from '@polly/platform'
-import { log } from '@polly/platform/log'
-import { PLACEHOLDER_ANALYSIS } from '@polly/queue'
-import { COMPUTE_VERSION_MISMATCHED, COMPUTE_VERSION_UNKNOWN } from './events.ts'
+import { dbosLogger, PLACEHOLDER_ANALYSIS } from '@polly/queue'
 import { startWorker } from './worker.ts'
 
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
@@ -34,25 +32,6 @@ export function analyzerFor(
     : { analyzer: computeAnalyzer({ baseUrl: config.POLLY_COMPUTE_URL, fetch }) }
 }
 
-// Warns when the compute service runs another version of the code than the
-// worktree's services/compute: comparing two versions is legitimate, testing
-// one without knowing is not.
-export async function checkComputeVersion(
-  config: Pick<Settings, 'POLLY_COMPUTE_URL' | 'POLLY_COMPUTE_FINGERPRINT'>,
-  fetch: Fetch,
-): Promise<void> {
-  const baseUrl = config.POLLY_COMPUTE_URL ?? ''
-  const worktree = config.POLLY_COMPUTE_FINGERPRINT ?? 'unversioned'
-  try {
-    const service = await computeFingerprint({ baseUrl, fetch })
-    if (service !== worktree) {
-      log(COMPUTE_VERSION_MISMATCHED, { worktree, service })
-    }
-  } catch (error) {
-    log(COMPUTE_VERSION_UNKNOWN, { url: baseUrl, error })
-  }
-}
-
 if (process.argv[1] === import.meta.filename) {
   await runProcess({
     name: 'polly-worker',
@@ -69,7 +48,10 @@ if (process.argv[1] === import.meta.filename) {
         throw new Refusal('INVALID_CONFIGURATION', `${chosen.invalid} invalid or missing`)
       }
       if (config.POLLY_WORKER_MODE === 'real') {
-        await checkComputeVersion(config, globalThis.fetch)
+        await checkComputeVersion(
+          { baseUrl: config.POLLY_COMPUTE_URL ?? '', fetch: globalThis.fetch },
+          config.POLLY_COMPUTE_FINGERPRINT,
+        )
       }
       // The workflows read Polly's tables: nothing runs before they exist.
       await waitForSchema(config.DATABASE_URL, { retryMs: 2000 })
@@ -78,6 +60,7 @@ if (process.argv[1] === import.meta.filename) {
         analyzer: chosen.analyzer,
         task: PLACEHOLDER_ANALYSIS,
         trace: withTrace,
+        logger: dbosLogger(),
       })
     },
   })

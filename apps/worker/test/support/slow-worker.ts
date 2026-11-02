@@ -4,7 +4,7 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fakeAnalyzer } from '@polly/analysis'
 import { runProcess, withTrace } from '@polly/logging'
-import { PLACEHOLDER_ANALYSIS } from '@polly/queue'
+import { dbosLogger, PLACEHOLDER_ANALYSIS } from '@polly/queue'
 import { startWorker } from '../../src/worker.ts'
 
 await runProcess({
@@ -14,6 +14,7 @@ await runProcess({
       databaseUrl: process.env['DATABASE_URL'] ?? '',
       task: PLACEHOLDER_ANALYSIS,
       trace: withTrace,
+      logger: dbosLogger(),
       analyzer: {
         analyze: async (recordingId) => {
           process.stdout.write(`analyzing ${recordingId}\n`)

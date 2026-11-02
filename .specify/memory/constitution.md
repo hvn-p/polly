@@ -277,8 +277,9 @@ never duplicated.
 
 *Verified by*: the build plugin that tags each file's logger, which refuses the import from
 a tier that does not log, with its own test; `scripts/checks/log-events.mjs`, which refuses
-a name declared twice, a declaration outside an `events.ts` and an event never emitted,
-with its own test; code review for the level and logging once.
+a name declared twice, a declaration outside an `events.ts`, an event never emitted and a
+category its module's tier does not log, with its own test; code review for the level and
+logging once.
 
 ## Governance
 
@@ -288,4 +289,4 @@ or redefined, MINOR when one is added or materially expanded, PATCH for wording.
 checks the feature against each principle; code review judges the principles that no
 program checks. Day-to-day guidance for agents lives in `AGENTS.md`.
 
-**Version**: 2.1.0 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-10-31
+**Version**: 2.1.1 | **Ratified**: 2026-10-26 | **Last Amended**: 2026-11-02

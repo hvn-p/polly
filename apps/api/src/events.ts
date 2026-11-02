@@ -12,8 +12,9 @@ export const REQUEST_FAILED = defineEvent('api.request.failed', {
   investigate: 'a request answered 500 on an unexpected error: read its stack',
 })
 
+// The command line's access line: a command it refused to run.
 export const COMMAND_REFUSED = defineEvent('api.command.refused', {
-  category: 'technical',
-  level: 'error',
+  category: 'access',
+  level: 'warn',
   investigate: 'a command of the API refused to run: its code and reason say why',
 })

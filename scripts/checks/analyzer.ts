@@ -3,6 +3,7 @@
 // otherwise. Every caller runs it through runWith, which says what is missing
 // when there is none to run.
 
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -47,4 +48,26 @@ export function runWith<T extends Spawned>(
     return { failure: `the architecture analyzer did not start: ${program}: ${ran.error.message}` }
   }
   return { ran }
+}
+
+// A module as the analyzer places it: its tier and its files, from the root.
+export interface Module {
+  id: string
+  tier: string
+  files: string[]
+}
+
+export function readModules(root: string): Module[] {
+  const run = runWith(root, ['json'], {
+    exists: existsSync,
+    spawn: (command, args) =>
+      spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }),
+  })
+  if ('failure' in run) {
+    throw new Error(run.failure)
+  }
+  if (run.ran.status !== 0) {
+    throw new Error(`the architecture analyzer failed: ${run.ran.stderr}`)
+  }
+  return (JSON.parse(run.ran.stdout) as { modules: Module[] }).modules
 }

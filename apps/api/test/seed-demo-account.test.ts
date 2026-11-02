@@ -62,7 +62,8 @@ describe('demo account seed', () => {
     expect(await runCli(['seed-demo'], { env, out: () => undefined })).toBe(1)
     expect(capture.records()).toEqual([
       expect.objectContaining({
-        level: 'error',
+        level: 'warn',
+        category: 'access',
         event: 'api.command.refused',
         code: 'NOT_LOCAL_ENVIRONMENT',
       }),

@@ -1,7 +1,6 @@
 import { fakeAnalyzer } from '@polly/analysis'
-import { type LogRecord, plugLogSink } from '@polly/platform'
 import { describe, expect, it } from 'vitest'
-import { analyzerFor, checkComputeVersion } from './main.ts'
+import { analyzerFor } from './main.ts'
 
 const local = { POLLY_ENV: 'local' } as const
 
@@ -55,44 +54,5 @@ describe("the worker's analyzer", () => {
     expect(analyzerFor({ ...local, POLLY_WORKER_MODE: 'real' }, refusing)).toEqual({
       invalid: 'POLLY_COMPUTE_URL',
     })
-  })
-})
-
-describe("the compute service's version", () => {
-  function capture(): LogRecord[] {
-    const records: LogRecord[] = []
-    plugLogSink({ write: (record) => records.push(record) })
-    return records
-  }
-  const read = (records: LogRecord[]) =>
-    records.map(({ event, fields }) => ({ event: event.name, level: event.level, fields }))
-
-  it('is reported as unknown, without stopping the worker, when the service does not answer', async () => {
-    const records = capture()
-    await checkComputeVersion({ POLLY_COMPUTE_URL: 'http://127.0.0.1:8000' }, refusing)
-    expect(read(records)).toEqual([
-      {
-        event: 'worker.compute_version.unknown',
-        level: 'warn',
-        fields: { url: 'http://127.0.0.1:8000', error: new TypeError('fetch failed') },
-      },
-    ])
-  })
-
-  it("warns of a version mismatch naming both when the service's differs from the worktree's", async () => {
-    const records = capture()
-    const service = computeService({ '/version': { fingerprint: 'fp-other' } })
-    await checkComputeVersion(
-      { POLLY_COMPUTE_URL: 'http://127.0.0.1:8000', POLLY_COMPUTE_FINGERPRINT: 'fp-main' },
-      service.fetch,
-    )
-    expect(service.urls).toEqual(['http://127.0.0.1:8000/version'])
-    expect(read(records)).toEqual([
-      {
-        event: 'worker.compute_version.mismatched',
-        level: 'warn',
-        fields: { worktree: 'fp-main', service: 'fp-other' },
-      },
-    ])
   })
 })

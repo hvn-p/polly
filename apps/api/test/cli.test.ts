@@ -12,7 +12,8 @@ describe('API command line', () => {
     expect(await runCli(['seed-demo'], { env, out })).toBe(1)
     expect(capture.records()).toEqual([
       expect.objectContaining({
-        level: 'error',
+        level: 'warn',
+        category: 'access',
         event: 'api.command.refused',
         code: 'INVALID_CONFIGURATION',
         reason: expect.stringContaining('DATABASE_URL'),

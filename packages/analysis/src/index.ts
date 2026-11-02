@@ -3,7 +3,9 @@
 // OpenAPI.
 
 import type { Analyzer } from '@polly/back'
+import { log } from '@polly/platform/log'
 import { z } from 'zod'
+import { COMPUTE_VERSION_MISMATCHED, COMPUTE_VERSION_UNKNOWN } from './events.ts'
 import { OPERATIONS, type Operations, RESPONSES } from './generated.ts'
 
 // Returns a predefined result through the real path, and loads no model.
@@ -11,7 +13,7 @@ export const fakeAnalyzer: Analyzer = {
   analyze: async (recordingId) => ({ recordingId, score: 0.75, analyzer: 'fake', modelLoaded: false }),
 }
 
-interface ComputeService {
+export interface ComputeService {
   baseUrl: string
   fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 }
@@ -57,4 +59,22 @@ export function computeAnalyzer(service: ComputeService): Analyzer {
 // The fingerprint of the sources the service's image was built from.
 export async function computeFingerprint(service: ComputeService): Promise<string> {
   return (await call(service, 'version', undefined)).fingerprint
+}
+
+// Warns when the compute service runs another version of the code than the
+// worktree's services/compute (its fingerprint, or none when unversioned):
+// comparing two versions is legitimate, testing one without knowing is not.
+export async function checkComputeVersion(
+  service: ComputeService,
+  worktree: string | undefined,
+): Promise<void> {
+  const expected = worktree ?? 'unversioned'
+  try {
+    const running = await computeFingerprint(service)
+    if (running !== expected) {
+      log(COMPUTE_VERSION_MISMATCHED, { worktree: expected, service: running })
+    }
+  } catch (error) {
+    log(COMPUTE_VERSION_UNKNOWN, { url: service.baseUrl, error })
+  }
 }

@@ -2,11 +2,9 @@
 // the analyzer it is given. Apart from main.ts, so a test can start it with
 // another analyzer without running the composition root.
 
-import { DBOS } from '@dbos-inc/dbos-sdk'
+import { DBOS, type DLogger } from '@dbos-inc/dbos-sdk'
 import { type Analyzer, runPlaceholderAnalysis } from '@polly/back'
-import type { LogEvent, WithTrace } from '@polly/platform'
-import { log } from '@polly/platform/log'
-import { DBOS_DEBUG, DBOS_ERROR, DBOS_INFO, DBOS_WARNING } from './events.ts'
+import type { WithTrace } from '@polly/platform'
 
 export interface WorkerOptions {
   databaseUrl: string
@@ -16,6 +14,8 @@ export interface WorkerOptions {
   task: { queueName: string; workflowName: string; applicationVersion: string }
   // Runs each workflow inside a trace of its own: the logging capacity's.
   trace: WithTrace
+  // Where DBOS writes its own log: the queue capacity's.
+  logger: DLogger
 }
 
 // Resolves with the queue it listens to, once it does.
@@ -24,18 +24,13 @@ export async function startWorker({
   analyzer,
   task,
   trace,
+  logger,
 }: WorkerOptions): Promise<{ queue: string }> {
-  const entry = (event: LogEvent) => (message: unknown) => log(event, { message })
   DBOS.setConfig({
     name: 'polly',
     systemDatabaseUrl: databaseUrl,
     applicationVersion: task.applicationVersion,
-    logger: {
-      debug: entry(DBOS_DEBUG),
-      info: entry(DBOS_INFO),
-      warn: entry(DBOS_WARNING),
-      error: entry(DBOS_ERROR),
-    },
+    logger,
   })
   DBOS.registerWorkflow(
     (recordingId: string) => trace(undefined, () => runPlaceholderAnalysis({ analyzer }, recordingId)),

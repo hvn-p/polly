@@ -73,7 +73,7 @@ describe("the worker's compute service", { timeout: 60_000 }, () => {
       }
       const warning = output
         .split('\n')
-        .filter((line) => line.includes('worker.compute_version.mismatched'))
+        .filter((line) => line.includes('analysis.compute_version.mismatched'))
         .map((line) => JSON.parse(line) as Record<string, unknown>)
       expect(warning).toEqual([
         expect.objectContaining({ level: 'warn', worktree: '0000mine0000', service: '0000other000' }),
