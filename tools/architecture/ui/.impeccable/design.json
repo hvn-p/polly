@@ -1,0 +1,781 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-02T10:12:51+00:00",
+  "title": "Design System: Architecture view",
+  "extensions": {
+    "colorMeta": {
+      "breach-vermilion": {
+        "role": "primary",
+        "displayName": "Breach Vermilion",
+        "canonical": "#ff5a36",
+        "tonalRamp": [
+          "oklch(15% 0.207 34)",
+          "oklch(26% 0.207 34)",
+          "oklch(38% 0.207 34)",
+          "oklch(49% 0.207 34)",
+          "oklch(61% 0.207 34)",
+          "oklch(72% 0.207 34)",
+          "oklch(84% 0.207 34)",
+          "oklch(95% 0.207 34)"
+        ]
+      },
+      "on-breach": {
+        "role": "primary",
+        "displayName": "On Breach",
+        "canonical": "#1a0d08",
+        "tonalRamp": [
+          "oklch(15% 0.025 42)",
+          "oklch(26% 0.025 42)",
+          "oklch(38% 0.025 42)",
+          "oklch(49% 0.025 42)",
+          "oklch(61% 0.025 42)",
+          "oklch(72% 0.025 42)",
+          "oklch(84% 0.025 42)",
+          "oklch(95% 0.025 42)"
+        ]
+      },
+      "breach-note-ground": {
+        "role": "primary",
+        "displayName": "Breach Note Ground",
+        "canonical": "#2a130d",
+        "tonalRamp": [
+          "oklch(15% 0.040 36)",
+          "oklch(26% 0.040 36)",
+          "oklch(38% 0.040 36)",
+          "oklch(49% 0.040 36)",
+          "oklch(61% 0.040 36)",
+          "oklch(72% 0.040 36)",
+          "oklch(84% 0.040 36)",
+          "oklch(95% 0.040 36)"
+        ]
+      },
+      "breach-note-ink": {
+        "role": "primary",
+        "displayName": "Breach Note Ink",
+        "canonical": "#ffc2b3",
+        "tonalRamp": [
+          "oklch(15% 0.074 34)",
+          "oklch(26% 0.074 34)",
+          "oklch(38% 0.074 34)",
+          "oklch(49% 0.074 34)",
+          "oklch(61% 0.074 34)",
+          "oklch(72% 0.074 34)",
+          "oklch(84% 0.074 34)",
+          "oklch(95% 0.074 34)"
+        ]
+      },
+      "tier-brick": {
+        "role": "secondary",
+        "displayName": "Tier Brick",
+        "canonical": "#d96c5b",
+        "tonalRamp": [
+          "oklch(15% 0.140 30)",
+          "oklch(26% 0.140 30)",
+          "oklch(38% 0.140 30)",
+          "oklch(49% 0.140 30)",
+          "oklch(61% 0.140 30)",
+          "oklch(72% 0.140 30)",
+          "oklch(84% 0.140 30)",
+          "oklch(95% 0.140 30)"
+        ]
+      },
+      "tier-ochre": {
+        "role": "secondary",
+        "displayName": "Tier Ochre",
+        "canonical": "#c9a227",
+        "tonalRamp": [
+          "oklch(15% 0.138 90)",
+          "oklch(26% 0.138 90)",
+          "oklch(38% 0.138 90)",
+          "oklch(49% 0.138 90)",
+          "oklch(61% 0.138 90)",
+          "oklch(72% 0.138 90)",
+          "oklch(84% 0.138 90)",
+          "oklch(95% 0.138 90)"
+        ]
+      },
+      "tier-olive": {
+        "role": "secondary",
+        "displayName": "Tier Olive",
+        "canonical": "#9bb35a",
+        "tonalRamp": [
+          "oklch(15% 0.119 122)",
+          "oklch(26% 0.119 122)",
+          "oklch(38% 0.119 122)",
+          "oklch(49% 0.119 122)",
+          "oklch(61% 0.119 122)",
+          "oklch(72% 0.119 122)",
+          "oklch(84% 0.119 122)",
+          "oklch(95% 0.119 122)"
+        ]
+      },
+      "tier-teal": {
+        "role": "secondary",
+        "displayName": "Tier Teal",
+        "canonical": "#5fb3a1",
+        "tonalRamp": [
+          "oklch(15% 0.087 178)",
+          "oklch(26% 0.087 178)",
+          "oklch(38% 0.087 178)",
+          "oklch(49% 0.087 178)",
+          "oklch(61% 0.087 178)",
+          "oklch(72% 0.087 178)",
+          "oklch(84% 0.087 178)",
+          "oklch(95% 0.087 178)"
+        ]
+      },
+      "tier-slate-blue": {
+        "role": "secondary",
+        "displayName": "Tier Slate Blue",
+        "canonical": "#6f8fc9",
+        "tonalRamp": [
+          "oklch(15% 0.095 262)",
+          "oklch(26% 0.095 262)",
+          "oklch(38% 0.095 262)",
+          "oklch(49% 0.095 262)",
+          "oklch(61% 0.095 262)",
+          "oklch(72% 0.095 262)",
+          "oklch(84% 0.095 262)",
+          "oklch(95% 0.095 262)"
+        ]
+      },
+      "tier-violet": {
+        "role": "secondary",
+        "displayName": "Tier Violet",
+        "canonical": "#a27cc0",
+        "tonalRamp": [
+          "oklch(15% 0.107 309)",
+          "oklch(26% 0.107 309)",
+          "oklch(38% 0.107 309)",
+          "oklch(49% 0.107 309)",
+          "oklch(61% 0.107 309)",
+          "oklch(72% 0.107 309)",
+          "oklch(84% 0.107 309)",
+          "oklch(95% 0.107 309)"
+        ]
+      },
+      "tier-stone": {
+        "role": "secondary",
+        "displayName": "Tier Stone",
+        "canonical": "#8c8a84",
+        "tonalRamp": [
+          "oklch(15% 0.009 92)",
+          "oklch(26% 0.009 92)",
+          "oklch(38% 0.009 92)",
+          "oklch(49% 0.009 92)",
+          "oklch(61% 0.009 92)",
+          "oklch(72% 0.009 92)",
+          "oklch(84% 0.009 92)",
+          "oklch(95% 0.009 92)"
+        ]
+      },
+      "tier-sand": {
+        "role": "secondary",
+        "displayName": "Tier Sand",
+        "canonical": "#c8a07a",
+        "tonalRamp": [
+          "oklch(15% 0.070 65)",
+          "oklch(26% 0.070 65)",
+          "oklch(38% 0.070 65)",
+          "oklch(49% 0.070 65)",
+          "oklch(61% 0.070 65)",
+          "oklch(72% 0.070 65)",
+          "oklch(84% 0.070 65)",
+          "oklch(95% 0.070 65)"
+        ]
+      },
+      "tier-rose": {
+        "role": "secondary",
+        "displayName": "Tier Rose",
+        "canonical": "#c97b9a",
+        "tonalRamp": [
+          "oklch(15% 0.104 355)",
+          "oklch(26% 0.104 355)",
+          "oklch(38% 0.104 355)",
+          "oklch(49% 0.104 355)",
+          "oklch(61% 0.104 355)",
+          "oklch(72% 0.104 355)",
+          "oklch(84% 0.104 355)",
+          "oklch(95% 0.104 355)"
+        ]
+      },
+      "tier-moss": {
+        "role": "secondary",
+        "displayName": "Tier Moss",
+        "canonical": "#7d9c6b",
+        "tonalRamp": [
+          "oklch(15% 0.078 134)",
+          "oklch(26% 0.078 134)",
+          "oklch(38% 0.078 134)",
+          "oklch(49% 0.078 134)",
+          "oklch(61% 0.078 134)",
+          "oklch(72% 0.078 134)",
+          "oklch(84% 0.078 134)",
+          "oklch(95% 0.078 134)"
+        ]
+      },
+      "zone-allowed": {
+        "role": "tertiary",
+        "displayName": "Zone Allowed",
+        "canonical": "#22301f",
+        "tonalRamp": [
+          "oklch(15% 0.036 140)",
+          "oklch(26% 0.036 140)",
+          "oklch(38% 0.036 140)",
+          "oklch(49% 0.036 140)",
+          "oklch(61% 0.036 140)",
+          "oklch(72% 0.036 140)",
+          "oklch(84% 0.036 140)",
+          "oklch(95% 0.036 140)"
+        ]
+      },
+      "zone-condition": {
+        "role": "tertiary",
+        "displayName": "Zone Condition",
+        "canonical": "#3b3319",
+        "tonalRamp": [
+          "oklch(15% 0.042 93)",
+          "oklch(26% 0.042 93)",
+          "oklch(38% 0.042 93)",
+          "oklch(49% 0.042 93)",
+          "oklch(61% 0.042 93)",
+          "oklch(72% 0.042 93)",
+          "oklch(84% 0.042 93)",
+          "oklch(95% 0.042 93)"
+        ]
+      },
+      "zone-forbidden": {
+        "role": "tertiary",
+        "displayName": "Zone Forbidden",
+        "canonical": "#2c1b18",
+        "tonalRamp": [
+          "oklch(15% 0.028 30)",
+          "oklch(26% 0.028 30)",
+          "oklch(38% 0.028 30)",
+          "oklch(49% 0.028 30)",
+          "oklch(61% 0.028 30)",
+          "oklch(72% 0.028 30)",
+          "oklch(84% 0.028 30)",
+          "oklch(95% 0.028 30)"
+        ]
+      },
+      "zone-same-tier": {
+        "role": "tertiary",
+        "displayName": "Zone Same Tier",
+        "canonical": "#262624",
+        "tonalRamp": [
+          "oklch(15% 0.004 107)",
+          "oklch(26% 0.004 107)",
+          "oklch(38% 0.004 107)",
+          "oklch(49% 0.004 107)",
+          "oklch(61% 0.004 107)",
+          "oklch(72% 0.004 107)",
+          "oklch(84% 0.004 107)",
+          "oklch(95% 0.004 107)"
+        ]
+      },
+      "allowed-ink": {
+        "role": "tertiary",
+        "displayName": "Allowed Ink",
+        "canonical": "#a9cf9e",
+        "tonalRamp": [
+          "oklch(15% 0.078 139)",
+          "oklch(26% 0.078 139)",
+          "oklch(38% 0.078 139)",
+          "oklch(49% 0.078 139)",
+          "oklch(61% 0.078 139)",
+          "oklch(72% 0.078 139)",
+          "oklch(84% 0.078 139)",
+          "oklch(95% 0.078 139)"
+        ]
+      },
+      "condition-ink": {
+        "role": "tertiary",
+        "displayName": "Condition Ink",
+        "canonical": "#e2cf90",
+        "tonalRamp": [
+          "oklch(15% 0.084 93)",
+          "oklch(26% 0.084 93)",
+          "oklch(38% 0.084 93)",
+          "oklch(49% 0.084 93)",
+          "oklch(61% 0.084 93)",
+          "oklch(72% 0.084 93)",
+          "oklch(84% 0.084 93)",
+          "oklch(95% 0.084 93)"
+        ]
+      },
+      "forbidden-ink": {
+        "role": "tertiary",
+        "displayName": "Forbidden Ink",
+        "canonical": "#e3a597",
+        "tonalRamp": [
+          "oklch(15% 0.077 33)",
+          "oklch(26% 0.077 33)",
+          "oklch(38% 0.077 33)",
+          "oklch(49% 0.077 33)",
+          "oklch(61% 0.077 33)",
+          "oklch(72% 0.077 33)",
+          "oklch(84% 0.077 33)",
+          "oklch(95% 0.077 33)"
+        ]
+      },
+      "added-green": {
+        "role": "tertiary",
+        "displayName": "Added Green",
+        "canonical": "#9bd3a0",
+        "tonalRamp": [
+          "oklch(15% 0.092 147)",
+          "oklch(26% 0.092 147)",
+          "oklch(38% 0.092 147)",
+          "oklch(49% 0.092 147)",
+          "oklch(61% 0.092 147)",
+          "oklch(72% 0.092 147)",
+          "oklch(84% 0.092 147)",
+          "oklch(95% 0.092 147)"
+        ]
+      },
+      "removed-rose": {
+        "role": "tertiary",
+        "displayName": "Removed Rose",
+        "canonical": "#d79a8f",
+        "tonalRamp": [
+          "oklch(15% 0.076 30)",
+          "oklch(26% 0.076 30)",
+          "oklch(38% 0.076 30)",
+          "oklch(49% 0.076 30)",
+          "oklch(61% 0.076 30)",
+          "oklch(72% 0.076 30)",
+          "oklch(84% 0.076 30)",
+          "oklch(95% 0.076 30)"
+        ]
+      },
+      "warning-amber": {
+        "role": "tertiary",
+        "displayName": "Warning Amber",
+        "canonical": "#e8a33d",
+        "tonalRamp": [
+          "oklch(15% 0.140 73)",
+          "oklch(26% 0.140 73)",
+          "oklch(38% 0.140 73)",
+          "oklch(49% 0.140 73)",
+          "oklch(61% 0.140 73)",
+          "oklch(72% 0.140 73)",
+          "oklch(84% 0.140 73)",
+          "oklch(95% 0.140 73)"
+        ]
+      },
+      "live-green": {
+        "role": "tertiary",
+        "displayName": "Live Green",
+        "canonical": "#7fb38a",
+        "tonalRamp": [
+          "oklch(15% 0.081 151)",
+          "oklch(26% 0.081 151)",
+          "oklch(38% 0.081 151)",
+          "oklch(49% 0.081 151)",
+          "oklch(61% 0.081 151)",
+          "oklch(72% 0.081 151)",
+          "oklch(84% 0.081 151)",
+          "oklch(95% 0.081 151)"
+        ]
+      },
+      "carbon-ground": {
+        "role": "neutral",
+        "displayName": "Carbon Ground",
+        "canonical": "#121212",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(26% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(49% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(72% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "raised-ground": {
+        "role": "neutral",
+        "displayName": "Raised Ground",
+        "canonical": "#181818",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(26% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(49% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(72% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "source-ground": {
+        "role": "neutral",
+        "displayName": "Source Ground",
+        "canonical": "#0e0e0e",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(26% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(49% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(72% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#2a2928",
+        "tonalRamp": [
+          "oklch(15% 0.002 68)",
+          "oklch(26% 0.002 68)",
+          "oklch(38% 0.002 68)",
+          "oklch(49% 0.002 68)",
+          "oklch(61% 0.002 68)",
+          "oklch(72% 0.002 68)",
+          "oklch(84% 0.002 68)",
+          "oklch(95% 0.002 68)"
+        ]
+      },
+      "quiet-rule": {
+        "role": "neutral",
+        "displayName": "Quiet Rule",
+        "canonical": "#3a3937",
+        "tonalRamp": [
+          "oklch(15% 0.004 85)",
+          "oklch(26% 0.004 85)",
+          "oklch(38% 0.004 85)",
+          "oklch(49% 0.004 85)",
+          "oklch(61% 0.004 85)",
+          "oklch(72% 0.004 85)",
+          "oklch(84% 0.004 85)",
+          "oklch(95% 0.004 85)"
+        ]
+      },
+      "group-rule": {
+        "role": "neutral",
+        "displayName": "Group Rule",
+        "canonical": "#4a4946",
+        "tonalRamp": [
+          "oklch(15% 0.005 92)",
+          "oklch(26% 0.005 92)",
+          "oklch(38% 0.005 92)",
+          "oklch(49% 0.005 92)",
+          "oklch(61% 0.005 92)",
+          "oklch(72% 0.005 92)",
+          "oklch(84% 0.005 92)",
+          "oklch(95% 0.005 92)"
+        ]
+      },
+      "off-white-ink": {
+        "role": "neutral",
+        "displayName": "Off White Ink",
+        "canonical": "#ecebe6",
+        "tonalRamp": [
+          "oklch(15% 0.007 97)",
+          "oklch(26% 0.007 97)",
+          "oklch(38% 0.007 97)",
+          "oklch(49% 0.007 97)",
+          "oklch(61% 0.007 97)",
+          "oklch(72% 0.007 97)",
+          "oklch(84% 0.007 97)",
+          "oklch(95% 0.007 97)"
+        ]
+      },
+      "soft-ink": {
+        "role": "neutral",
+        "displayName": "Soft Ink",
+        "canonical": "#bdbbb4",
+        "tonalRamp": [
+          "oklch(15% 0.010 94)",
+          "oklch(26% 0.010 94)",
+          "oklch(38% 0.010 94)",
+          "oklch(49% 0.010 94)",
+          "oklch(61% 0.010 94)",
+          "oklch(72% 0.010 94)",
+          "oklch(84% 0.010 94)",
+          "oklch(95% 0.010 94)"
+        ]
+      },
+      "warm-grey": {
+        "role": "neutral",
+        "displayName": "Warm Grey",
+        "canonical": "#8c8a84",
+        "tonalRamp": [
+          "oklch(15% 0.009 92)",
+          "oklch(26% 0.009 92)",
+          "oklch(38% 0.009 92)",
+          "oklch(49% 0.009 92)",
+          "oklch(61% 0.009 92)",
+          "oklch(72% 0.009 92)",
+          "oklch(84% 0.009 92)",
+          "oklch(95% 0.009 92)"
+        ]
+      },
+      "line-number-grey": {
+        "role": "neutral",
+        "displayName": "Line Number Grey",
+        "canonical": "#5a5955",
+        "tonalRamp": [
+          "oklch(15% 0.006 95)",
+          "oklch(26% 0.006 95)",
+          "oklch(38% 0.006 95)",
+          "oklch(49% 0.006 95)",
+          "oklch(61% 0.006 95)",
+          "oklch(72% 0.006 95)",
+          "oklch(84% 0.006 95)",
+          "oklch(95% 0.006 95)"
+        ]
+      },
+      "syntax-keyword": {
+        "role": "neutral",
+        "displayName": "Syntax Keyword",
+        "canonical": "#c6a6d8",
+        "tonalRamp": [
+          "oklch(15% 0.078 313)",
+          "oklch(26% 0.078 313)",
+          "oklch(38% 0.078 313)",
+          "oklch(49% 0.078 313)",
+          "oklch(61% 0.078 313)",
+          "oklch(72% 0.078 313)",
+          "oklch(84% 0.078 313)",
+          "oklch(95% 0.078 313)"
+        ]
+      },
+      "syntax-string": {
+        "role": "neutral",
+        "displayName": "Syntax String",
+        "canonical": "#b9c98f",
+        "tonalRamp": [
+          "oklch(15% 0.080 121)",
+          "oklch(26% 0.080 121)",
+          "oklch(38% 0.080 121)",
+          "oklch(49% 0.080 121)",
+          "oklch(61% 0.080 121)",
+          "oklch(72% 0.080 121)",
+          "oklch(84% 0.080 121)",
+          "oklch(95% 0.080 121)"
+        ]
+      },
+      "syntax-comment": {
+        "role": "neutral",
+        "displayName": "Syntax Comment",
+        "canonical": "#6f6d68",
+        "tonalRamp": [
+          "oklch(15% 0.008 89)",
+          "oklch(26% 0.008 89)",
+          "oklch(38% 0.008 89)",
+          "oklch(49% 0.008 89)",
+          "oklch(61% 0.008 89)",
+          "oklch(72% 0.008 89)",
+          "oklch(84% 0.008 89)",
+          "oklch(95% 0.008 89)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The one title of a page."
+      },
+      "title-large": {
+        "displayName": "Title Large",
+        "purpose": "The selected tier's name on the Rules page."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "A lane's heading; the tool's name in the top bar."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text and rows, tabular figures."
+      },
+      "body-small": {
+        "displayName": "Body Small",
+        "purpose": "Breadcrumb, top-bar status and stats, facts, reasons, notices."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Sentence-case section heads in warm grey, toolbar, status tags, axis tier names."
+      },
+      "tag": {
+        "displayName": "Tag",
+        "purpose": "Counts, tags, tier tags."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Paths, file:line, specifiers, module ids."
+      },
+      "mono-source": {
+        "displayName": "Mono Source",
+        "purpose": "Code in the source panel, 20px lines."
+      },
+      "mono-cell": {
+        "displayName": "Mono Cell",
+        "purpose": "Counts inside matrix cells, scaled with zoom."
+      }
+    },
+    "shadows": [
+      {
+        "name": "drawer",
+        "value": "-24px 0 48px #00000080",
+        "purpose": "The source panel, only while open."
+      },
+      {
+        "name": "live-halo",
+        "value": "0 0 0 3px #7fb38a22",
+        "purpose": "Ring around the live status dot."
+      },
+      {
+        "name": "selected-row",
+        "value": "inset 0 1px 0 #ecebe655, inset 0 -1px 0 #ecebe655",
+        "purpose": "The selected tier's row in the Rules grid."
+      }
+    ],
+    "motion": [
+      {
+        "name": "drawer-slide",
+        "value": "transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "The source panel sliding in from the right."
+      },
+      {
+        "name": "version-pulse",
+        "value": "1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite",
+        "purpose": "A square ring leaving the version warning's mark; off under reduced motion."
+      },
+      {
+        "name": "version-blink",
+        "value": "1s steps(1, end) infinite",
+        "purpose": "The graver warning's mark blinking amber; off under reduced motion."
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Tabs with counts",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "The top bar's views: warm grey at rest, ink with a 2px underline when current; counts neutral, vermilion for breaches, inverted for unseen changes.",
+      "html": "<nav class=\"ds-tabs\"><a href=\"#\" aria-current=\"page\">Matrix</a><a href=\"#\">Breaches<span class=\"ds-count ds-count-breach\">2</span></a><a href=\"#\">Changes<span class=\"ds-count ds-count-new\">3</span></a><a href=\"#\">Rules</a></nav>",
+      "css": ".ds-tabs { display: flex; gap: 2px; height: 52px; background: var(--ground, #121212); border-bottom: 1px solid var(--line, #2a2928); font: 500 14px/1.45 'Public Sans', system-ui, sans-serif; } .ds-tabs a { display: flex; align-items: center; gap: 7px; padding: 0 12px; color: var(--mute, #8c8a84); text-decoration: none; border-bottom: 2px solid transparent; } .ds-tabs a:hover { color: var(--ink-2, #bdbbb4); } .ds-tabs a[aria-current] { color: var(--ink, #ecebe6); border-bottom-color: var(--ink, #ecebe6); } .ds-tabs a:focus-visible { outline: 2px solid var(--ink, #ecebe6); outline-offset: 2px; border-radius: 2px; } .ds-count { font-size: 11px; border-radius: 999px; padding: 0 6px; background: var(--line, #2a2928); color: var(--ink-2, #bdbbb4); font-variant-numeric: tabular-nums; } .ds-count-breach { background: var(--breach, #ff5a36); color: #1a0d08; font-weight: 700; } .ds-count-new { background: #ecebe6; color: #121212; font-weight: 700; }"
+    },
+    {
+      "name": "Outlined button",
+      "kind": "button",
+      "refersTo": "chip",
+      "description": "Every control: transparent, 1px hairline, 4px corners; hover turns border warm grey and text ink.",
+      "html": "<button class=\"ds-btn\" type=\"button\">Open <svg class=\"ds-i\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 17 17 7M8 7h9v9\"/></svg></button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 4px; font: 12px/1.45 'Public Sans', system-ui, sans-serif; color: var(--ink-2, #bdbbb4); background: none; border: 1px solid var(--line, #2a2928); border-radius: 4px; padding: 3px 9px; cursor: pointer; } .ds-btn:hover { border-color: var(--mute, #8c8a84); color: var(--ink, #ecebe6); } .ds-btn:focus-visible { outline: 2px solid var(--ink, #ecebe6); outline-offset: 2px; } .ds-btn[disabled] { opacity: 0.35; cursor: default; } .ds-i { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; vertical-align: -2px; }"
+    },
+    {
+      "name": "Tags",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "11px tags: neutral, breach on vermilion, condition on dark ochre, and a tier tag on its tier's colour.",
+      "html": "<span class=\"ds-tags\"><span class=\"ds-tag\">added: 2</span><span class=\"ds-tag ds-tag-breach\">breach: tier-imports</span><span class=\"ds-tag ds-tag-cond\">condition</span><span class=\"ds-tag ds-tier\" style=\"--c:#5fb3a1\">domains</span></span>",
+      "css": ".ds-tags { display: inline-flex; gap: 8px; font-family: 'Public Sans', system-ui, sans-serif; } .ds-tag { font-size: 11px; font-weight: 600; border-radius: 3px; padding: 1px 6px; background: var(--line, #2a2928); color: var(--ink-2, #bdbbb4); white-space: nowrap; } .ds-tag-breach { background: var(--breach, #ff5a36); color: #1a0d08; } .ds-tag-cond { background: #3a3524; color: #e2cf90; } .ds-tier { background: var(--c); color: #121212; }"
+    },
+    {
+      "name": "Status tag",
+      "kind": "chip",
+      "refersTo": "status-breach",
+      "description": "A pair's verdict in words, on its zone fill with its zone ink; Breach on vermilion.",
+      "html": "<span class=\"ds-sts\"><span class=\"ds-st ds-breach\">Breach</span><span class=\"ds-st ds-ok\">Allowed</span><span class=\"ds-st ds-cond\">Allowed on a condition</span><span class=\"ds-st ds-no\">Forbidden</span></span>",
+      "css": ".ds-sts { display: inline-flex; gap: 8px; flex-wrap: wrap; font-family: 'Public Sans', system-ui, sans-serif; } .ds-st { display: inline-flex; font-size: 12px; font-weight: 600; border-radius: 3px; padding: 2px 8px; } .ds-breach { background: var(--breach, #ff5a36); color: #1a0d08; } .ds-ok { background: #22301f; color: #a9cf9e; } .ds-cond { background: #3b3319; color: #e2cf90; } .ds-no { background: #2c1b18; color: #e3a597; }"
+    },
+    {
+      "name": "Module node",
+      "kind": "custom",
+      "refersTo": "module-node",
+      "description": "A module with its tier attached: tier-coloured head, mono name; two nodes and an imports arrow describe a pair.",
+      "html": "<button class=\"ds-node\" type=\"button\" style=\"--c:#c9a227\"><span class=\"ds-node-tt\">flows</span><span class=\"ds-node-nm\">start-lesson</span></button>",
+      "css": ".ds-node { display: inline-flex; align-items: stretch; border: 1px solid var(--line, #2a2928); border-radius: 4px; overflow: hidden; background: var(--ground, #121212); padding: 0; cursor: pointer; } .ds-node:hover { border-color: var(--mute, #8c8a84); } .ds-node:focus-visible { outline: 2px solid var(--ink, #ecebe6); outline-offset: 2px; } .ds-node-tt { padding: 5px 8px; font: 600 12px/1.45 'Public Sans', system-ui, sans-serif; color: #121212; background: var(--c); } .ds-node-nm { padding: 5px 10px; font: 500 13px/1.4 'JetBrains Mono', ui-monospace, monospace; color: var(--ink, #ecebe6); }"
+    },
+    {
+      "name": "Matrix cells",
+      "kind": "custom",
+      "refersTo": "matrix-cell-allowed",
+      "description": "Solid zone fills with 4% white gridlines and mono counts; breach in vermilion; selection is an inner ink outline; an added pair gets a green corner dot.",
+      "html": "<div class=\"ds-cells\"><span class=\"ds-c ds-c-ok\">3</span><span class=\"ds-c ds-c-cond\">1</span><span class=\"ds-c ds-c-no\"></span><span class=\"ds-c ds-c-same\">2</span><span class=\"ds-c ds-c-breach\">1</span><span class=\"ds-c ds-c-ok ds-c-sel ds-c-add\">4</span></div>",
+      "css": ".ds-cells { display: inline-flex; background: var(--ground, #121212); } .ds-c { position: relative; display: grid; place-items: center; width: 26px; height: 24px; font: 600 11px/1 'JetBrains Mono', ui-monospace, monospace; color: var(--ink, #ecebe6); border-right: 1px solid #ffffff0a; border-bottom: 1px solid #ffffff0a; cursor: pointer; } .ds-c-ok { background: #22301f; } .ds-c-cond { background: #3b3319; } .ds-c-no { background: #2c1b18; } .ds-c-same { background: #262624; } .ds-c-breach { background: var(--breach, #ff5a36); color: #1a0d08; font-weight: 700; } .ds-c-sel { outline: 2px solid var(--ink, #ecebe6); outline-offset: -2px; } .ds-c-add::after { content: ''; position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: #9bd3a0; box-shadow: 0 0 0 1px #121212; }"
+    },
+    {
+      "name": "Tier axis strip and station",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "A tier as a 5px line strip with its name, its modules as ringed roundels on the carbon ground.",
+      "html": "<div class=\"ds-axis\" style=\"--c:#6f8fc9\"><div class=\"ds-strip\">domains</div><div class=\"ds-st-row\"><span class=\"ds-stn\"></span><span>lesson</span></div><div class=\"ds-st-row\"><span class=\"ds-stn\"></span><span>learner</span></div></div>",
+      "css": ".ds-axis { display: grid; grid-template-columns: 24px auto; grid-template-rows: repeat(2, 25px); background: var(--ground, #121212); color: var(--ink-2, #bdbbb4); font: 12px 'JetBrains Mono', ui-monospace, monospace; } .ds-strip { grid-row: 1 / span 2; border-right: 5px solid var(--c); writing-mode: vertical-rl; transform: rotate(180deg); font: 600 12px 'Public Sans', system-ui, sans-serif; padding: 4px; } .ds-st-row { display: flex; align-items: center; gap: 7px; padding: 0 10px 0 8px; } .ds-stn { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--c); background: var(--ground, #121212); flex: none; }"
+    },
+    {
+      "name": "Notice",
+      "kind": "card",
+      "refersTo": "notice",
+      "description": "Why a part of the view shows less than it should: amber square mark, ink title, soft-ink explanation, amber bottom border.",
+      "html": "<div class=\"ds-notice\" role=\"status\"><span class=\"ds-notice-mark\"></span><p><strong>The source panel cannot open this file</strong><span>The analyzer serves only the files it analyzed.</span></p></div>",
+      "css": ".ds-notice { display: flex; align-items: baseline; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--warn, #e8a33d); background: var(--raise, #181818); font-family: 'Public Sans', system-ui, sans-serif; } .ds-notice-mark { flex: none; width: 9px; height: 9px; background: var(--warn, #e8a33d); } .ds-notice p { display: flex; flex-direction: column; gap: 2px; margin: 0; color: var(--ink-2, #bdbbb4); font-size: 13px; } .ds-notice strong { color: var(--ink, #ecebe6); font-size: 14px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Transit Map of the Code",
+    "overview": "**Creative North Star: \"The Transit Map of the Code\"**\n\nTiers are transit lines and modules are stations. The matrix's two axes are line strips in tier order, each a solid band of its tier's colour, and each module sits on its line as a ringed roundel. The rest of the view inherits that map's discipline: a carbon ground, off-white ink, warm grey for what is secondary, hairlines for structure, and colour only where it carries a meaning the rules file defines.\n\nThe register is a technical instrument kept open beside an agent at work. It is dense, desktop only, and reads at a glance: a fixed top bar, a breadcrumb row, then a full-height view that never scrolls the page itself. The palette is Bertin's: one muted earth colour per tier, four dark zone grounds for what the rules allow, and a single loud colour, vermilion, reserved for a broken rule. The grey IDE dependency matrix with numbers in a tree is what this view refuses; so do rounded tiles, a free canvas and a plain data table, which were tried against the comp and read worse.",
+    "keyCharacteristics": [
+      "Dark carbon ground, flat, depth by tonal steps and hairlines.",
+      "One colour per tier, assigned once and carried everywhere the tier appears.",
+      "Vermilion appears only where a rule is broken.",
+      "Public Sans for interface, JetBrains Mono for anything a machine wrote (paths, `file:line`, module ids, code, matrix counts).",
+      "Tabular figures everywhere; small type (11 to 15px) with weight, not size, doing the hierarchy."
+    ],
+    "rules": [
+      {
+        "name": "The Vermilion Is a Breach Rule",
+        "body": "Breach Vermilion appears only where the rules file is broken. Status, warnings, removals and the offline state use something else: the offline live dot is an ink outline, a removal is rose, a format problem is amber.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Colour per Tier Rule",
+        "body": "A tier's colour is assigned once, in tier order, and every mark of that tier reuses it. No component picks its own tier colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The Warning Is Not a Breach Rule",
+        "body": "Amber flags the view's own limits (a format gap, missing data), with a square mark. It never marks code.",
+        "section": "colors"
+      },
+      {
+        "name": "The Machine Text Rule",
+        "body": "Whatever the analyzer or the code produced (a path, a `file:line`, a module id, a specifier, a count in a cell) is set in JetBrains Mono; whatever the view says in words is Public Sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Weight Not Size Rule",
+        "body": "The interface lives between 11 and 15px; hierarchy comes from weight (400, 600, 700) and ink level (ink, soft ink, warm grey). Only page titles and the selected tier step up.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Ground Rule",
+        "body": "Surfaces are flat at rest. The single cast shadow belongs to the source drawer while it is open.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** keep Breach Vermilion for broken rules only; give any other state its own colour (amber for the view's trouble, rose for removals, an ink outline for offline).",
+      "**Do** take a tier's colour from the tier, through the `--c` or `--tc` property, for every mark of that tier.",
+      "**Do** set paths, `file:line`, module ids and code in JetBrains Mono at 12.5px, and everything else in Public Sans.",
+      "**Do** show matrix states as solid zone fills, and show hover with the moving row and column bands rather than by restyling cells.",
+      "**Do** draw stations as ringed roundels and tiers as bars; keep other marks square.",
+      "**Do** outline controls with a 1px hairline at 4px, and answer hover with a warm-grey border and ink text.",
+      "**Do** separate surfaces with hairlines and ground steps; keep the drawer shadow the only cast shadow."
+    ],
+    "donts": [
+      "**Don't** use vermilion for a status dot, a warning, a removal or a decorative accent.",
+      "**Don't** fill cells or tags with a tier colour other than the tier's own.",
+      "**Don't** add a second loud accent; the tier colours stay muted earth tones and the zones stay dark.",
+      "**Don't** put a shadow on a surface at rest.",
+      "**Don't** set code or paths in the sans, or interface prose in the mono."
+    ]
+  }
+}
