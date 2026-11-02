@@ -513,6 +513,34 @@ fn the_json_report_names_the_breaches_the_branch_adds_against_its_base() {
 }
 
 #[test]
+fn a_breach_like_one_of_the_base_s_is_still_one_the_branch_adds() {
+    let tree = Tree::valid();
+    tree.write(
+        "apps/api/src/routes.ts",
+        "import { connect } from '@t/database'\nexport const serve = connect\n",
+    );
+    git(&tree, &["init", "-q", "-b", "main"]);
+    git(&tree, &["add", "-A"]);
+    git(&tree, &["commit", "-q", "-m", "base"]);
+    git(&tree, &["switch", "-q", "-c", "feature"]);
+    tree.write(
+        "apps/api/src/routes.ts",
+        "import { connect } from '@t/database'\nimport { connect as again } from '@t/database'\nexport const serve = [connect, again]\n",
+    );
+    let (_, out) = run(&tree, &["json", "--base", "main"]);
+    let report: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(report["violations"].as_array().unwrap().len(), 2, "{out}");
+    let breaches = report["base"]["breaches"].as_array().unwrap();
+    assert_eq!(
+        breaches
+            .iter()
+            .map(|v| (v["file"].as_str().unwrap(), v["line"].as_u64().unwrap()))
+            .collect::<Vec<_>>(),
+        [("apps/api/src/routes.ts", 2)]
+    );
+}
+
+#[test]
 fn a_base_is_read_with_the_tree_s_rules_even_when_it_has_none() {
     let tree = Tree::valid();
     git(&tree, &["init", "-q", "-b", "main"]);

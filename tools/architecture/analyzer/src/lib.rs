@@ -134,18 +134,12 @@ impl Tree {
         let graph = self.graph(Some(resolver));
         let base = base.map(|base| {
             let now = pairs(&graph.edges);
-            let was_broken: BTreeSet<_> = base.violations.iter().map(unplaced).collect();
             BaseDiff {
                 reference: base.reference.clone(),
                 head: base.head.clone(),
                 added: now.difference(&base.pairs).cloned().collect(),
                 removed: base.pairs.difference(&now).cloned().collect(),
-                breaches: graph
-                    .violations
-                    .iter()
-                    .filter(|v| !was_broken.contains(&unplaced(v)))
-                    .cloned()
-                    .collect(),
+                breaches: unmatched(&graph.violations, &base.violations),
             }
         });
         let name = self
