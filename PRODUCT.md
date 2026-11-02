@@ -77,3 +77,5 @@ The name `Polly`, the parrot of English and the start of "polyglot".
    together.
 5. Speaking counts as much as writing: communication tasks drawn from the learner's
    goals, and pronunciation trained by the ear before the mouth.
+
+How these principles turn into a learner model and rules, with their evidence, is in `LEARNING.md`.
