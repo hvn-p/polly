@@ -28,7 +28,16 @@ function clean(value: unknown): unknown {
     return scrub(value)
   }
   if (value instanceof Error) {
-    return { name: value.name, message: scrub(value.message), stack: scrub(value.stack ?? '') }
+    // A system or driver error's code (ECONNREFUSED, a Postgres SQLSTATE) and
+    // its causes say what actually failed.
+    const { code } = value as { code?: unknown }
+    return {
+      name: value.name,
+      message: scrub(value.message),
+      stack: scrub(value.stack ?? ''),
+      ...(code === undefined ? {} : { code: clean(code) }),
+      ...(value.cause === undefined ? {} : { cause: clean(value.cause) }),
+    }
   }
   if (Array.isArray(value)) {
     return value.map(clean)
@@ -42,6 +51,19 @@ function clean(value: unknown): unknown {
   }
   return value
 }
+
+// What the sink adds to every line; a caller field of the same name is dropped.
+const RESERVED = new Set([
+  'time',
+  'level',
+  'process',
+  'tier',
+  'module',
+  'file',
+  'event',
+  'category',
+  'trace_id',
+])
 
 // The trace a line belongs to: taken from the request's W3C traceparent, or
 // started at the entry.
@@ -88,7 +110,7 @@ export function createLogSink({
         category: event.category,
         ...source,
         ...(trace === undefined ? {} : { trace_id: trace.traceId }),
-        ...fields,
+        ...Object.fromEntries(Object.entries(fields).filter(([key]) => !RESERVED.has(key))),
       })
     },
   }

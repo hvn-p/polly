@@ -85,6 +85,70 @@ describe('the Pino sink', () => {
       stack: expect.stringContaining('index.test.ts'),
     })
   })
+
+  it("keeps an error's code and its causes, each cleaned the same way", () => {
+    const lines = capture()
+    const code = randomBytes(32).toString('base64url')
+    const refused = Object.assign(new Error(`connect ECONNREFUSED for ${code}`), { code: 'ECONNREFUSED' })
+    const query = Object.assign(new Error('relation missing', { cause: refused }), { code: '42P01' })
+    log(FAILED, { error: new TypeError('fetch failed', { cause: query }) })
+    expect(JSON.stringify(lines)).not.toContain(code)
+    expect(lines[0]?.['error']).toMatchObject({
+      message: 'fetch failed',
+      cause: {
+        message: 'relation missing',
+        code: '42P01',
+        cause: { message: 'connect ECONNREFUSED for [REDACTED]', code: 'ECONNREFUSED' },
+      },
+    })
+  })
+
+  it("replaces an event code or a JWT held in an error's message and stack", () => {
+    const lines = capture()
+    const code = randomBytes(32).toString('base64url')
+    const part = (value: string): string => Buffer.from(value).toString('base64url')
+    const jwt = [part('{"alg":"ES256"}'), part('{"sub":"learner-1"}'), part('signature')].join('.')
+    const error = new Error(`code ${code} refused for ${jwt}`)
+    expect(error.stack).toContain(jwt)
+    log(FAILED, { error })
+    const written = JSON.stringify(lines)
+    expect(written).not.toContain(code)
+    expect(written).not.toContain(jwt)
+    expect(lines[0]?.['error']).toMatchObject({
+      message: 'code [REDACTED] refused for [REDACTED]',
+      stack: expect.stringContaining('code [REDACTED] refused for [REDACTED]'),
+    })
+  })
+
+  it('keeps the fields it adds over caller fields of the same name', async () => {
+    const lines = capture()
+    const caller = {
+      time: 'then',
+      level: 'debug',
+      process: 'other',
+      tier: 'domains',
+      module: 'packages/other',
+      file: 'packages/other/src/x.ts',
+      event: 'other.event.done',
+      category: 'functional',
+      trace_id: 'f'.repeat(32),
+      learnerId: 'learner-1',
+    }
+    log(FAILED, caller)
+    await withTrace(`00-${'a'.repeat(32)}-${'b'.repeat(16)}-01`, async () => log(FAILED, caller))
+    expect(lines[0]).toEqual({
+      time: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
+      level: 'warn',
+      event: 'identity.sign_in.failed',
+      category: 'security',
+      process: 'polly-api',
+      tier: 'adapters',
+      module: 'packages/identity',
+      file: 'packages/identity/src/sessions.ts',
+      learnerId: 'learner-1',
+    })
+    expect(lines[1]).toMatchObject({ trace_id: 'a'.repeat(32), event: 'identity.sign_in.failed' })
+  })
 })
 
 describe('the trace', () => {
