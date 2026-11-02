@@ -1,10 +1,10 @@
 // The end-to-end run: the probes of what it needs, its scenarios, and the
 // driver, loaded only when a run starts.
 
-import type { RunResult } from './claude.ts'
+import type { RunResult } from './run.ts'
 
-export type { RunResult } from './claude.ts'
 export { type ClientStatus, probeClaude, probeDriverTools } from './client.ts'
+export type { RunResult } from './run.ts'
 export type { Scenario } from './scenario.ts'
 export { smoke } from './scenarios/smoke.ts'
 
