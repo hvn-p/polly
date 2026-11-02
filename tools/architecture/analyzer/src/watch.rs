@@ -9,7 +9,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use schemars::JsonSchema;
 use serde::Serialize;
 
-use crate::{Base, RULES_FILE, Report, Tree, Violation, base_pairs, graph, pairs, read, workspace};
+use crate::{
+    Base, RULES_FILE, Report, Tree, Violation, base_pairs, graph, pairs, read, unplaced, workspace,
+};
 
 /// A report the watch sends, with what changed since the one before.
 #[derive(Debug, Clone)]
@@ -41,8 +43,9 @@ pub struct Change {
 impl Change {
     fn between(before: &Report, after: &Report, files: Vec<String>) -> Self {
         let (was, now) = (pairs(&before.edges), pairs(&after.edges));
-        let was_broken: BTreeSet<&Violation> = before.violations.iter().collect();
-        let now_broken: BTreeSet<&Violation> = after.violations.iter().collect();
+        // A breach whose line an edit moved is the same breach.
+        let was_broken: BTreeSet<_> = before.violations.iter().map(unplaced).collect();
+        let now_broken: BTreeSet<_> = after.violations.iter().map(unplaced).collect();
         Self {
             at: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -50,13 +53,17 @@ impl Change {
             files,
             added: now.difference(&was).cloned().collect(),
             removed: was.difference(&now).cloned().collect(),
-            breaches: now_broken
-                .difference(&was_broken)
-                .map(|v| (*v).clone())
+            breaches: after
+                .violations
+                .iter()
+                .filter(|v| !was_broken.contains(&unplaced(v)))
+                .cloned()
                 .collect(),
-            fixed: was_broken
-                .difference(&now_broken)
-                .map(|v| (*v).clone())
+            fixed: before
+                .violations
+                .iter()
+                .filter(|v| !now_broken.contains(&unplaced(v)))
+                .cloned()
                 .collect(),
         }
     }

@@ -78,6 +78,28 @@ fn each_change_says_what_it_changed() {
     assert_eq!(change.breaches, []);
 }
 
+#[test]
+fn a_breach_whose_line_moves_is_neither_fixed_nor_broken() {
+    let tree = Tree::valid();
+    tree.write(
+        "apps/api/src/routes.ts",
+        "import { connect } from '@t/database'\nexport const serve = connect\n",
+    );
+    let (tx, rx) = mpsc::channel();
+    watch(tree.path(), None, tx).unwrap();
+    rx.recv_timeout(Duration::from_secs(5))
+        .expect("the first graph");
+    tree.write(
+        "apps/api/src/routes.ts",
+        "// A line above the import moves its breach.\nimport { connect } from '@t/database'\nexport const serve = connect\n",
+    );
+    let update = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("a graph within 1 s, the breach's line moved");
+    assert_eq!(update.report.violations[0].line, 2);
+    assert!(update.change.is_none(), "{:?}", update.change);
+}
+
 const START_LESSON: &str = "packages/back/src/flows/start-lesson/index.ts";
 const START_LESSON_IMPORTS: &str = "import type { Code } from '@t/kernel'\nimport { bind, type EventCodes } from '../../domains/event-codes/index.ts'\n";
 

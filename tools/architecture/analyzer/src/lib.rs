@@ -181,7 +181,7 @@ pub(crate) fn pairs(edges: &[Edge]) -> BTreeSet<(String, String)> {
 }
 
 /// A violation without its line, which an edit above it moves.
-fn unplaced(v: &Violation) -> (&str, &str, &str, &str) {
+pub(crate) fn unplaced(v: &Violation) -> (&str, &str, &str, &str) {
     (&v.rule, &v.file, &v.message, &v.fix)
 }
 
