@@ -5,9 +5,10 @@
 // builds every Node process, and Vitest, which runs their tests.
 
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import type { Plugin } from 'esbuild'
-import { analyzerCommand } from '../checks/analyzer.ts'
+import { runWith } from '../checks/analyzer.ts'
 
 export interface Module {
   id: string
@@ -20,18 +21,45 @@ const LOGGING_TIERS = ['interfaces', 'flows', 'adapters']
 const VIRTUAL = '\0polly-log:'
 
 export function readModules(root: string): Module[] {
-  const [command = '', ...args] = analyzerCommand(root, ['json'])
-  const run = spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
-  if (run.status !== 0) {
-    throw new Error(`the architecture analyzer failed: ${run.stderr}`)
+  const run = runWith(root, ['json'], {
+    exists: existsSync,
+    spawn: (command, args) =>
+      spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }),
+  })
+  if ('failure' in run) {
+    throw new Error(run.failure)
   }
-  return (JSON.parse(run.stdout) as { modules: Module[] }).modules
+  if (run.ran.status !== 0) {
+    throw new Error(`the architecture analyzer failed: ${run.ran.stderr}`)
+  }
+  return (JSON.parse(run.ran.stdout) as { modules: Module[] }).modules
+}
+
+// The module of a file, from the analyzer's last reading; read again when the
+// file is in none, as one created or moved since is.
+export type ModuleIndex = (file: string) => Module | undefined
+
+export function moduleIndex(read: () => Module[]): ModuleIndex {
+  let modules: Module[] | undefined
+  return (file) => {
+    const find = () => modules?.find(({ files }) => files.includes(file))
+    if (modules === undefined) {
+      modules = read()
+      return find()
+    }
+    const known = find()
+    if (known !== undefined) {
+      return known
+    }
+    modules = read()
+    return find()
+  }
 }
 
 // The tagged logger's module for a file, or why it may not log.
-function taggedLogger(root: string, modules: Module[], importer: string): string {
+function taggedLogger(root: string, modules: ModuleIndex, importer: string): string {
   const file = relative(root, importer)
-  const module = modules.find(({ files }) => files.includes(file))
+  const module = modules(file)
   if (module === undefined) {
     throw new Error(`${file} is in no tier that logs (constitution XIX)`)
   }
@@ -43,16 +71,10 @@ function taggedLogger(root: string, modules: Module[], importer: string): string
   return `import { logFrom } from ${socle}\nexport const log = logFrom(${source})\n`
 }
 
-function lazy(read: () => Module[]): () => Module[] {
-  let modules: Module[] | undefined
-  return () => {
-    modules ??= read()
-    return modules
-  }
-}
-
-export function esbuildLogPlugin(root: string, read: () => Module[] = () => readModules(root)): Plugin {
-  const modules = lazy(read)
+export function esbuildLogPlugin(
+  root: string,
+  modules: ModuleIndex = moduleIndex(() => readModules(root)),
+): Plugin {
   return {
     name: 'polly-log',
     setup: (build) => {
@@ -61,7 +83,7 @@ export function esbuildLogPlugin(root: string, read: () => Module[] = () => read
           return {
             path: importer,
             namespace: 'polly-log',
-            pluginData: taggedLogger(root, modules(), importer),
+            pluginData: taggedLogger(root, modules, importer),
           }
         } catch (error) {
           return { errors: [{ text: (error as Error).message }] }
@@ -76,14 +98,13 @@ export function esbuildLogPlugin(root: string, read: () => Module[] = () => read
   }
 }
 
-export function vitestLogPlugin(root: string, read: () => Module[] = () => readModules(root)) {
-  const modules = lazy(read)
+export function vitestLogPlugin(root: string, modules: ModuleIndex = moduleIndex(() => readModules(root))) {
   return {
     name: 'polly-log',
     enforce: 'pre' as const,
     resolveId: (source: string, importer: string | undefined): string | undefined =>
       source === SPECIFIER && importer !== undefined ? `${VIRTUAL}${importer}` : undefined,
     load: (id: string): string | undefined =>
-      id.startsWith(VIRTUAL) ? taggedLogger(root, modules(), id.slice(VIRTUAL.length)) : undefined,
+      id.startsWith(VIRTUAL) ? taggedLogger(root, modules, id.slice(VIRTUAL.length)) : undefined,
   }
 }

@@ -38,6 +38,24 @@ describe('running the architecture check', () => {
     ])
   })
 
+  it('counts Node alone as no analyzer, and runs the launcher with Node when only it is installed', () => {
+    const launcher = join(root, 'node_modules/@hvn-p/architecture/bin/architecture.js')
+    const lines: string[] = []
+    const spawned: string[][] = []
+    const spawn = (command: string, args: string[]) => {
+      spawned.push([command, ...args])
+      return { status: 0 }
+    }
+    const write = (line: string) => lines.push(line)
+    expect(runAnalyzer(root, ['check'], { exists: (path) => path === process.execPath, spawn, write })).toBe(
+      1,
+    )
+    expect(spawned).toEqual([])
+    expect(lines).toEqual([expect.stringMatching(/^ARCHITECTURE_ANALYZER_MISSING: /)])
+    expect(runAnalyzer(root, ['check'], { exists: (path) => path === launcher, spawn, write })).toBe(0)
+    expect(spawned).toEqual([[process.execPath, launcher, 'check']])
+  })
+
   it('says why the analyzer could not start, and exits with its status once it ran', () => {
     const lines: string[] = []
     const failing = runAnalyzer(root, ['check'], {

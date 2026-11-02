@@ -8,11 +8,18 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import type { BuildOptions, Plugin } from 'esbuild'
+import type { ModuleIndex } from './log-plugin.ts'
 
 // Loaded when a build runs, so a failure to load them (no install yet) is the
 // build's failure, which exits 2.
 const esbuild = () => import('esbuild')
-const logPlugin = async () => (await import('./log-plugin.ts')).esbuildLogPlugin(repositoryRoot)
+// One reading of the analyzer for every process a run builds.
+let modules: ModuleIndex | undefined
+const logPlugin = async () => {
+  const { esbuildLogPlugin, moduleIndex, readModules } = await import('./log-plugin.ts')
+  modules ??= moduleIndex(() => readModules(repositoryRoot))
+  return esbuildLogPlugin(repositoryRoot, modules)
+}
 
 export interface Process {
   name: string

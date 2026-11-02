@@ -2,8 +2,14 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { bundleProcess, PROCESSES, pathsOf } from './processes.ts'
+
+// The analyzer's runs, counted.
+vi.mock('./log-plugin.ts', async (actual) => {
+  const plugin = await actual<typeof import('./log-plugin.ts')>()
+  return { ...plugin, readModules: vi.fn(plugin.readModules) }
+})
 
 const repositoryRoot = join(import.meta.dirname, '..', '..')
 
@@ -43,6 +49,18 @@ describe('building a Node process', () => {
       expect(bundle, target.name).not.toContain('demo@polly.localhost')
       expect(bundle, target.name).not.toContain('seedDemoAccount')
     }
+  })
+
+  it('runs the analyzer once for every process the run builds', async () => {
+    // A run of its own: the build script and its plugin loaded afresh.
+    vi.resetModules()
+    const run = await import('./processes.ts')
+    const { readModules } = await import('./log-plugin.ts')
+    const out = mkdtempSync(join(tmpdir(), 'build-out-'))
+    for (const target of run.PROCESSES.filter(({ name }) => ['api', 'mcp', 'worker'].includes(name))) {
+      await run.bundleProcess({ ...run.pathsOf(target), outfile: join(out, `${target.name}.js`) })
+    }
+    expect(readModules).toHaveBeenCalledTimes(1)
   })
 
   it('leaves an unchanged output unwritten, so a process that watches it is not restarted', async () => {

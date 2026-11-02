@@ -1,6 +1,7 @@
 // The architecture analyzer's command: the one built in the worktree when there
 // is one, so a change to the analyzer is checked by itself; the pinned package
-// otherwise.
+// otherwise. Every caller runs it through runWith, which says what is missing
+// when there is none to run.
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -15,4 +16,35 @@ export function analyzerCommand(
   return exists(local)
     ? [local, ...args]
     : [process.execPath, join(root, 'node_modules/@hvn-p/architecture/bin/architecture.js'), ...args]
+}
+
+export interface Spawned {
+  status: number | null
+  error?: Error
+}
+
+export interface AnalyzerIo<T extends Spawned> {
+  exists: (path: string) => boolean
+  spawn: (command: string, args: string[]) => T
+}
+
+const MISSING =
+  'ARCHITECTURE_ANALYZER_MISSING: no analyzer built in tools/architecture/analyzer, nor installed as @hvn-p/architecture; run pnpm install, or cargo build --release in tools/architecture/analyzer'
+
+// Runs the analyzer: its run, or the line saying why it did not run.
+export function runWith<T extends Spawned>(
+  root: string,
+  args: string[],
+  { exists, spawn }: AnalyzerIo<T>,
+): { ran: T } | { failure: string } {
+  const [command = '', ...rest] = analyzerCommand(root, args, exists)
+  const program = command === process.execPath ? (rest[0] ?? '') : command
+  if (!exists(program)) {
+    return { failure: MISSING }
+  }
+  const ran = spawn(command, rest)
+  if (ran.error !== undefined) {
+    return { failure: `the architecture analyzer did not start: ${program}: ${ran.error.message}` }
+  }
+  return { ran }
 }

@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { analyzerCommand } from './analyzer.ts'
+import { analyzerCommand, runWith } from './analyzer.ts'
 
 export { analyzerCommand }
 
@@ -27,20 +27,12 @@ export { analyzerCommand }
  * @returns {number} the analyzer's exit status, or 1 when it did not run
  */
 export function runAnalyzer(root, args, { exists, spawn, write }) {
-  const [command = '', ...rest] = analyzerCommand(root, args, exists)
-  const program = command === process.execPath ? (rest[0] ?? '') : command
-  if (!exists(program)) {
-    write(
-      'ARCHITECTURE_ANALYZER_MISSING: no analyzer built in tools/architecture/analyzer, nor installed as @hvn-p/architecture; run pnpm install, or cargo build --release in tools/architecture/analyzer',
-    )
+  const run = runWith(root, args, { exists, spawn })
+  if ('failure' in run) {
+    write(run.failure)
     return 1
   }
-  const result = spawn(command, rest)
-  if (result.error !== undefined) {
-    write(`the architecture analyzer did not start: ${program}: ${result.error.message}`)
-    return 1
-  }
-  return result.status ?? 1
+  return run.ran.status ?? 1
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
