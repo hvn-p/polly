@@ -2,7 +2,7 @@
 // a pseudo-terminal given by `script` (plugin monitors do not start headless),
 // and agent-browser. Run on demand, never in CI.
 
-import { execFile, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { existsSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -17,16 +17,8 @@ import { plain, shellQuoted } from './terminal.ts'
 
 const ALLOWED_TOOLS = ['Skill', 'mcp__plugin_polly_polly__whoami', 'mcp__plugin_polly_polly__start_lesson']
 
-function capture(command: string, args: readonly string[], env: NodeJS.ProcessEnv): Promise<string> {
-  return new Promise((resolve) => {
-    execFile(command, args, { env, encoding: 'utf8' }, (_error, stdout, stderr) =>
-      resolve(`${stdout}${stderr}`),
-    )
-  })
-}
-
 // A command run in a pseudo-terminal, with its output accumulated.
-function inTerminal(command: string[], env: NodeJS.ProcessEnv, cwd: string): Terminal {
+export function inTerminal(command: string[], env: NodeJS.ProcessEnv, cwd: string): Terminal {
   const child = spawn('script', ['-qfec', command.map(shellQuoted).join(' '), '/dev/null'], {
     cwd,
     env,
@@ -39,7 +31,15 @@ function inTerminal(command: string[], env: NodeJS.ProcessEnv, cwd: string): Ter
   child.stderr.on('data', (chunk: Buffer) => {
     output += chunk.toString()
   })
-  const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+  const exited = new Promise<void>((resolve) => {
+    child.once('exit', () => resolve())
+    // A command that cannot start never exits: the step waiting on its screen
+    // fails, with the reason on that screen.
+    child.once('error', (error) => {
+      output += `${error.message}\n`
+      resolve()
+    })
+  })
   return {
     output: () => plain(output),
     type: (text) => child.stdin.write(text),
@@ -72,7 +72,9 @@ function machineOf(root: string, env: Record<string, string>): Machine {
   return {
     signedIn: async () => {
       const list = drivenSession(root, ['mcp', 'list'])
-      return /plugin:polly:polly: .*Connected/.test(await capture(list.command, list.args, list.env))
+      return /plugin:polly:polly: .*Connected/.test(
+        await checked(list.command, list.args, 'claude mcp list', list.env),
+      )
     },
     login: () => {
       const login = drivenSession(root, ['mcp', 'login', 'plugin:polly:polly', '--no-browser'])

@@ -1,16 +1,20 @@
-// A command whose failure ends the step that ran it: it rejects naming the
-// command, with what it printed.
+// A command whose failure ends the step that ran it: it resolves with what it
+// printed on stdout, and rejects naming the command, with what it printed.
 
 import { execFile } from 'node:child_process'
 
-export function checked(command: string, args: readonly string[], name: string): Promise<string> {
+export function checked(
+  command: string,
+  args: readonly string[],
+  name: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(command, args, { encoding: 'utf8' }, (error, stdout, stderr) => {
-      const output = `${stdout}${stderr}`
+    execFile(command, args, { env, encoding: 'utf8' }, (error, stdout, stderr) => {
       if (error === null) {
-        resolve(output)
+        resolve(stdout)
       } else {
-        reject(new Error(`${name} failed: ${output.trim() || error.message}`))
+        reject(new Error(`${name} failed: ${`${stdout}${stderr}`.trim() || error.message}`))
       }
     })
   })

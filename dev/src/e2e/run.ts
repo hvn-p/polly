@@ -98,11 +98,12 @@ async function signIn(
   const authorize = AUTHORIZATION_URL.exec(login.output())?.[0] ?? ''
   const polly = new URL(authorize).origin
   const answered = new Set<string>()
+  let page: URL | undefined
   try {
     await browser('open', authorize)
     await until(
       async () => {
-        const page = new URL((await browser('get', 'url')).trim())
+        page = await currentPage(browser)
         if (page.origin !== polly) {
           return true
         }
@@ -121,7 +122,11 @@ async function signIn(
       timings.signIn,
       timings.poll,
       'the browser to leave Polly',
-    )
+    ).catch(async (error: unknown) => {
+      throw page === undefined
+        ? error
+        : new Error(`${reason(error)}, on ${page.href}${await alertOf(browser)}`)
+    })
     await until(
       () => login.output().includes('Authenticated'),
       timings.signIn,
@@ -129,9 +134,25 @@ async function signIn(
       'the MCP sign-in',
     )
   } finally {
-    // The next run starts from no page, whatever this one left.
-    await browser('close')
+    // The next run starts from no page, whatever this one left. A close that
+    // fails says nothing of the sign-in: it neither replaces its failure nor
+    // makes one.
+    await browser('close').catch(() => undefined)
   }
+}
+
+async function currentPage(browser: Machine['browser']): Promise<URL> {
+  const printed = (await browser('get', 'url')).trim()
+  if (!URL.canParse(printed)) {
+    throw new Error(`agent-browser get url printed no URL: ${printed || '(nothing)'}`)
+  }
+  return new URL(printed)
+}
+
+// What the page says went wrong, if it says anything.
+async function alertOf(browser: Machine['browser']): Promise<string> {
+  const text = await browser('get', 'text', '[role=alert]').catch(() => '')
+  return text.trim() === '' ? '' : `: ${text.trim()}`
 }
 
 function reason(error: unknown): string {
@@ -169,20 +190,27 @@ export async function play({
       out('signing the polly MCP server in with the demo account')
       login = machine.login()
       await signIn(login, machine.browser, account, timings)
+      // Signed in, it writes its credentials before it exits.
+      await login.stop(timings.exit)
     }
   } catch (error) {
     if (login !== undefined) {
       keep(login)
+      await login.stop(0)
     }
     return { failures: [`MCP sign-in: ${reason(error)}`], transcript: '(no transcript)' }
-  } finally {
-    await login?.stop(0)
   }
   out(`session ${sessionId}: ${scenario.prompt}`)
   const session = machine.session(sessionId)
+  // Claude Code writes the transcript once the session starts, and it stays where it is.
+  let file: string | undefined
+  const transcript = () => {
+    file ??= machine.transcript(sessionId)
+    return file
+  }
   const read = () => {
-    const file = machine.transcript(sessionId)
-    return file === undefined ? '' : readFileSync(file, 'utf8')
+    const found = transcript()
+    return found === undefined ? '' : readFileSync(found, 'utf8')
   }
   const failures: string[] = []
   try {
@@ -209,5 +237,5 @@ export async function play({
   if (failures.length > 0) {
     keep(session)
   }
-  return { failures, transcript: machine.transcript(sessionId) ?? '(no transcript)' }
+  return { failures, transcript: transcript() ?? '(no transcript)' }
 }

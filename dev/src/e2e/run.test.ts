@@ -12,15 +12,24 @@ const TIMINGS: Timings = {
   prompt: 50,
   settle: 1,
   scenario: 50,
-  exit: 0,
+  exit: 7,
 }
 const ACCOUNT = { email: 'demo@polly.localhost', password: 'demo-password' }
 const AUTHORIZE = 'https://x.polly.localhost/api/auth/oauth2/authorize?client_id=c'
 const CODE = 'A'.repeat(43)
 
-function terminal(screen: () => string): Terminal & { typed: string[] } {
+function terminal(screen: () => string): Terminal & { typed: string[]; stopped: number[] } {
   const typed: string[] = []
-  return { output: screen, type: (text) => typed.push(text), stop: async () => undefined, typed }
+  const stopped: number[] = []
+  return {
+    output: screen,
+    type: (text) => typed.push(text),
+    stop: async (grace) => {
+      stopped.push(grace)
+    },
+    typed,
+    stopped,
+  }
 }
 
 const PAGES: Record<string, { url: string; elements: string[] }> = {
@@ -219,5 +228,119 @@ describe('end-to-end run', () => {
     expect(await result).toEqual({ failures: [], transcript: finished })
     expect(session.typed).toEqual(['start a lesson', '\r', '/exit\r'])
     expect(lines.some((line) => line.startsWith('terminal: '))).toBe(false)
+  })
+
+  it('C38: a run whose MCP server is already connected signs nothing in', async () => {
+    let logins = 0
+    const m = machine({
+      signedIn: async () => true,
+      login: () => {
+        logins += 1
+        return terminal(() => '')
+      },
+    })
+    const { lines, result } = run(m)
+    expect((await result).failures).toEqual([])
+    expect(logins).toBe(0)
+    expect(m.browserCalls).toEqual([])
+    expect(lines.some((line) => line.startsWith('signing'))).toBe(false)
+  })
+
+  it('FR-024: a session that never shows its prompt is still exited and ended', async () => {
+    const session = terminal(() => 'starting')
+    const { result } = run(machine({ signedIn: async () => true, session: () => session }))
+    await result
+    expect(session.typed).toEqual(['/exit\r'])
+    expect(session.stopped).toEqual([TIMINGS.exit])
+  })
+
+  it('FR-024: a scenario that never finishes still exits and ends its session', async () => {
+    const session = terminal(() => 'for shortcuts')
+    const { result } = run(
+      machine({ signedIn: async () => true, session: () => session, transcript: () => undefined }),
+    )
+    expect((await result).failures[0]).toBe('session: timed out waiting for the smoke scenario')
+    expect(session.typed.at(-1)).toBe('/exit\r')
+    expect(session.stopped).toEqual([TIMINGS.exit])
+  })
+
+  it('FR-024: a failed sign-in still ends claude mcp login, at once', async () => {
+    const login = terminal(() => `Open ${AUTHORIZE}`)
+    const { result } = run(machine({ login: () => login }))
+    expect((await result).failures).toEqual(['MCP sign-in: timed out waiting for the MCP sign-in'])
+    expect(login.stopped).toEqual([0])
+  })
+
+  it('FR-024: a sign-in that succeeds gives claude mcp login time to write its credentials', async () => {
+    let authenticated = false
+    const fake = browser({}, () => {
+      authenticated = true
+    })
+    const login = terminal(() => `Open ${AUTHORIZE}\n${authenticated ? 'Authenticated' : ''}`)
+    const { result } = run(machine({ login: () => login, browser: fake.run }))
+    expect((await result).failures).toEqual([])
+    expect(login.stopped).toEqual([TIMINGS.exit])
+  })
+
+  it('FR-024: a browser that fails to close neither masks why the sign-in failed nor fails one that succeeded', async () => {
+    const failingClose =
+      (m: Machine): Machine['browser'] =>
+      async (...args) => {
+        if (args[0] === 'close') {
+          throw new Error('agent-browser close failed: no session')
+        }
+        return m.browser(...args)
+      }
+    const succeeding = machine()
+    const { result } = run({ ...succeeding, browser: failingClose(succeeding) })
+    expect((await result).failures).toEqual([])
+    const failing = machine({ login: () => terminal(() => `Open ${AUTHORIZE}`) })
+    const failed = run({ ...failing, browser: failingClose(failing) })
+    expect((await failed.result).failures).toEqual(['MCP sign-in: timed out waiting for the MCP sign-in'])
+  })
+
+  it('FR-024: a browser that prints no URL fails the sign-in naming what it printed', async () => {
+    const m = machine({ browser: async (...args) => (args[0] === 'get' ? 'Daemon restarting\n' : '') })
+    const { result } = run(m)
+    expect((await result).failures).toEqual([
+      'MCP sign-in: agent-browser get url printed no URL: Daemon restarting',
+    ])
+  })
+
+  it('FR-024: a browser stuck on a Polly page names the page and its alert', async () => {
+    const stuck = async (...args: string[]) => {
+      if (args[0] === 'get' && args[1] === 'url') {
+        return `${PAGES['sign-in']?.url}\n`
+      }
+      if (args[0] === 'get' && args[1] === 'text') {
+        return 'Wrong email or password.\n'
+      }
+      return ''
+    }
+    const { result } = run(machine({ browser: stuck }))
+    expect((await result).failures).toEqual([
+      `MCP sign-in: timed out waiting for the browser to leave Polly, on ${PAGES['sign-in']?.url}: Wrong email or password.`,
+    ])
+    const silent = async (...args: string[]) => {
+      if (args[0] === 'get' && args[1] === 'text') {
+        throw new Error('agent-browser get failed: Element not found: [role=alert]')
+      }
+      return stuck(...args)
+    }
+    const quiet = run(machine({ browser: silent }))
+    expect((await quiet.result).failures).toEqual([
+      `MCP sign-in: timed out waiting for the browser to leave Polly, on ${PAGES['sign-in']?.url}`,
+    ])
+  })
+
+  it('reads where the transcript is only until it finds it', async () => {
+    let calls = 0
+    const transcript = () => {
+      calls += 1
+      return calls < 3 ? undefined : finished
+    }
+    const { result } = run(machine({ signedIn: async () => true, transcript }))
+    expect(await result).toEqual({ failures: [], transcript: finished })
+    expect(calls).toBe(3)
   })
 })
