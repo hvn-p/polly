@@ -85,6 +85,8 @@ export const operations = {
     events: agentEvent,
     // The event that ends the stream with a refusal, its data a Refusal.
     error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND', 'EVENT_CODE_REVOKED'] },
+    // A bound stream's comment interval: a listener silent for longer has lost it.
+    keepaliveMs: 15_000,
     refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED'],
   },
 } as const satisfies Record<

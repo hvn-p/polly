@@ -15,7 +15,6 @@ import type { Guard, RouteRegistry } from '../routes.ts'
 
 const BINDING_CHECK_MS = 1_000
 const UNBOUND_LIMIT_MS = 120_000
-const KEEPALIVE_MS = 15_000
 
 // The stream's refusals are its contract's.
 function refused(code: RefusalCode, message: string): Refusal {
@@ -79,7 +78,7 @@ export function registerAgentEventRoute(registry: RouteRegistry, codes: EventCod
             send(eventFrame({ type: 'test' }))
           }
           while (open()) {
-            await clock.sleep(KEEPALIVE_MS)
+            await clock.sleep(agentEvents.keepaliveMs)
             if (open()) {
               send(keepaliveFrame())
             }

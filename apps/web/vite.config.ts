@@ -4,11 +4,28 @@
 // Auth sees its own origin.
 
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type ProxyOptions } from 'vite'
 
-const apiPort = process.env['POLLY_API_PORT'] ?? '0'
-const api = { target: `http://127.0.0.1:${apiPort}`, changeOrigin: false }
-const mcp = { target: `http://127.0.0.1:${process.env['POLLY_MCP_PORT'] ?? '0'}`, changeOrigin: false }
+// The proxy pipes a response without ending it when the process behind it
+// ends mid-body, so a client of an event stream would wait forever: the
+// client's response is ended with it.
+const endWithUpstream: ProxyOptions['configure'] = (proxy) => {
+  proxy.on('proxyRes', (proxyRes, _request, response) => {
+    proxyRes.on('close', () => {
+      if (!proxyRes.complete) {
+        response.destroy()
+      }
+    })
+  })
+}
+
+const target = (port: string | undefined) => ({
+  target: `http://127.0.0.1:${port ?? '0'}`,
+  changeOrigin: false,
+  configure: endWithUpstream,
+})
+const api = target(process.env['POLLY_API_PORT'])
+const mcp = target(process.env['POLLY_MCP_PORT'])
 
 export default defineConfig({
   plugins: [react()],

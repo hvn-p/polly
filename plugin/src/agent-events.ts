@@ -11,6 +11,9 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { STREAMS } from '@polly/contract'
 
 const RECONNECT_DELAY_MS = 2000
+// Margin over the stream's keepalive interval before its silence means the
+// stream is gone: a proxy may keep the connection of a server that ended.
+const SILENCE_MARGIN_MS = 5000
 const UNCONFIGURED_URL = 'https://unconfigured.invalid/api/agent-events'
 
 const { agentEvents } = STREAMS
@@ -37,10 +40,31 @@ function fieldOf(data: unknown): string {
   return JSON.stringify(data).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e')
 }
 
-// Reads one connection until it ends; returns the refusal code that ended it,
-// if any.
+// Reads one connection until it ends, or stays silent for longer than the
+// stream's keepalive interval allows; returns the refusal code that ended it,
+// if any. An unbound stream is silent too: it is taken again with the same code.
 async function listen(url: string, code: string): Promise<string | undefined> {
-  const response = await fetch(url, { headers: { authorization: `Bearer ${code}` } })
+  const silence = new AbortController()
+  let timer: NodeJS.Timeout | undefined
+  const heard = () => {
+    clearTimeout(timer)
+    timer = setTimeout(() => silence.abort(), agentEvents.keepaliveMs + SILENCE_MARGIN_MS)
+  }
+  heard()
+  try {
+    return await read(url, code, silence.signal, heard)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function read(
+  url: string,
+  code: string,
+  signal: AbortSignal,
+  heard: () => void,
+): Promise<string | undefined> {
+  const response = await fetch(url, { headers: { authorization: `Bearer ${code}` }, signal })
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { code?: unknown }
     return typeof body.code === 'string' && REFUSALS.has(body.code) ? body.code : undefined
@@ -48,6 +72,7 @@ async function listen(url: string, code: string): Promise<string | undefined> {
   const decoder = new TextDecoder()
   let buffer = ''
   for await (const chunk of (response.body ?? []) as AsyncIterable<Uint8Array>) {
+    heard()
     buffer += decoder.decode(chunk, { stream: true })
     let boundary = buffer.indexOf('\n\n')
     while (boundary !== -1) {

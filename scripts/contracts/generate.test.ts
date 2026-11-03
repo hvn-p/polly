@@ -135,6 +135,7 @@ const api: Contract = {
       status: 200,
       events: agentEvent,
       error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND'] },
+      keepaliveMs: 15_000,
       refusals: ['EVENT_CODE_REVOKED'],
     },
   }),
@@ -211,7 +212,7 @@ describe('API contract generation', () => {
   it("lists each stream's event types and refusals, for a client that checks them at runtime", async () => {
     const client = (await render(api)).get('contract/src/generated.ts') ?? ''
     expect(client.replace(/\s+/g, ' ')).toContain(
-      "agentEvents: { path: '/api/agent-events', status: 200, refusals: ['EVENT_CODE_REVOKED'], events: ['test'], error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND'] }, }",
+      "agentEvents: { path: '/api/agent-events', status: 200, refusals: ['EVENT_CODE_REVOKED'], events: ['test'], error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND'] }, keepaliveMs: 15000, }",
     )
   })
 
@@ -220,6 +221,11 @@ describe('API contract generation', () => {
     const stream = document.paths['/api/agent-events'].get
     expect(stream['x-error-event']).toEqual({ event: 'error', refusals: ['EVENT_CODE_NOT_BOUND'] })
     expect(stream['x-refusals']).toEqual(['EVENT_CODE_REVOKED'])
+  })
+
+  it("declares the interval of a stream's keepalive comments, so a client tells a dropped stream from a quiet one", async () => {
+    const document = JSON.parse((await render(api)).get('contract/openapi.json') ?? '')
+    expect(document.paths['/api/agent-events'].get['x-keepalive-ms']).toBe(15_000)
   })
 
   it("writes each operation's success status, and each refusal code's status, into the document and the client", async () => {

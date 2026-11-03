@@ -11,12 +11,14 @@ var STREAMS = {
     status: 200,
     refusals: ["UNAUTHORIZED", "INVALID_EVENT_CODE", "EVENT_CODE_REVOKED"],
     events: ["test"],
-    error: { event: "error", refusals: ["EVENT_CODE_NOT_BOUND", "EVENT_CODE_REVOKED"] }
+    error: { event: "error", refusals: ["EVENT_CODE_NOT_BOUND", "EVENT_CODE_REVOKED"] },
+    keepaliveMs: 15e3
   }
 };
 
 // plugin/src/agent-events.ts
 var RECONNECT_DELAY_MS = 2e3;
+var SILENCE_MARGIN_MS = 5e3;
 var UNCONFIGURED_URL = "https://unconfigured.invalid/api/agent-events";
 var { agentEvents } = STREAMS;
 var EVENT_TYPES = new Set(agentEvents.events);
@@ -36,7 +38,21 @@ function fieldOf(data) {
   return JSON.stringify(data).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
 }
 async function listen(url2, code2) {
-  const response = await fetch(url2, { headers: { authorization: `Bearer ${code2}` } });
+  const silence = new AbortController();
+  let timer;
+  const heard = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => silence.abort(), agentEvents.keepaliveMs + SILENCE_MARGIN_MS);
+  };
+  heard();
+  try {
+    return await read(url2, code2, silence.signal, heard);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function read(url2, code2, signal, heard) {
+  const response = await fetch(url2, { headers: { authorization: `Bearer ${code2}` }, signal });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     return typeof body.code === "string" && REFUSALS.has(body.code) ? body.code : void 0;
@@ -44,6 +60,7 @@ async function listen(url2, code2) {
   const decoder = new TextDecoder();
   let buffer = "";
   for await (const chunk of response.body ?? []) {
+    heard();
     buffer += decoder.decode(chunk, { stream: true });
     let boundary = buffer.indexOf("\n\n");
     while (boundary !== -1) {

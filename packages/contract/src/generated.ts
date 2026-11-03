@@ -100,6 +100,7 @@ export const STREAMS = {
     refusals: ['UNAUTHORIZED', 'INVALID_EVENT_CODE', 'EVENT_CODE_REVOKED'],
     events: ['test'],
     error: { event: 'error', refusals: ['EVENT_CODE_NOT_BOUND', 'EVENT_CODE_REVOKED'] },
+    keepaliveMs: 15000,
   },
 } as const
 

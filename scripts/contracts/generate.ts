@@ -13,7 +13,8 @@ import { type ZodType, z } from 'zod'
 // One operation of the API: its route, its access rule, what it takes and gives
 // (a JSON response, or a stream of events) with its success status, and the
 // refusals it may answer. A stream may end with a refusal, sent as its error
-// event, whose data is the contract's Refusal.
+// event, whose data is the contract's Refusal, and may send a keepalive comment
+// at a fixed interval, in milliseconds.
 export interface Operation {
   method: 'GET' | 'POST'
   path: string
@@ -23,6 +24,7 @@ export interface Operation {
   response?: ZodType
   events?: ZodType
   error?: { event: string; refusals: readonly string[] }
+  keepaliveMs?: number
   refusals: readonly string[]
 }
 
@@ -191,6 +193,7 @@ export function openApiDocument(
         ...(operation.error === undefined
           ? {}
           : { 'x-error-event': { event: operation.error.event, refusals: [...operation.error.refusals] } }),
+        ...(operation.keepaliveMs === undefined ? {} : { 'x-keepalive-ms': operation.keepaliveMs }),
         ...(operation.body === undefined
           ? {}
           : { requestBody: { required: true, content: json(operation.body) } }),
@@ -279,6 +282,7 @@ interface DocumentOperation {
   operationId: string
   'x-refusals'?: string[]
   'x-error-event'?: { event: string; refusals: string[] }
+  'x-keepalive-ms'?: number
   requestBody?: { content: Record<string, { schema: unknown }> }
   responses: Record<string, { content?: Record<string, { schema: unknown }> }>
 }
@@ -351,13 +355,14 @@ export function clientModule(source: string, document: Record<string, unknown>):
       if ('text/event-stream' in content) {
         const event = content['text/event-stream']?.schema
         const error = operation['x-error-event']
+        const keepalive = operation['x-keepalive-ms']
         streams.push(`  ${id}: { event: ${typeOf(event)} }`)
         streamTable.push(
           `  ${id}: { path: '${path}', status: ${status}, refusals: [${codes}], events: [${quoted(eventTypes(event))}]${
             error === undefined
               ? ''
               : `, error: { event: '${error.event}', refusals: [${quoted(error.refusals)}] }`
-          } },`,
+          }${keepalive === undefined ? '' : `, keepaliveMs: ${keepalive}`} },`,
         )
         continue
       }

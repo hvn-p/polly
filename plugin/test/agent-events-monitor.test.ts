@@ -73,6 +73,19 @@ describe('agent-event monitor', () => {
     }
   })
 
+  it('C42: takes a stream silent for longer than its keepalive interval as dropped, and reconnects with the same code', async () => {
+    // A proxy that never ends the client's side of a stream whose server is gone.
+    const stub = await stubServer([sendEvents(': open\n\n'), hang])
+    const monitor = startMonitor({ POLLY_EVENTS_URL: stub.url })
+    try {
+      await until(() => stub.requests.length === 2, 28_000)
+      expect(stub.requests[1]?.authorization).toBe(stub.requests[0]?.authorization)
+      expect(codesOf(monitor.stdout)).toHaveLength(1)
+    } finally {
+      await stub.close()
+    }
+  }, 30_000)
+
   it('C51: reconnects with the same code when closed with EVENT_CODE_NOT_BOUND', async () => {
     const stub = await stubServer([
       endWith('event: error\ndata: {"code":"EVENT_CODE_NOT_BOUND","reason":"bind it with start_lesson"}\n\n'),

@@ -317,6 +317,7 @@
         "x-access": "event-code",
         "x-refusals": ["UNAUTHORIZED", "INVALID_EVENT_CODE", "EVENT_CODE_REVOKED"],
         "x-error-event": { "event": "error", "refusals": ["EVENT_CODE_NOT_BOUND", "EVENT_CODE_REVOKED"] },
+        "x-keepalive-ms": 15000,
         "responses": {
           "200": {
             "description": "a stream of events",
