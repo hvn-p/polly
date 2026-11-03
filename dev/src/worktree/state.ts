@@ -1,35 +1,23 @@
 // What a worktree holds, as recorded by dev:up: dev:down releases exactly
 // this, whatever the branch is called by then.
 
-import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { Refusal } from '@polly/platform'
 import { parseEnv } from '../config/index.ts'
-import { resourceNames } from '../identity/index.ts'
-import type { BucketAccess, DatabaseAccess, SupervisedProcess, SupervisorState } from '../ports/index.ts'
+import { architectureHostOf, resourceNames } from '../identity/index.ts'
+import type { BucketAccess, DatabaseAccess } from '../ports/index.ts'
 import type { Worktree } from './worktree.ts'
 
 export interface WorktreeState {
-  supervisor?: SupervisorState
-  // The digest of the processes the supervisor was started with, and of their
-  // environment.
-  processes?: string
+  // The name of the worktree's Compose project, which runs its processes.
+  project?: string
   route?: string
   architectureRoute?: string
   role?: string
   garageKeyId?: string
   // The fingerprint of the compute service the real worker uses.
   compute?: string
-}
-
-// What a supervisor runs and the environment its processes read at start,
-// recorded so that dev:up restarts one whose processes or settings changed.
-export function digestOf(processes: readonly SupervisedProcess[], env: Record<string, string>): string {
-  const sorted = Object.fromEntries(Object.entries(env).sort(([a], [b]) => a.localeCompare(b)))
-  return createHash('sha256')
-    .update(JSON.stringify({ processes, env: sorted }))
-    .digest('hex')
 }
 
 export function readState(worktree: Worktree): WorktreeState {
@@ -59,11 +47,6 @@ export function required(env: Record<string, string>, key: string): string {
     throw new Refusal('WORKTREE_NOT_CONFIGURED', `${key} is missing from .env.local; run nr dev:up`)
   }
   return value
-}
-
-// The architecture view's own host name, one level under the worktree's.
-export function architectureHostOf(identity: string): string {
-  return `arch.${resourceNames(identity).host}`
 }
 
 // The resources a worktree's configuration names, from its recorded identity.

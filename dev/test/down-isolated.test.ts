@@ -4,9 +4,8 @@ import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { down } from '../src/commands/down.ts'
 import { up } from '../src/commands/up.ts'
-import { groupMembers, processSupervisor } from '../src/supervisor/index.ts'
 import { loaded } from './support/fake-infrastructure.ts'
-import { isolatedInfrastructure } from './support/isolated-infrastructure.ts'
+import { containerIds, isolatedInfrastructure } from './support/isolated-infrastructure.ts'
 import {
   envOf,
   garage as garageOf,
@@ -16,25 +15,23 @@ import {
   shippedMigrations,
   stateOf,
   superuser as superuserOf,
+  testProcesses,
 } from './support/isolated-worktree.ts'
 import { temporaryRepository } from './support/repository.ts'
-import { until } from './support/until.ts'
 
 let shared: Awaited<ReturnType<typeof isolatedInfrastructure>>
-const supervisors: number[] = []
+const processes = testProcesses()
 
 beforeAll(async () => {
   shared = await isolatedInfrastructure()
 })
 
 afterAll(async () => {
-  for (const pid of supervisors) {
-    await processSupervisor().stop({ pid })
-  }
+  await processes.removeAll()
   shared.destroy()
 })
 
-const infrastructure = () => isolatedWorktreeInfrastructure(shared, supervisors)
+const infrastructure = () => isolatedWorktreeInfrastructure(shared, processes)
 const superuser = (sql: string) => superuserOf(shared, sql)
 const out = () => undefined
 
@@ -68,8 +65,8 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     const root = temporaryRepository('feature/release')
     const infra = infrastructure()
     await up({ root, ...loaded(infra), out, warn: out })
-    const pid = stateOf(root).supervisor.pid
-    await until(() => groupMembers(pid).length === 2)
+    const { project } = stateOf(root)
+    expect(containerIds(project)).not.toBe('')
     const client = new pg.Client({ connectionString: envOf(root)['DATABASE_URL'] })
     client.on('error', () => undefined)
     await client.connect()
@@ -77,7 +74,7 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     const id = env['POLLY_WORKTREE_ID'] ?? ''
     expect(routeTable.has(`${id}.polly`)).toBe(true)
     await down({ root, infra: infrastructure(), out })
-    expect(groupMembers(pid)).toEqual([])
+    expect(containerIds(project)).toBe('')
     await released(env)
     expect([routeTable.has(`${id}.polly`), routeTable.has(`arch.${id}.polly`)]).toEqual([false, false])
     await expect(down({ root, infra, out })).resolves.toBeUndefined()
@@ -110,9 +107,11 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     const bucketB = s3Of(envOf(b))
     const object = { Bucket: envOf(b)['S3_BUCKET'], Key: 'kept.txt' }
     await bucketB.send(new PutObjectCommand({ ...object, Body: 'kept' }))
-    const bSupervisor = stateOf(b).supervisor.pid
+    const containersOfB = containerIds(stateOf(b).project)
+    const { project: projectOfA } = stateOf(a)
     await down({ root: a, infra, out })
-    await until(() => groupMembers(bSupervisor).length === 2)
+    expect(containerIds(projectOfA)).toBe('')
+    expect(containerIds(stateOf(b).project)).toBe(containersOfB)
     expect(await query(b, 'select value from mine')).toEqual([{ value: 'b' }])
     expect(await query(b, `select "token" from "session"`)).toEqual([{ token: 'token-b' }])
     const kept = await bucketB.send(new GetObjectCommand(object))

@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "agent-browser": "0.39.4",
+    "nodemon": "3.1.14",
     "portless": "0.15.12"
   }
 }

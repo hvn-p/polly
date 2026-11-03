@@ -13,7 +13,6 @@ import type { Infrastructure, Prerequisites } from '../ports/index.ts'
 import {
   bucketAccessOf,
   currentBranch,
-  digestOf,
   readEnv,
   readState,
   required,
@@ -102,20 +101,13 @@ export async function up({ root, prerequisites, infrastructure, out, warn }: UpO
     const recorded = env['POLLY_COMPUTE_FINGERPRINT']
     const chosen = state.compute !== undefined && state.compute !== recorded ? state.compute : undefined
     const computeChanged = real && (await infra.compute.fingerprintOf(root)) !== recorded
-    // A running supervisor is kept only while it runs what this dev:up would
-    // start: a process added, a setting or port newly written to .env.local,
-    // or a compute service to change restarts it.
-    const running =
-      state.supervisor !== undefined &&
-      infra.supervisor.isRunning(state.supervisor) &&
-      state.processes === digestOf(infra.application.processes(env), env) &&
-      !computeChanged
+    const project = infra.processes.projectOf(resources.identity, root)
+    const running = await infra.processes.isRunning(project)
     if (!running) {
-      if (state.supervisor !== undefined) {
-        // Processes a killed or outdated supervisor left behind hold the
-        // worktree's own ports: they are stopped before a port counts as held
-        // by another.
-        await infra.supervisor.stop(state.supervisor)
+      // What is left of the project holds the worktree's own ports: it is
+      // removed before a port counts as held by another.
+      if (state.project !== undefined) {
+        await infra.processes.stop(state.project)
       }
       for (const key of ['POLLY_API_PORT', 'POLLY_MCP_PORT', 'POLLY_WEB_PORT', 'POLLY_ARCH_PORT']) {
         const port = Number(required(env, key))
@@ -157,29 +149,25 @@ export async function up({ root, prerequisites, infrastructure, out, warn }: UpO
     for (const route of unrouted) {
       await infra.routes.add(route.name, route.port)
     }
-    let supervisor = state.supervisor
     let compute = state.compute
-    let processes = state.processes
-    if (supervisor === undefined || !running) {
-      if (real) {
-        // As dev:worker real: its own code's service, or the one it chose.
-        const used = await useCompute(root, infra, resources.identity, warn, chosen)
-        env = setEnv(worktree, used.env)
-        if (compute !== undefined && compute !== used.fingerprint) {
-          await infra.compute.release(compute, resources.identity)
-        }
-        compute = used.fingerprint
-        // Recorded before the supervisor starts: if it fails, dev:down still
-        // releases the service this worktree now uses.
-        writeState(worktree, { ...readState(worktree), compute })
+    if (real && (!running || computeChanged)) {
+      // As dev:worker real: its own code's service, or the one it chose.
+      const used = await useCompute(root, infra, resources.identity, warn, chosen)
+      env = setEnv(worktree, used.env)
+      if (compute !== undefined && compute !== used.fingerprint) {
+        await infra.compute.release(compute, resources.identity)
       }
-      const started = infra.application.processes(env)
-      supervisor = await infra.supervisor.start({ root, processes: started, env })
-      processes = digestOf(started, env)
+      compute = used.fingerprint
+      // Recorded before the processes start: if they fail, dev:down still
+      // releases the service this worktree now uses.
+      writeState(worktree, { ...readState(worktree), compute })
     }
+    writeState(worktree, { ...readState(worktree), project: project.name })
+    // Compose starts what does not run and recreates a process whose
+    // configuration changed, .env.local included; the others keep running.
+    await infra.processes.start(project)
     writeState(worktree, {
-      supervisor,
-      ...(processes === undefined ? {} : { processes }),
+      project: project.name,
       route: resources.route,
       architectureRoute: resources.architectureRoute,
       role: resources.database.names.role,

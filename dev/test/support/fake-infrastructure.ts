@@ -1,6 +1,6 @@
 import { Refusal } from '@polly/platform'
 import type { UpOptions } from '../../src/commands/up.ts'
-import type { ComputeServices, Infrastructure, SupervisorState } from '../../src/ports/index.ts'
+import type { ComputeServices, Infrastructure } from '../../src/ports/index.ts'
 
 export interface FakeInfrastructure extends Infrastructure {
   compute: FakeCompute
@@ -8,7 +8,8 @@ export interface FakeInfrastructure extends Infrastructure {
   missingPrerequisite: string | undefined
   routeTable: Map<string, number>
   heldPorts: Set<number>
-  runningSupervisors: Set<number>
+  // The worktree projects whose every process runs.
+  runningProjects: Set<string>
 }
 
 export interface FakeCompute extends ComputeServices {
@@ -64,13 +65,12 @@ export function fakeCompute(): FakeCompute {
 // enough state for the commands to read back what they did.
 export function fakeInfrastructure(): FakeInfrastructure {
   const calls: string[] = []
-  let nextPid = 90000
   const fake: FakeInfrastructure = {
     calls,
     missingPrerequisite: undefined,
     routeTable: new Map(),
     heldPorts: new Set(),
-    runningSupervisors: new Set(),
+    runningProjects: new Set(),
     compute: fakeCompute(),
     prerequisites: { missing: async () => fake.missingPrerequisite },
     shared: {
@@ -115,20 +115,21 @@ export function fakeInfrastructure(): FakeInfrastructure {
       seed: async (env) => {
         calls.push(`application.seed ${env['POLLY_ENV']}`)
       },
-      processes: () => [],
       architecture: () => 'prebuilt',
     },
-    supervisor: {
-      isRunning: (state: SupervisorState) => fake.runningSupervisors.has(state.pid),
-      start: async () => {
-        const pid = nextPid++
-        calls.push('supervisor.start')
-        fake.runningSupervisors.add(pid)
-        return { pid }
+    processes: {
+      projectOf: (identity, root) => ({ name: `polly-${identity}`, identity, root }),
+      start: async ({ name }) => {
+        calls.push(`processes.start ${name}`)
+        fake.runningProjects.add(name)
       },
-      stop: async (state) => {
-        calls.push(`supervisor.stop ${state.pid}`)
-        fake.runningSupervisors.delete(state.pid)
+      isRunning: async ({ name }) => fake.runningProjects.has(name),
+      restart: async ({ name }, process) => {
+        calls.push(`processes.restart ${name} ${process}`)
+      },
+      stop: async (name) => {
+        calls.push(`processes.stop ${name}`)
+        fake.runningProjects.delete(name)
       },
     },
   }

@@ -12,7 +12,7 @@ import {
   smoke,
 } from '../e2e/index.ts'
 import type { Infrastructure } from '../ports/index.ts'
-import { readEnv, readState, worktreeAt } from '../worktree/index.ts'
+import { readEnv, readState, required, worktreeAt } from '../worktree/index.ts'
 
 const SCENARIOS: Record<string, Scenario> = { smoke }
 
@@ -52,8 +52,12 @@ export async function e2e({
   }
   const worktree = worktreeAt(root)
   const env = readEnv(worktree)
-  const { supervisor } = readState(worktree)
-  if (env === undefined || supervisor === undefined || !infra.supervisor.isRunning(supervisor)) {
+  const { project } = readState(worktree)
+  if (
+    env === undefined ||
+    project === undefined ||
+    !(await infra.processes.isRunning(infra.processes.projectOf(required(env, 'POLLY_WORKTREE_ID'), root)))
+  ) {
     throw new Refusal('WORKTREE_NOT_RUNNING', "this worktree's Polly is not running; run nr dev:up")
   }
   const scenario = SCENARIOS[name]

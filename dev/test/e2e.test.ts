@@ -32,7 +32,7 @@ describe('nr dev:e2e refusals', () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out, warn: out })
-    infra.runningSupervisors.clear()
+    infra.runningProjects.clear()
     await expect(e2e({ root, infra, scenario: 'smoke', out, client })).rejects.toMatchObject({
       code: 'WORKTREE_NOT_RUNNING',
     })

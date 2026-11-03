@@ -59,37 +59,36 @@ export interface PortTable {
   isHeld: (port: number) => Promise<boolean>
 }
 
-export interface SupervisedProcess {
-  name: string
-  command: string
-  args: string[]
-  cwd: string
-}
-
 export interface Application {
   migrate: (env: Record<string, string>) => Promise<void>
   seed: (env: Record<string, string>) => Promise<void>
-  // The worktree's processes, run by its supervisor.
-  processes: (env: Record<string, string>) => SupervisedProcess[]
   // Which architecture analyzer the worktree runs: none until it builds one or
   // installs a published version holding the view.
   architecture: () => 'local' | 'prebuilt' | 'missing'
 }
 
-export interface SupervisorState {
-  pid: number
+// A worktree's processes, as one project: its name, the worktree's identity,
+// and the worktree whose .env.local they read and whose .dev/logs they write to.
+export interface WorktreeProject {
+  name: string
+  identity: string
+  root: string
 }
 
-export interface Supervisor {
-  isRunning: (state: SupervisorState) => boolean
-  start: (options: {
-    root: string
-    processes: SupervisedProcess[]
-    env: Record<string, string>
-  }) => Promise<SupervisorState>
-  // Stops the supervisor and every process it started. A supervisor already
-  // gone is skipped.
-  stop: (state: SupervisorState) => Promise<void>
+export interface WorktreeProcesses {
+  // The project's name for a worktree identity.
+  projectOf: (identity: string, root: string) => WorktreeProject
+  // Starts what does not run, recreates a process whose configuration
+  // changed, then waits until every process is healthy; PROCESS_NOT_READY
+  // names one that is not.
+  start: (project: WorktreeProject) => Promise<void>
+  // Whether every process of the project runs.
+  isRunning: (project: WorktreeProject) => Promise<boolean>
+  // Recreates one process on the worktree's configuration as it now is, the
+  // others left running.
+  restart: (project: WorktreeProject, process: string) => Promise<void>
+  // Removes every process of the project; one already gone is skipped.
+  stop: (name: string) => Promise<void>
 }
 
 export interface ComputeService {
@@ -123,5 +122,5 @@ export interface Infrastructure {
   routes: RouteTable
   ports: PortTable
   application: Application
-  supervisor: Supervisor
+  processes: WorktreeProcesses
 }

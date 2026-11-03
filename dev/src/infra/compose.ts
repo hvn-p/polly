@@ -34,13 +34,17 @@ export interface ComposeInfrastructure extends SharedInfrastructure {
 export function run(
   command: string,
   args: readonly string[],
-  options: { env?: NodeJS.ProcessEnv; input?: string } = {},
+  options: { env?: NodeJS.ProcessEnv; input?: string; cwd?: string } = {},
 ) {
   return new Promise<string>((resolve, reject) => {
     const child = execFile(
       command,
       args,
-      { encoding: 'utf8', env: options.env ?? process.env },
+      {
+        encoding: 'utf8',
+        env: options.env ?? process.env,
+        ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+      },
       (error, stdout, stderr) => {
         if (error !== null) {
           reject(new Error(`${command} ${args.join(' ')} failed: ${stderr.trim() || error.message}`))

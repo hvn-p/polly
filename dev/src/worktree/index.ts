@@ -3,10 +3,8 @@
 
 export { agentSession, type Session } from './session.ts'
 export {
-  architectureHostOf,
   bucketAccessOf,
   deleteState,
-  digestOf,
   readEnv,
   readState,
   required,

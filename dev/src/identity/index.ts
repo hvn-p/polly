@@ -47,6 +47,11 @@ export function resourceNames(identity: string): ResourceNames {
   }
 }
 
+// The architecture view's own host name, one level under the worktree's.
+export function architectureHostOf(identity: string): string {
+  return `arch.${resourceNames(identity).host}`
+}
+
 // The Garage key dev:down creates to empty a bucket before deleting it.
 export function releaseKeyOf(bucket: string): string {
   return `${bucket}--release`

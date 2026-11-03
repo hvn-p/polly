@@ -21,7 +21,7 @@ describe('dev:down with faked infrastructure', () => {
     await down({ root, infra, out })
     expect(infra.calls).toEqual([
       'shared.ensureRunning',
-      expect.stringMatching(/^supervisor\.stop \d+$/),
+      `processes.stop polly-${id}`,
       `postgres.release polly_${id.replaceAll('-', '_')}`,
       `garage.release polly-${id}`,
       `routes.remove ${id}.polly`,

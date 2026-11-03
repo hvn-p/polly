@@ -117,7 +117,7 @@ describe('building a Node process', () => {
     })
   })
 
-  it('names every process the supervisor and the dev commands run, each with its output', () => {
+  it("names every process the worktree's project and the dev commands run, each with its output", () => {
     expect(PROCESSES.map(({ name, output }) => `${name} ${output}`)).toEqual([
       'api apps/api/dist/main.js',
       'api-cli apps/api/dist/cli.js',
@@ -125,7 +125,6 @@ describe('building a Node process', () => {
       'worker apps/worker/dist/main.js',
       'migrations packages/migrations/dist/cli.js',
       'dev dev/dist/main.js',
-      'dev-supervisor dev/dist/supervisor.js',
     ])
   })
 })

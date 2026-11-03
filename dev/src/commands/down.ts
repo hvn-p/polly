@@ -38,8 +38,8 @@ export async function down({ root, infra, out }: DownOptions): Promise<void> {
       return
     }
     await infra.shared.ensureRunning()
-    if (state.supervisor !== undefined) {
-      await infra.supervisor.stop(state.supervisor)
+    if (state.project !== undefined) {
+      await infra.processes.stop(state.project)
     }
     const resources = resourcesOf(env)
     if (state.compute !== undefined) {

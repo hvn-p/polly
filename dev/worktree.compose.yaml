@@ -1,0 +1,123 @@
+# The processes of one worktree, run by dev:up as the Compose project
+# polly-<identity> (research R2). Each process is a service: Compose restarts
+# one that crashes, nodemon restarts the API, the MCP server and the worker when
+# their own build changes, and `up --wait` waits for the health checks.
+#
+# The services run on the host's network, as the invoking user, with the
+# checkout and the repository's git directory mounted at their own paths, so
+# paths, ports and file ownership are the host's. dev:up sets the variables
+# below; .env.local is every process's environment. Each process writes its
+# output to .dev/logs/<process>.log.
+
+x-process: &process
+  # Node 24 on Debian 13: the analyzer built on the host needs its glibc, and
+  # runs git and tar against the base branch.
+  image: node:24.22.1-trixie@sha256:f1e034976f948cf212ef1f659c12e5dd58ac7eab947831813e81a62401ca38be
+  user: ${POLLY_UID:?}:${POLLY_GID:?}
+  network_mode: host
+  init: true
+  restart: on-failure
+  working_dir: ${POLLY_CODE_ROOT:?}
+  env_file: ${POLLY_ENV_FILE:?}
+  environment:
+    # The invoking user may have no home in the image.
+    HOME: /tmp
+  volumes:
+    - ${POLLY_CODE_ROOT}:${POLLY_CODE_ROOT}
+    - ${POLLY_GIT_DIR:?}:${POLLY_GIT_DIR}
+    - ${POLLY_LOGS:?}:${POLLY_LOGS}
+
+# A process is healthy once its port accepts connections.
+x-health: &health
+  interval: 2s
+  timeout: 2s
+  retries: 15
+
+services:
+  # Rebuilds the API, the MCP server and the worker on each change; an
+  # unchanged output is left unwritten, so it restarts nothing.
+  build:
+    <<: *process
+    command:
+      - sh
+      - -c
+      - exec node scripts/build/processes.ts --watch api mcp worker >>"${POLLY_LOGS}/build.log" 2>&1
+
+  api:
+    <<: *process
+    command:
+      - sh
+      - -c
+      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/api/dist -e js apps/api/dist/main.js >>"${POLLY_LOGS}/api.log" 2>&1
+    healthcheck:
+      <<: *health
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "require('net').connect(process.env.POLLY_API_PORT, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))",
+        ]
+
+  mcp:
+    <<: *process
+    command:
+      - sh
+      - -c
+      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/mcp/dist -e js apps/mcp/dist/main.js >>"${POLLY_LOGS}/mcp.log" 2>&1
+    healthcheck:
+      <<: *health
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "require('net').connect(process.env.POLLY_MCP_PORT, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))",
+        ]
+
+  # POLLY_WORKER_MODE, from .env.local, picks the analyzer.
+  worker:
+    <<: *process
+    command:
+      - sh
+      - -c
+      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/worker/dist -e js apps/worker/dist/main.js >>"${POLLY_LOGS}/worker.log" 2>&1
+
+  web:
+    <<: *process
+    working_dir: ${POLLY_CODE_ROOT}/apps/web
+    command:
+      - sh
+      - -c
+      - exec node node_modules/vite/bin/vite.js >>"${POLLY_LOGS}/web.log" 2>&1
+    healthcheck:
+      <<: *health
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "require('net').connect(process.env.POLLY_WEB_PORT, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))",
+        ]
+
+  # The architecture view, when the worktree has an analyzer holding it:
+  # Vite rebuilds the view, the analyzer serves it with the branch against main.
+  architecture-view:
+    <<: *process
+    profiles: [architecture]
+    working_dir: ${POLLY_CODE_ROOT}/tools/architecture/ui
+    command:
+      - sh
+      - -c
+      - exec node node_modules/vite/bin/vite.js build --watch >>"${POLLY_LOGS}/architecture-view.log" 2>&1
+
+  architecture:
+    <<: *process
+    profiles: [architecture]
+    command:
+      - sh
+      - -c
+      - >-
+        exec "${POLLY_ANALYZER:-}" watch --root "${POLLY_CODE_ROOT}" --port "$$POLLY_ARCH_PORT"
+        --ui "${POLLY_CODE_ROOT}/tools/architecture/ui/dist" --base main
+        --allow-host "${POLLY_ARCH_HOST:-}" >>"${POLLY_LOGS}/architecture.log" 2>&1

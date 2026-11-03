@@ -1,47 +1,19 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { down } from '../src/commands/down.ts'
 import { up } from '../src/commands/up.ts'
 import { worker } from '../src/commands/worker.ts'
 import { parseEnv } from '../src/config/index.ts'
 import type { Infrastructure } from '../src/ports/index.ts'
-import { processSupervisor } from '../src/supervisor/index.ts'
 import { type FakeCompute, fakeCompute, fakeInfrastructure, loaded } from './support/fake-infrastructure.ts'
 import { holdLock } from './support/lock-holder.ts'
 import { temporaryRepository } from './support/repository.ts'
 
-const supervisors: number[] = []
-
-afterAll(async () => {
-  for (const pid of supervisors) {
-    await processSupervisor().stop({ pid })
-  }
-})
-
-// Faked infrastructure, the machine's compute services shared by the
-// worktrees of a test, and a real supervisor running a stand-in worker.
+// Faked infrastructure, with the machine's compute services shared by the
+// worktrees of a test.
 function infrastructure(compute: FakeCompute): Infrastructure & { calls: string[] } {
-  const supervisor = processSupervisor()
-  const fake = fakeInfrastructure()
-  return {
-    ...fake,
-    compute,
-    application: {
-      ...fake.application,
-      processes: () => [
-        { name: 'worker', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], cwd: '/' },
-      ],
-    },
-    supervisor: {
-      ...supervisor,
-      start: async (options) => {
-        const state = await supervisor.start(options)
-        supervisors.push(state.pid)
-        return state
-      },
-    },
-  }
+  return { ...fakeInfrastructure(), compute }
 }
 
 async function worktree(branch: string, compute: FakeCompute, fingerprint = 'fp-main') {
@@ -57,11 +29,9 @@ function envOf(root: string): Map<string, string> {
   return parseEnv(readFileSync(join(root, '.env.local'), 'utf8'))
 }
 
-function stopSupervisor(root: string, infra: Infrastructure): Promise<void> {
-  const { supervisor } = JSON.parse(readFileSync(join(root, '.dev/state.json'), 'utf8')) as {
-    supervisor: { pid: number }
-  }
-  return infra.supervisor.stop(supervisor)
+function stopProject(root: string, infra: Infrastructure): Promise<void> {
+  const { project } = JSON.parse(readFileSync(join(root, '.dev/state.json'), 'utf8')) as { project: string }
+  return infra.processes.stop(project)
 }
 
 describe('dev:worker', { timeout: 30_000 }, () => {
@@ -115,7 +85,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     ])
   })
 
-  it('a dev:up whose supervisor fails to start after taking a compute service leaves it for dev:down to release', async () => {
+  it('a dev:up whose processes fail to start after taking a compute service leaves it for dev:down to release', async () => {
     const compute = fakeCompute()
     const a = await worktree('feature/leak-a', compute)
     const envFile = join(a.root, '.env.local')
@@ -123,42 +93,42 @@ describe('dev:worker', { timeout: 30_000 }, () => {
       envFile,
       readFileSync(envFile, 'utf8').replace(/^POLLY_WORKER_MODE=.*$/m, 'POLLY_WORKER_MODE=real'),
     )
-    await stopSupervisor(a.root, a.infra)
+    await stopProject(a.root, a.infra)
     const failing: Infrastructure = {
       ...a.infra,
-      supervisor: {
-        ...a.infra.supervisor,
+      processes: {
+        ...a.infra.processes,
         start: async () => {
-          throw new Error('the supervisor did not start')
+          throw new Error('the processes did not start')
         },
       },
     }
     await expect(
       up({ root: a.root, ...loaded(failing), out: () => undefined, warn: () => undefined }),
-    ).rejects.toThrow('the supervisor did not start')
+    ).rejects.toThrow('the processes did not start')
     expect(compute.users.get('fp-main')).toEqual(new Set([a.identity]))
 
     await down({ root: a.root, infra: a.infra, out: () => undefined })
     expect(compute.users.has('fp-main')).toBe(false)
   })
 
-  it('a dev:worker real whose supervisor fails to start after switching compute services leaves the new one for dev:down to release', async () => {
+  it('a dev:worker real whose worker fails to restart after switching compute services leaves the new one for dev:down to release', async () => {
     const compute = fakeCompute()
     const a = await worktree('feature/switch-leak', compute)
     await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined, warn: () => undefined })
     compute.fingerprints.set(a.root, 'fp-new')
     const failing: Infrastructure = {
       ...a.infra,
-      supervisor: {
-        ...a.infra.supervisor,
-        start: async () => {
-          throw new Error('the supervisor did not start')
+      processes: {
+        ...a.infra.processes,
+        restart: async () => {
+          throw new Error('the worker did not restart')
         },
       },
     }
     await expect(
       worker({ root: a.root, infra: failing, mode: 'real', out: () => undefined, warn: () => undefined }),
-    ).rejects.toThrow('the supervisor did not start')
+    ).rejects.toThrow('the worker did not restart')
     expect(compute.users.get('fp-new')).toEqual(new Set([a.identity]))
     expect(compute.users.has('fp-main')).toBe(false)
 
@@ -176,7 +146,7 @@ describe('dev:worker', { timeout: 30_000 }, () => {
       envFile,
       readFileSync(envFile, 'utf8').replace(/^POLLY_WORKER_MODE=.*$/m, 'POLLY_WORKER_MODE=real'),
     )
-    await stopSupervisor(b.root, b.infra)
+    await stopProject(b.root, b.infra)
     const lines: string[] = []
     await up({
       root: b.root,
@@ -196,10 +166,8 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     await worker({ root: a.root, infra: a.infra, mode: 'real', out: () => undefined, warn: () => undefined })
     const b = await worktree('feature/changed-b', compute)
     await worker({ root: b.root, infra: b.infra, mode: 'real', out: () => undefined, warn: () => undefined })
-    const before = JSON.parse(readFileSync(join(b.root, '.dev/state.json'), 'utf8')) as {
-      supervisor: { pid: number }
-    }
     compute.fingerprints.set(b.root, 'fp-b')
+    b.infra.calls.length = 0
     const lines: string[] = []
     await up({ root: b.root, ...loaded(b.infra), out: () => undefined, warn: (line) => lines.push(line) })
 
@@ -207,12 +175,10 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     expect(envOf(b.root).get('POLLY_COMPUTE_URL')).toBe(compute.urlOf('fp-b'))
     expect(envOf(b.root).get('POLLY_COMPUTE_FINGERPRINT')).toBe('fp-b')
     expect(lines).toContainEqual(expect.stringMatching(/^compute: this worktree runs its own service, fp-b/))
-    const after = JSON.parse(readFileSync(join(b.root, '.dev/state.json'), 'utf8')) as {
-      supervisor: { pid: number }
-      compute: string
-    }
+    const after = JSON.parse(readFileSync(join(b.root, '.dev/state.json'), 'utf8')) as { compute: string }
     expect(after.compute).toBe('fp-b')
-    expect(after.supervisor.pid).not.toBe(before.supervisor.pid)
+    // Started again on the new .env.local, for Compose to recreate the worker.
+    expect(b.infra.calls).toContain(`processes.start polly-${b.identity}`)
   })
 
   it('a worktree pointed on purpose at another version keeps it when its own code changes, and dev:up warns naming both', async () => {
@@ -312,11 +278,10 @@ describe('dev:worker', { timeout: 30_000 }, () => {
 
   it('refuses on a worktree whose Polly is not running, and starts nothing', async () => {
     const a = await worktree('feature/worker-down', fakeCompute())
-    await stopSupervisor(a.root, a.infra)
+    await stopProject(a.root, a.infra)
     let started = false
-    a.infra.supervisor.start = async () => {
+    a.infra.processes.restart = async () => {
       started = true
-      return { pid: 0 }
     }
     await expect(
       worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined, warn: () => undefined }),
@@ -327,15 +292,24 @@ describe('dev:worker', { timeout: 30_000 }, () => {
     expect(started).toBe(false)
   })
 
+  it('restarts the worker only', async () => {
+    const a = await worktree('feature/worker-only', fakeCompute())
+    a.infra.calls.length = 0
+    await worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined, warn: () => undefined })
+    expect(a.infra.calls.filter((call) => call.startsWith('processes.'))).toEqual([
+      `processes.restart polly-${a.identity} worker`,
+    ])
+  })
+
   it('waits for a dev:up running in the worktree before it restarts the worker', async () => {
     const a = await worktree('feature/worker-wait', fakeCompute())
     await holdLock(join(a.root, '.dev/up.lock'), 1)
     const heldAt = Date.now()
     let startedAt = 0
-    const start = a.infra.supervisor.start
-    a.infra.supervisor.start = async (options) => {
+    const restart = a.infra.processes.restart
+    a.infra.processes.restart = async (project, process) => {
       startedAt = Date.now()
-      return start(options)
+      return restart(project, process)
     }
     await worker({ root: a.root, infra: a.infra, mode: 'fake', out: () => undefined, warn: () => undefined })
     // The lock is released when the holder exits, which Node may notice after the worker command does.

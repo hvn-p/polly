@@ -216,7 +216,6 @@
         "dev-commands",
         "dev-e2e",
         "dev-worktree",
-        "dev-supervisor",
         "dev-infra",
         "dev-machine",
         "dev-ports",
@@ -235,7 +234,6 @@
       "mayImport": [
         "dev-e2e",
         "dev-worktree",
-        "dev-supervisor",
         "dev-infra",
         "dev-machine",
         "dev-ports",
@@ -253,7 +251,6 @@
       "paths": ["dev/src/e2e"],
       "mayImport": [
         "dev-worktree",
-        "dev-supervisor",
         "dev-infra",
         "dev-machine",
         "dev-ports",
@@ -270,31 +267,14 @@
       "name": "Dev worktree",
       "criterion": "A worktree's state: its lock, its recorded resources, its session.",
       "paths": ["dev/src/worktree"],
-      "mayImport": [
-        "dev-supervisor",
-        "dev-infra",
-        "dev-machine",
-        "dev-ports",
-        "dev-config",
-        "dev-identity",
-        "socle"
-      ],
-      "fix": "The worktree tier imports only the dev tiers below it."
-    },
-    {
-      "id": "dev-supervisor",
-      "group": "dev",
-      "name": "Dev supervisor",
-      "criterion": "The process group holding a worktree's processes.",
-      "paths": ["dev/src/supervisor"],
       "mayImport": ["dev-infra", "dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"],
-      "fix": "The supervisor imports only the dev tiers below it."
+      "fix": "The worktree tier imports only the dev tiers below it."
     },
     {
       "id": "dev-infra",
       "group": "dev",
       "name": "Dev infrastructure",
-      "criterion": "The adapters of the shared infrastructure: compose, Postgres, Garage, portless.",
+      "criterion": "The adapters of the machine: the shared infrastructure (compose, Postgres, Garage, portless) and the worktree's Compose project.",
       "paths": ["dev/src/infra"],
       "mayImport": ["dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"],
       "fix": "An infrastructure adapter imports only the dev tiers below it."

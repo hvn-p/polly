@@ -34,7 +34,6 @@ export default defineConfig({
         '**/*.test.{ts,tsx}',
         '**/test/**',
         '**/vitest.config.ts',
-        'dev/src/supervisor/main.ts',
         'plugin/src/agent-events.ts',
         'tools/architecture/npm/launcher/bin/architecture.js',
         'dev/src/e2e/claude.ts',

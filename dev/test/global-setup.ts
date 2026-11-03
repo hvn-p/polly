@@ -1,6 +1,6 @@
 // Runs once before the dev tests: builds every process, since the commands
-// start the supervisor, the migrations and the API's command line from their
-// builds.
+// run the worktree's project, the migrations and the API's command line from
+// their builds.
 
 import { bundleProcess, PROCESSES, pathsOf } from '../../scripts/build/processes.ts'
 

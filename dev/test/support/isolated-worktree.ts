@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import pg from 'pg'
@@ -5,9 +6,9 @@ import { parseEnv } from '../../src/config/index.ts'
 import { garageAdmin } from '../../src/infra/garage.ts'
 import { listeningPorts } from '../../src/infra/listening.ts'
 import { postgresAdmin } from '../../src/infra/postgres.ts'
+import { composeProcesses } from '../../src/infra/processes.ts'
 import type { Infrastructure } from '../../src/ports/index.ts'
 import { apiApplication } from '../../src/real.ts'
-import { processSupervisor } from '../../src/supervisor/index.ts'
 import { fakeInfrastructure } from './fake-infrastructure.ts'
 import type { isolatedInfrastructure } from './isolated-infrastructure.ts'
 
@@ -18,12 +19,40 @@ type Shared = Awaited<ReturnType<typeof isolatedInfrastructure>>
 const routes = fakeInfrastructure()
 export const routeTable = routes.routeTable
 
-// The real adapters on an isolated infrastructure, the route table above and
-// stand-in processes. Every supervisor started is recorded, to be stopped
-// after the tests.
-export function isolatedWorktreeInfrastructure(shared: Shared, supervisors: number[]): Infrastructure {
+// The checkout the worktree processes run from: this one's builds.
+const codeRoot = join(import.meta.dirname, '..', '..', '..')
+
+// The worktree projects of a test file: named apart from any worktree of the
+// machine, and from another run's.
+export function testProcesses() {
+  const processes = composeProcesses({
+    codeRoot,
+    prefix: `polly-test-${randomBytes(3).toString('hex')}-`,
+    architecture: false,
+  })
+  const started = new Set<string>()
+  return {
+    ...processes,
+    start: async (project: Parameters<typeof processes.start>[0]) => {
+      started.add(project.name)
+      await processes.start(project)
+    },
+    // Removes every project the tests started.
+    removeAll: async () => {
+      for (const name of started) {
+        await processes.stop(name)
+      }
+    },
+  }
+}
+
+// The real adapters on an isolated infrastructure, the route table above, and
+// the worktree's real processes.
+export function isolatedWorktreeInfrastructure(
+  shared: Shared,
+  processes: ReturnType<typeof testProcesses>,
+): Infrastructure {
   const fake = fakeInfrastructure()
-  const supervisor = processSupervisor()
   return {
     ...fake,
     routes: routes.routes,
@@ -32,20 +61,8 @@ export function isolatedWorktreeInfrastructure(shared: Shared, supervisors: numb
     postgres: postgresAdmin(shared),
     garage: garageAdmin(shared),
     ports: listeningPorts(),
-    application: {
-      ...apiApplication(),
-      processes: () => [
-        { name: 'api', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'], cwd: '/' },
-      ],
-    },
-    supervisor: {
-      ...supervisor,
-      start: async (options) => {
-        const state = await supervisor.start(options)
-        supervisors.push(state.pid)
-        return state
-      },
-    },
+    application: apiApplication(),
+    processes,
   }
 }
 
@@ -53,8 +70,8 @@ export function envOf(root: string): Record<string, string> {
   return Object.fromEntries(parseEnv(readFileSync(join(root, '.env.local'), 'utf8')))
 }
 
-export function stateOf(root: string): { supervisor: { pid: number } } {
-  return JSON.parse(readFileSync(join(root, '.dev/state.json'), 'utf8')) as { supervisor: { pid: number } }
+export function stateOf(root: string): { project: string } {
+  return JSON.parse(readFileSync(join(root, '.dev/state.json'), 'utf8')) as { project: string }
 }
 
 export async function query(root: string, sql: string): Promise<Record<string, unknown>[]> {

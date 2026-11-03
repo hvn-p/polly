@@ -96,8 +96,6 @@ const COVERAGE_EXCLUDES = {
   '**/vite.config.ts': 'build configuration, run by Vite',
   '**/*.d.ts': 'declarations, which hold no code to run',
   'vitest.setup.ts': 'test setup, tested by scripts/checks/outbound-network.test.ts',
-  'dev/src/supervisor/main.ts':
-    'a process entry point: the tests run it as the process it is (dev:up), and V8 coverage does not follow a child process',
   'plugin/src/agent-events.ts':
     "the plugin's monitor: its tests spawn its committed bundle, as Claude Code runs it",
   'tools/architecture/npm/launcher/bin/architecture.js':

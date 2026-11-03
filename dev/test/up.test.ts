@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createConnection, createServer, type Server } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Refusal } from '@polly/platform'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { up } from '../src/commands/up.ts'
 import { url } from '../src/commands/url.ts'
@@ -56,12 +57,12 @@ describe('dev:up with faked infrastructure', () => {
       'application.seed local',
       `routes.add ${id}.polly ${env(root).get('POLLY_WEB_PORT')}`,
       `routes.add arch.${id}.polly ${env(root).get('POLLY_ARCH_PORT')}`,
-      'supervisor.start',
+      `processes.start polly-${id}`,
     ])
     expect(out.lines).toContain(`architecture view: https://arch.${id}.polly.localhost`)
     expect(out.lines.at(-1)).toBe(`https://${id}.polly.localhost`)
     expect(JSON.parse(readFileSync(join(root, '.dev/state.json'), 'utf8'))).toMatchObject({
-      supervisor: { pid: expect.any(Number) },
+      project: `polly-${id}`,
       route: `${id}.polly`,
       architectureRoute: `arch.${id}.polly`,
       role,
@@ -87,38 +88,12 @@ describe('dev:up with faked infrastructure', () => {
     const before = readFileSync(join(root, '.env.local'), 'utf8')
     infra.calls.length = 0
     await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
-    expect(infra.calls).not.toContain('supervisor.start')
+    expect(infra.calls.filter((call) => call.startsWith('processes.stop'))).toEqual([])
     expect(infra.calls.filter((call) => call.startsWith('routes.add'))).toEqual([])
     expect(readFileSync(join(root, '.env.local'), 'utf8')).toBe(before)
   })
 
-  it('restarts a running supervisor whose process set changed, as when .env.local gains a port', async () => {
-    const root = temporaryRepository()
-    const infra = fakeInfrastructure()
-    infra.application.processes = (values) => [
-      {
-        name: 'architecture',
-        command: 'analyzer',
-        args: ['--port', String(values['POLLY_ARCH_PORT'])],
-        cwd: root,
-      },
-    ]
-    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
-    const envFile = join(root, '.env.local')
-    writeFileSync(envFile, readFileSync(envFile, 'utf8').replace(/^POLLY_ARCH_PORT=.*\n/m, ''))
-    infra.routeTable.clear()
-    infra.calls.length = 0
-    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
-    expect(infra.calls.filter((call) => call.startsWith('supervisor.'))).toEqual([
-      expect.stringMatching(/^supervisor\.stop /),
-      'supervisor.start',
-    ])
-    infra.calls.length = 0
-    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
-    expect(infra.calls.filter((call) => call.startsWith('supervisor.'))).toEqual([])
-  })
-
-  it('restarts a running supervisor whose environment changed, its processes reading it at start', async () => {
+  it('starts the running project again, for Compose to recreate a process whose configuration changed', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
@@ -126,37 +101,53 @@ describe('dev:up with faked infrastructure', () => {
     writeFileSync(envFile, `${readFileSync(envFile, 'utf8')}POLLY_EXTRA_SETTING=on\n`)
     infra.calls.length = 0
     await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
-    expect(infra.calls.filter((call) => call.startsWith('supervisor.'))).toEqual([
-      expect.stringMatching(/^supervisor\.stop /),
-      'supervisor.start',
+    const id = env(root).get('POLLY_WORKTREE_ID')
+    expect(infra.calls.filter((call) => call.startsWith('processes.'))).toEqual([
+      `processes.start polly-${id}`,
     ])
   })
 
-  it('C3: restarts a dead supervisor, stopping the group it left behind before checking the ports it holds', async () => {
+  it('C3: brings back a project whose processes do not all run, removing what is left of it before checking the ports it holds', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
-    infra.runningSupervisors.clear()
+    infra.runningProjects.clear()
     const port = Number(env(root).get('POLLY_API_PORT'))
     infra.heldPorts.add(port)
-    const stop = infra.supervisor.stop
-    infra.supervisor.stop = async (state) => {
-      await stop(state)
+    const stop = infra.processes.stop
+    infra.processes.stop = async (name) => {
+      await stop(name)
       infra.heldPorts.delete(port)
     }
     infra.calls.length = 0
     await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
-    expect(infra.calls.filter((call) => call.startsWith('supervisor.'))).toEqual([
-      expect.stringMatching(/^supervisor\.stop /),
-      'supervisor.start',
+    const id = env(root).get('POLLY_WORKTREE_ID')
+    expect(infra.calls.filter((call) => call.startsWith('processes.'))).toEqual([
+      `processes.stop polly-${id}`,
+      `processes.start polly-${id}`,
     ])
+  })
+
+  it('C76: a process that is not ready refuses dev:up, and no URL is printed', async () => {
+    const root = temporaryRepository()
+    const infra = fakeInfrastructure()
+    infra.processes.start = async () => {
+      throw new Refusal('PROCESS_NOT_READY', 'api is not healthy; see .dev/logs/api.log')
+    }
+    const out = output()
+    await expect(up({ root, ...loaded(infra), out: out.write, warn: () => undefined })).rejects.toMatchObject(
+      {
+        code: 'PROCESS_NOT_READY',
+      },
+    )
+    expect(out.lines).toEqual([])
   })
 
   it('C9: refuses a port held by another process, naming the port, and leaves it alone', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
-    infra.runningSupervisors.clear()
+    infra.runningProjects.clear()
     infra.ports = listeningPorts()
     const port = Number(env(root).get('POLLY_API_PORT'))
     const holder = await holdPort(port)
@@ -169,7 +160,7 @@ describe('dev:up with faked infrastructure', () => {
         new RegExp(`^port ${port} \\(POLLY_API_PORT\\) is held by another process`),
       ),
     })
-    expect(infra.calls).not.toContain('supervisor.start')
+    expect(infra.calls.filter((call) => call.startsWith('processes.start'))).toEqual([])
     expect(await accepts(port)).toBe(true)
     holder.close()
   })
@@ -209,7 +200,7 @@ describe('dev:up with faked infrastructure', () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
     await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
-    infra.runningSupervisors.clear()
+    infra.runningProjects.clear()
     infra.ports = listeningPorts()
     const port = Number(env(root).get('POLLY_ARCH_PORT'))
     const holder = await holdPort(port)
@@ -252,7 +243,7 @@ describe('dev:up with faked infrastructure', () => {
       const infra = fakeInfrastructure()
       await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
       expect(readFileSync(join(root, 'vendors/infra/CLAUDE.md'), 'utf8')).toBe('infra\n')
-      expect(infra.calls).toContain('supervisor.start')
+      expect(infra.calls).toContainEqual(expect.stringMatching(/^processes\.start /))
     })
   })
 })

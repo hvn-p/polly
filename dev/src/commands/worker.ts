@@ -6,16 +6,8 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { Refusal } from '@polly/platform'
 import { lock } from '../machine/index.ts'
-import type { ComputeService, Infrastructure, SupervisorState } from '../ports/index.ts'
-import {
-  digestOf,
-  readEnv,
-  readState,
-  required,
-  type Worktree,
-  worktreeAt,
-  writeState,
-} from '../worktree/index.ts'
+import type { ComputeService, Infrastructure } from '../ports/index.ts'
+import { readEnv, readState, required, type Worktree, worktreeAt, writeState } from '../worktree/index.ts'
 
 const MODES = ['real', 'fake']
 
@@ -94,22 +86,20 @@ export async function worker({
   const held = await lock(worktree.upLock)
   try {
     const state = readState(worktree)
-    if (state.supervisor === undefined || !infra.supervisor.isRunning(state.supervisor)) {
+    const project = infra.processes.projectOf(identity, root)
+    if (state.project === undefined || !(await infra.processes.isRunning(project))) {
       throw new Refusal('WORKTREE_NOT_RUNNING', "this worktree's Polly is not running; run nr dev:up")
     }
     const used = mode === 'real' ? await useCompute(root, infra, identity, warn, compute) : undefined
-    const updated = setEnv(worktree, { ...used?.env, POLLY_WORKER_MODE: mode })
+    setEnv(worktree, { ...used?.env, POLLY_WORKER_MODE: mode })
     if (state.compute !== undefined && state.compute !== used?.fingerprint) {
       await infra.compute.release(state.compute, identity)
     }
-    // Recorded before the supervisor starts: if it fails, dev:down still
+    // Recorded before the worker restarts: if it fails, dev:down still
     // releases the service this worktree now uses, and only that one.
     const { compute: _, ...rest } = readState(worktree)
     writeState(worktree, { ...rest, ...(used === undefined ? {} : { compute: used.fingerprint }) })
-    await infra.supervisor.stop(state.supervisor)
-    const processes = infra.application.processes(updated)
-    const supervisor: SupervisorState = await infra.supervisor.start({ root, processes, env: updated })
-    writeState(worktree, { ...readState(worktree), supervisor, processes: digestOf(processes, updated) })
+    await infra.processes.restart(project, 'worker')
     out(`worker: ${mode}`)
   } finally {
     await held.release()

@@ -39,12 +39,6 @@ export const PROCESSES: Process[] = [
   { name: 'worker', entry: 'apps/worker/src/main.ts', output: 'apps/worker/dist/main.js' },
   { name: 'migrations', entry: 'packages/migrations/src/cli.ts', output: 'packages/migrations/dist/cli.js' },
   { name: 'dev', entry: 'dev/src/main.ts', output: 'dev/dist/main.js', development: true },
-  {
-    name: 'dev-supervisor',
-    entry: 'dev/src/supervisor/main.ts',
-    output: 'dev/dist/supervisor.js',
-    development: true,
-  },
 ]
 
 const repositoryRoot = join(import.meta.dirname, '..', '..')
