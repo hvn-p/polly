@@ -1,9 +1,12 @@
 # Local development environment
 
 Each worktree runs its own Polly at its own URL, on its own data: a database, a
-test database and a bucket in the machine's shared Postgres and Garage, and a
-supervisor that runs the worktree's API, MCP server, front-end dev server, worker,
+test database and a bucket in the machine's shared Postgres and Garage, and a Docker
+Compose project of its own, `polly-<identity>` (the identity is `POLLY_WORKTREE_ID` in
+`.env.local`), that runs the worktree's API, MCP server, front-end dev server, worker,
 the build that rebuilds the first three on each change, and the architecture view.
+Compose restarts a process that crashes; a new build restarts only the process it
+belongs to.
 
 ## Prerequisites
 
@@ -11,6 +14,9 @@ Linux or macOS (Windows through WSL) with Node 24 and Docker with compose; pnpm 
 through Corepack (`corepack enable`), at the version `packageManager` fixes. Every other
 tool is a project dependency. One step is machine-wide: portless's proxy binds 443 and
 trusts its local CA, started once with `dev/node_modules/.bin/portless proxy start`.
+The worktree's processes run on the host's network: on macOS, Docker Desktop 4.34 or
+later, signed in to a Docker account, with Settings > Resources > Network > Enable host
+networking checked. That setup has not been tried on a Mac yet.
 worktrunk runs `nr dev:up` and `nr dev:down` around a worktree's life. `nr dev:up` checks
 the prerequisites and names what is missing.
 
@@ -20,8 +26,8 @@ Every command acts on the worktree it runs in.
 
 | Command | Does |
 |---|---|
-| `nr dev:up` | Creates what is missing, migrates, seeds the demo account, starts the processes, prints the worktree's URL (stdout) and the architecture view's (stderr). Safe to run again: it repairs a stopped or partly set up worktree, and restarts the processes when what they run changed. |
-| `nr dev:down` | Stops the processes and releases the worktree's databases, bucket and routes. |
+| `nr dev:up` | Creates what is missing, migrates, seeds the demo account, starts the processes and waits until they answer, prints the worktree's URL (stdout) and the architecture view's (stderr). A process that does not start stops it with `PROCESS_NOT_READY`, naming the process and its log. Safe to run again: it repairs a stopped or partly set up worktree, and restarts a process whose configuration changed. |
+| `nr dev:down` | Removes the processes and releases the worktree's databases, bucket and routes. |
 | `nr dev:url` | Prints the worktree's URL. |
 | `nr dev:worker real [--compute <fingerprint>]` / `nr dev:worker fake` | Restarts the worktree's worker with the machine's compute service for its fingerprint of `services/compute` (or the one named), or with the fake analyzer that loads none. Worktrees with the same fingerprint share one service; `nr dev:down` puts the worktree back in fake mode. |
 | `nr dev:e2e <scenario>` | Plays a scenario (`smoke`) in a driven Claude Code session against this worktree, then prints pass or fail and the transcript's path. Needs `claude` signed in and util-linux `script`; never runs in CI. macOS ships BSD `script` instead, which the command refuses (`MISSING_PREREQUISITE`): install util-linux and put its `script` first on the `PATH`. |
@@ -41,6 +47,7 @@ with the demo account.
 - `.dev/logs/api.log`, `.dev/logs/mcp.log`, `.dev/logs/web.log`, `.dev/logs/worker.log`,
   `.dev/logs/build.log`, `.dev/logs/architecture.log`, `.dev/logs/architecture-view.log`:
   the output of each process.
+- `docker compose -p polly-<identity> ps`: the worktree's processes and their health.
 - `.dev/state.json`: what `dev:down` releases.
 
 ## Architecture view
@@ -51,10 +58,9 @@ every saved file. The analyzer is the one built in the worktree
 (`cargo build --release` in `tools/architecture/analyzer`) when there is one, the
 prebuilt package otherwise, once a published version holds the view (`dev:up` says
 `ARCHITECTURE_VIEW_UNAVAILABLE` when neither exists). Only whoever changes the analyzer
-needs Rust. After the first `cargo build --release`, `nr dev:up` restarts the processes on
-it; after a later one, stop the running analyzer and the supervisor starts it again on the
-new build within 2 s:
-`pkill -f "$PWD/tools/architecture/analyzer/target/release/architecture-analyzer"`.
+needs Rust. After the first `cargo build --release`, `nr dev:up` starts the view on it;
+after a later one, restart the analyzer on the new build:
+`docker compose -p polly-<identity> restart architecture`.
 
 ## Demo account
 
