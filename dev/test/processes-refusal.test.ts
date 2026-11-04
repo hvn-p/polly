@@ -40,7 +40,11 @@ afterAll(() => {
 
 describe('the processes adapter, when a process does not start', () => {
   const processes = composeProcesses({ codeRoot })
-  const project = { name: 'polly-probe', identity: 'probe', root: mkdtempSync(join(tmpdir(), 'polly-probe-')) }
+  const project = {
+    name: 'polly-probe',
+    identity: 'probe',
+    root: mkdtempSync(join(tmpdir(), 'polly-probe-')),
+  }
 
   it('C76: names the process a restart asked for, not another one that is not ready', async () => {
     await expect(processes.restart(project, 'worker')).rejects.toMatchObject({
