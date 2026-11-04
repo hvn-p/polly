@@ -1,3 +1,5 @@
-# The tests run from the source, in the root test script: the installed copy
-# needs none.
+# The tests run from the source, in the root test script, which also
+# type-checks it: the installed copy needs neither.
 test/
+tsconfig.json
+vitest.config.ts

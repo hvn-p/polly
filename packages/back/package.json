@@ -1,0 +1,15 @@
+{
+  "name": "@polly/back",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@polly/kernel": "workspace:*",
+    "@polly/platform": "workspace:*"
+  }
+}

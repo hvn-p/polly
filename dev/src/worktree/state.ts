@@ -1,0 +1,79 @@
+// What a worktree holds, as recorded by dev:up: dev:down releases exactly
+// this, whatever the branch is called by then.
+
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
+import { Refusal } from '@polly/platform'
+import { parseEnv } from '../config/index.ts'
+import { architectureHostOf, resourceNames } from '../identity/index.ts'
+import type { BucketAccess, DatabaseAccess } from '../ports/index.ts'
+import type { Worktree } from './worktree.ts'
+
+export interface WorktreeState {
+  // The name of the worktree's Compose project, which runs its processes.
+  project?: string
+  route?: string
+  architectureRoute?: string
+  // The name of the architecture view's Compose project.
+  architecture?: string
+  role?: string
+  garageKeyId?: string
+  // The fingerprint of the compute service the real worker uses.
+  compute?: string
+}
+
+export function readState(worktree: Worktree): WorktreeState {
+  return existsSync(worktree.stateFile)
+    ? (JSON.parse(readFileSync(worktree.stateFile, 'utf8')) as WorktreeState)
+    : {}
+}
+
+export function writeState(worktree: Worktree, state: WorktreeState): void {
+  mkdirSync(dirname(worktree.stateFile), { recursive: true })
+  writeFileSync(worktree.stateFile, `${JSON.stringify(state, null, 2)}\n`)
+}
+
+export function deleteState(worktree: Worktree): void {
+  rmSync(worktree.stateFile, { force: true })
+}
+
+export function readEnv(worktree: Worktree): Record<string, string> | undefined {
+  return existsSync(worktree.envFile)
+    ? Object.fromEntries(parseEnv(readFileSync(worktree.envFile, 'utf8')))
+    : undefined
+}
+
+export function required(env: Record<string, string>, key: string): string {
+  const value = env[key]
+  if (value === undefined || value === '') {
+    throw new Refusal('WORKTREE_NOT_CONFIGURED', `${key} is missing from .env.local; run nr dev:up`)
+  }
+  return value
+}
+
+// The resources a worktree's configuration names, from its recorded identity.
+export function resourcesOf(env: Record<string, string>) {
+  const identity = required(env, 'POLLY_WORKTREE_ID')
+  const names = resourceNames(identity)
+  const database: DatabaseAccess = {
+    names: { role: names.role, database: names.database, testDatabase: names.testDatabase },
+    password: decodeURIComponent(new URL(required(env, 'DATABASE_URL')).password),
+  }
+  return {
+    identity,
+    route: `${identity}.polly`,
+    host: names.host,
+    architectureRoute: `arch.${identity}.polly`,
+    architectureHost: architectureHostOf(identity),
+    database,
+    bucket: required(env, 'S3_BUCKET'),
+  }
+}
+
+export function bucketAccessOf(env: Record<string, string>): BucketAccess {
+  return {
+    bucket: required(env, 'S3_BUCKET'),
+    accessKeyId: required(env, 'S3_ACCESS_KEY_ID'),
+    secretAccessKey: required(env, 'S3_SECRET_ACCESS_KEY'),
+  }
+}

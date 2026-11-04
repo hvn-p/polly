@@ -1,0 +1,73 @@
+// The API's routes over HTTP, built from the ports its composition root
+// (main.ts) hands it, and served on its listen address.
+
+import type { AddressInfo } from 'node:net'
+import { serve } from '@hono/node-server'
+import type { EventCodeStore, LearnerDirectory } from '@polly/back'
+import { type Clock, originOf, type WithTrace } from '@polly/platform'
+import { type Authenticate, learnerGuard, type SessionLearner } from './access.ts'
+import { eventCodeGuard, registerAgentEventRoute } from './agent-events/index.ts'
+import { createApp } from './app.ts'
+import { registerAuthRoutes } from './auth.ts'
+import { registerLearnerRoutes } from './learner/index.ts'
+import { type Guards, type Route, RouteRegistry } from './routes.ts'
+import { type BrowserSessions, registerSessionRoutes } from './session/index.ts'
+
+export interface ApiPorts {
+  codes: EventCodeStore
+  // The identity's routes: sign-in, OAuth, discovery.
+  identityHandler: (request: Request) => Promise<Response>
+  // Which learner an API token names, given where the server's keys are read.
+  learner: (jwksUrl: () => string) => Authenticate
+  // The browser's sessions: sign-in, consent, and the learner a cookie names.
+  sessions: BrowserSessions & { learnerOf: SessionLearner }
+  directory: LearnerDirectory
+  // The worktree's origin, the only one a cookie-admitted change comes from.
+  origin: string
+  clock: Clock
+  // Runs each request inside its trace: the logging capacity's.
+  trace: WithTrace
+}
+
+export interface RunningServer {
+  // The origin the server answers on, read back on loopback when it listens
+  // on every interface.
+  url: string
+  // The registered routes, for the route walk.
+  routes: readonly Route[]
+  close: () => Promise<void>
+}
+
+export async function serveApi(
+  { hostname, port }: { hostname: string; port: number },
+  ports: ApiPorts,
+): Promise<RunningServer> {
+  let listeningPort = port
+  const guards: Guards = {
+    public: async () => ({}),
+    // The keys are read on the address the server listens on, never through
+    // the worktree's public URL.
+    learner: learnerGuard(
+      ports.learner(() => `${originOf(hostname, listeningPort)}/api/auth/jwks`),
+      ports.sessions.learnerOf,
+      ports.origin,
+    ),
+    'event-code': eventCodeGuard(ports.codes),
+  }
+  const registry = new RouteRegistry(guards)
+  registerAuthRoutes(registry, ports.identityHandler)
+  registerSessionRoutes(registry, ports.sessions)
+  registerLearnerRoutes(registry, ports.codes, ports.directory)
+  registerAgentEventRoute(registry, ports.codes, ports.clock)
+  const app = createApp(registry, ports.trace)
+  const server = await new Promise<ReturnType<typeof serve>>((resolve) => {
+    const listening = serve({ fetch: app.fetch, hostname, port }, () => resolve(listening))
+  })
+  listeningPort = (server.address() as AddressInfo).port
+  return {
+    url: originOf(hostname, listeningPort),
+    routes: registry.routes(),
+    close: () =>
+      new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
+  }
+}

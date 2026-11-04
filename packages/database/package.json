@@ -1,0 +1,21 @@
+{
+  "name": "@polly/database",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@polly/back": "workspace:*",
+    "@polly/platform": "workspace:*",
+    "kysely": "0.29.7",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@polly/migrations": "workspace:*",
+    "@types/pg": "8.23.1"
+  }
+}

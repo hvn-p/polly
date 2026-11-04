@@ -1,0 +1,23 @@
+{
+  "name": "@polly/worker",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/main.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@dbos-inc/dbos-sdk": "5.3.0",
+    "@polly/analysis": "workspace:*",
+    "@polly/back": "workspace:*",
+    "@polly/database": "workspace:*",
+    "@polly/logging": "workspace:*",
+    "@polly/platform": "workspace:*",
+    "@polly/queue": "workspace:*"
+  },
+  "devDependencies": {
+    "@polly/migrations": "workspace:*"
+  }
+}

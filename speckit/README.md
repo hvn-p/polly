@@ -6,7 +6,8 @@ The working directory for what Spec Kit does differently in polly. Any change to
 ## What it contains
 
 - **`extensions/issue-sync/`** keeps a feature's artifacts on GitHub: spec and plan as
-  comments of its issue, tasks in the description of its PR. Before each step, it copies
+  comments of its issue, tasks in the description of its PR (their completed
+  Convergence phases in a comment of the PR once the description is full). Before each step, it copies
   them into a local cache ignored by git; afterwards, it sends them back. Its script is
   tested (`test/`), and these tests run with the repository's `test` script.
 - **`presets/polly/`** adapts Spec Kit's commands and templates to the repository's

@@ -32,7 +32,8 @@ $ARGUMENTS
    description, then every comment that is not an artifact, in order, a later
    decision overriding an earlier one. Each artifact comment becomes its own
    file. When the branch is named after the issue, the tasks of its open pull
-   request go to `tasks.md`. Finally it points `.specify/feature.json` at the
+   request go to `tasks.md`, with the phases its description archived in a
+   comment put back in place. Finally it points `.specify/feature.json` at the
    cache directory, which its JSON output gives as `dir`.
 3. Use `dir` as the feature directory for the rest of the step, and as
    `SPECIFY_FEATURE_DIRECTORY` wherever the step asks for it. Never create a

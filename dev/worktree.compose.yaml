@@ -1,0 +1,140 @@
+# The processes of one worktree, run by dev:up as the Compose project
+# polly-<identity> (research R2). Each process is a service: Compose restarts
+# one that crashes, nodemon restarts the API, the MCP server and the worker when
+# their own build changes, and `up --wait` waits for the health checks.
+#
+# The services run on the host's network, as the invoking user, with the
+# checkout and the repository's git directory mounted at their own paths, so
+# paths, ports and file ownership are the host's. dev:up sets the variables
+# below; .env.local is every process's environment. Each process writes its
+# output to .dev/logs/<process>.log.
+#
+# The host's node_modules never reach a container: dev:up writes a second
+# Compose file that mounts a volume of the project over each node_modules of
+# the workspace, which the install service fills for Linux.
+
+x-process: &process
+  # Node 24 on Debian 13: the image the architecture view's project runs on,
+  # pulled once for both.
+  image: node:24.22.1-trixie@sha256:f1e034976f948cf212ef1f659c12e5dd58ac7eab947831813e81a62401ca38be
+  user: ${POLLY_UID:?}:${POLLY_GID:?}
+  network_mode: host
+  init: true
+  restart: on-failure
+  depends_on:
+    install:
+      condition: service_completed_successfully
+  working_dir: ${POLLY_CODE_ROOT:?}
+  env_file: ${POLLY_ENV_FILE:?}
+  environment:
+    # The invoking user may have no home in the image.
+    HOME: /tmp
+  volumes:
+    - ${POLLY_CODE_ROOT}:${POLLY_CODE_ROOT}
+    - ${POLLY_GIT_DIR:?}:${POLLY_GIT_DIR}
+    - ${POLLY_LOGS:?}:${POLLY_LOGS}
+
+# A process is healthy once its port accepts connections.
+x-health: &health
+  interval: 2s
+  timeout: 2s
+  retries: 15
+
+services:
+  # Installs the workspace's dependencies from the lockfile into the project's
+  # volumes, then exits. It starts as root to give the invoking user the
+  # volumes, which Docker creates root-owned, then installs as that user.
+  install:
+    image: node:24.22.1-trixie@sha256:f1e034976f948cf212ef1f659c12e5dd58ac7eab947831813e81a62401ca38be
+    user: "0:0"
+    network_mode: host
+    working_dir: ${POLLY_CODE_ROOT}
+    environment:
+      HOME: /tmp
+      COREPACK_HOME: /pnpm/corepack
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+    volumes:
+      - ${POLLY_CODE_ROOT}:${POLLY_CODE_ROOT}
+      - ${POLLY_LOGS}:${POLLY_LOGS}
+      - pnpm:/pnpm
+    command:
+      - sh
+      - -c
+      - >-
+        { find "${POLLY_CODE_ROOT}" -maxdepth 4 -name node_modules -prune -user 0
+        -exec chown "${POLLY_UID}:${POLLY_GID}" /pnpm {} + &&
+        exec setpriv --reuid="${POLLY_UID}" --regid="${POLLY_GID}" --clear-groups
+        corepack pnpm install --frozen-lockfile --store-dir /pnpm/store; } >>"${POLLY_LOGS}/install.log" 2>&1
+
+  # Rebuilds the API, the MCP server and the worker on each change; an
+  # unchanged output is left unwritten, so it restarts nothing.
+  build:
+    <<: *process
+    command:
+      - sh
+      - -c
+      - exec node scripts/build/processes.ts --watch api mcp worker >>"${POLLY_LOGS}/build.log" 2>&1
+
+  api:
+    <<: *process
+    command:
+      - sh
+      - -c
+      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/api/dist/main.js -e js apps/api/dist/main.js >>"${POLLY_LOGS}/api.log" 2>&1
+    healthcheck:
+      <<: *health
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "require('net').connect(process.env.POLLY_API_PORT, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))",
+        ]
+
+  mcp:
+    <<: *process
+    command:
+      - sh
+      - -c
+      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/mcp/dist/main.js -e js apps/mcp/dist/main.js >>"${POLLY_LOGS}/mcp.log" 2>&1
+    healthcheck:
+      <<: *health
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "require('net').connect(process.env.POLLY_MCP_PORT, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))",
+        ]
+
+  # POLLY_WORKER_MODE, from .env.local, picks the analyzer.
+  worker:
+    <<: *process
+    command:
+      - sh
+      - -c
+      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/worker/dist/main.js -e js apps/worker/dist/main.js >>"${POLLY_LOGS}/worker.log" 2>&1
+
+  web:
+    <<: *process
+    working_dir: ${POLLY_CODE_ROOT}/apps/web
+    command:
+      - sh
+      - -c
+      - exec node node_modules/vite/bin/vite.js >>"${POLLY_LOGS}/web.log" 2>&1
+    healthcheck:
+      <<: *health
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "require('net').connect(process.env.POLLY_WEB_PORT, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))",
+        ]
+
+volumes:
+  # The pnpm store and Corepack's cache, shared by the machine's worktrees;
+  # dev:up creates it, and no project removes it.
+  pnpm:
+    name: polly-dev-pnpm
+    external: true

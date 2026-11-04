@@ -1,0 +1,5 @@
+# worktrunk only calls the repository's commands: dev:up creates the
+# worktree's Polly (dependencies included) and dev:down gives back everything it
+# holds. `nr dev:url` prints the worktree's URL.
+pre-start = "nr dev:up"
+pre-remove = "nr dev:down"

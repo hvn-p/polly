@@ -1,0 +1,116 @@
+# Publishes the architecture analyzer to npm on every change to it merged to
+# main (a pull request that changes it builds it only, and a manual run
+# publishes from main only): builds it for each platform and its view, bumps
+# the patch of the version last published, publishes the platform packages and
+# the launcher, which carries the view, then opens the pull request that moves
+# the repository's pin to that version. npm trusts this workflow (trusted
+# publishing), so no token is stored and provenance is added.
+name: Architecture release
+
+on:
+  push:
+    branches: [main]
+    paths: ["tools/architecture/**", ".github/workflows/architecture.yml"]
+  pull_request:
+    paths: ["tools/architecture/**", ".github/workflows/architecture.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One release at a time, so two never take the same version.
+concurrency:
+  group: architecture-release-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { key: linux-x64, target: x86_64-unknown-linux-musl, runner: ubuntu-24.04 }
+          - { key: linux-arm64, target: aarch64-unknown-linux-musl, runner: ubuntu-24.04-arm }
+          - { key: darwin-x64, target: x86_64-apple-darwin, runner: macos-15 }
+          - { key: darwin-arm64, target: aarch64-apple-darwin, runner: macos-15 }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: tools/architecture/analyzer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # rust-toolchain.toml pins the toolchain; the target is added to it. musl
+      # links the Linux binaries statically, so they run on any distribution.
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build --locked --release --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.key }}
+          path: tools/architecture/analyzer/target/${{ matrix.target }}/release/architecture-analyzer
+          if-no-files-found: error
+
+  # The view the launcher package carries.
+  view:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @hvn-p/architecture-ui
+      - run: pnpm --filter @hvn-p/architecture-ui run build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: view
+          path: tools/architecture/ui/dist
+          if-no-files-found: error
+
+  publish:
+    needs: [build, view]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      # Pushes the branch of the pin's pull request, and opens it.
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: binaries
+      - name: Publish the next version
+        id: release
+        run: |
+          name=$(node -p "require('./tools/architecture/npm/launcher/package.json').name")
+          published=$(npm view "$name" version 2>/dev/null || true)
+          version=$(node --input-type=module -e "
+            import { nextVersion } from './tools/architecture/npm/release.mjs'
+            console.log(nextVersion(process.argv[1] || undefined))" "$published")
+          for directory in $(node tools/architecture/npm/release.mjs "$version" binaries binaries/view packages); do
+            npm publish --access public "$directory"
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      # A pull request opened with the workflow's token starts no workflow:
+      # its checks run once someone pushes to it or closes and reopens it.
+      - name: Propose the new version to the repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          branch="architecture-$VERSION"
+          npm pkg set "devDependencies.@hvn-p/architecture=$VERSION"
+          pnpm install --lockfile-only
+          git switch -c "$branch"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit --all --message "build(architecture): pin the analyzer to $VERSION"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "build(architecture): pin the analyzer to $VERSION" \
+            --body "Moves the repository's analyzer to the version this workflow just published, so \`nr lint\` and the worktrees' architecture view run it."

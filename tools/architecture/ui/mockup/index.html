@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>architecture · hvn-p/polly</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#121212; --raise:#181818; --panel:#1c1c1b; --line:#2a2928; --line-soft:#212120;
+  --ink:#ecebe6; --ink-2:#bdbbb4; --mute:#8c8a84; --breach:#ff5a36; --breach-ground:#3a1a12;
+  --ok-ground:#1a1a19; --cond:#262523; --added:#9bd3a0; --removed:#d79a8f;
+  --sans:"Public Sans",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--ground);color:var(--ink);font:14px/1.45 var(--sans);font-variant-numeric:tabular-nums;overflow:hidden}
+::selection{background:#ecebe633;color:var(--ink)}
+*{scrollbar-width:thin;scrollbar-color:#3a3937 transparent}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:2px}
+code,.mono{font-family:var(--mono);font-size:12.5px}
+.mute{color:var(--mute)}
+svg.i{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px}
+
+/* shell */
+.app{display:grid;grid-template-rows:auto auto 1fr;height:100vh}
+.top{display:flex;align-items:center;gap:20px;padding:0 20px;height:52px;border-bottom:1px solid var(--line);background:var(--ground)}
+.brand{font-weight:700;font-size:15px;letter-spacing:-.01em}
+.repo{color:var(--mute)}
+.branch{border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:13px;color:var(--ink-2)}
+.branch b{color:var(--ink);font-weight:500}
+.live{display:flex;align-items:center;gap:7px;color:var(--ink-2);font-size:13px}
+.live::before{content:"";width:7px;height:7px;border-radius:50%;background:#7fb38a;box-shadow:0 0 0 3px #7fb38a22}
+.tabs{display:flex;gap:2px;margin-left:12px;height:100%}
+.tabs a{display:flex;align-items:center;gap:7px;padding:0 12px;color:var(--mute);border-bottom:2px solid transparent;font-weight:500}
+.tabs a:hover{color:var(--ink-2)}
+.tabs a[aria-current]{color:var(--ink);border-bottom-color:var(--ink)}
+.count{font-size:11px;border-radius:999px;padding:0 6px;background:var(--line);color:var(--ink-2)}
+.count.breach{background:var(--breach);color:#1a0d08;font-weight:700}
+.count.new{background:#ecebe6;color:#121212;font-weight:700}
+.stats{margin-left:auto;color:var(--mute);font-size:13px}
+.view{overflow:hidden;position:relative}
+.synthetic{position:fixed;left:16px;bottom:12px;font-size:12px;color:var(--mute);background:var(--raise);border:1px solid var(--line);padding:4px 10px;border-radius:4px;z-index:5}
+
+/* matrix page */
+.mx{display:grid;grid-template-columns:1fr 380px;height:100%}
+.chip{border:1px solid var(--line);border-radius:4px;padding:3px 9px;font-size:12px;color:var(--ink-2)}
+.chip:hover{border-color:var(--mute);color:var(--ink)}
+.grid{display:flex;flex-direction:column;overflow:hidden;padding:14px 0 0 18px;position:relative}
+.scroller{flex:1;overflow:auto;position:relative;cursor:grab;user-select:none;overscroll-behavior:contain}
+.scroller.panning{cursor:grabbing;user-select:none}
+.zoom{display:flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:4px}
+.zoom button{padding:3px 8px;color:var(--ink-2)}
+.zoom button:hover{color:var(--ink);background:var(--raise)}
+.zoom output{min-width:44px;text-align:center;font-size:12px;color:var(--ink-2)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:0 18px 14px 0;font-size:12px;color:var(--ink-2)}
+.toolbar>*{white-space:nowrap}
+.toolbar .hint{flex-basis:100%;color:var(--mute)}
+.toolbar .bulk{display:flex;gap:6px;margin-left:auto}
+.toolbar .k{display:flex;align-items:center;gap:6px}
+.toolbar .k i{width:16px;height:16px;display:inline-block;border:1px solid #3a3937}
+.wrap{position:relative;display:inline-block}
+.band{position:absolute;left:0;top:0;pointer-events:none;background:#ecebe612;outline:1px solid #ecebe62e;outline-offset:-1px;opacity:0;z-index:3;will-change:transform}
+table.m{border-collapse:separate;border-spacing:0}
+.m{--z:1;
+  /* labels never grow with the zoom: they fit the cell they name, and vanish below legibility */
+  --zh:min(var(--z),1.25);--lab:calc(12px * var(--zh))}
+.m.tiny .th-mod,.m.tiny .ch-mod{font-size:0}
+.m.tiny .ch-mod{height:28px}
+.m.tiny .agg-label{font-size:0}
+.m th{font-weight:400;font-size:calc(12px * var(--zh));color:var(--ink-2);white-space:nowrap;padding:0}
+.m th.hl{color:var(--ink)}
+.m .th-tier{vertical-align:top;border-right:5px solid;text-align:left}
+.m .th-tier button{display:flex;flex-direction:column;align-items:center;gap:4px;width:26px;padding:4px 0;color:var(--ink);font-weight:600;font-size:12px}
+.m .th-tier button span{writing-mode:vertical-rl;transform:rotate(180deg);max-height:calc(var(--rows) * 25px * var(--z) - 26px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side h3,.pg h3{font-size:12px;font-weight:600;color:var(--mute);margin:18px 0 8px}
+.m tr{height:calc(25px * var(--z))}
+.m tr.h th{position:sticky;top:var(--t,0);z-index:4;background:var(--ground)}
+.m .sl{position:sticky;left:var(--l,0);z-index:3;background:var(--ground)}
+.m tr.h th.sl{z-index:6}
+.m .ch-tier,.m .g-col{background:var(--ground)}
+.m .th-mod{text-align:left;padding:0 10px 0 8px}
+.m .th-mod a,.m .th-mod button{display:flex;align-items:center;gap:7px;height:24px}
+.m .th-mod a:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.stn{width:10px;height:10px;border-radius:50%;border:2px solid currentColor;flex:none;background:var(--ground)}
+.m .ch-tier{border-bottom:5px solid;text-align:left;vertical-align:bottom}
+.m .ch-tier button{display:flex;align-items:center;gap:5px;padding:4px 4px 5px;font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap;max-width:100%;overflow:hidden}
+.m .ch-tier.one button span{display:none}
+.m .ch-mod{height:calc(132px * var(--zh));vertical-align:bottom;width:calc(26px * var(--z));font-size:var(--lab);line-height:1}
+.m .ch-mod span{max-height:calc(124px * var(--zh))}
+.m .th-mod{font-size:var(--lab);max-width:calc(230px * var(--zh))}
+.m .th-mod a,.m .th-mod button{height:auto;min-height:0;overflow:hidden;text-overflow:ellipsis;max-width:calc(230px * var(--zh))}
+.m .th-mod .stn{width:min(10px,calc(25px * var(--z) - 6px));height:min(10px,calc(25px * var(--z) - 6px));border-width:min(2px,calc(var(--z) * 2px))}
+.m .ch-mod a,.m .ch-mod button{display:block;width:calc(26px * var(--z));padding-bottom:6px}
+.m .ch-mod span{writing-mode:vertical-rl;transform:rotate(180deg);display:inline-block;overflow:hidden;text-overflow:ellipsis}
+.m .ch-mod a:hover span{color:var(--ink);text-decoration:underline}
+.m td{width:calc(26px * var(--z));min-width:calc(26px * var(--z));height:calc(24px * var(--z));text-align:center;font:600 clamp(0px, calc(11px * var(--z)), 14px)/1 var(--mono);border-right:1px solid #ffffff0a;border-bottom:1px solid #ffffff0a;cursor:pointer;color:var(--ink)}
+.m td.ok{background:#22301f}
+.m td.same{background:#262624}
+.m td.cond{background:#3b3319}
+.m td.no{background:#2c1b18}
+.m td.diag{background:var(--ground);cursor:default}
+.m td.agg{font-weight:400}
+.m td.breach{background:var(--breach);color:#1a0d08;font-weight:700}
+.m td.sel{outline:2px solid var(--ink);outline-offset:-2px}
+.m td.add{position:relative}
+.m td.add::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--added);box-shadow:0 0 0 1px #121212}
+.crumbs{display:flex;align-items:center;gap:8px;padding:8px 20px;border-bottom:1px solid var(--line);font-size:13px;color:var(--mute);min-height:38px}
+.crumbs a:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.crumbs .here{color:var(--ink)}
+.crumbs .sep{opacity:.5}
+.back{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:4px;padding:2px 9px;color:var(--ink-2);margin-right:6px}
+.back:hover{border-color:var(--mute);color:var(--ink)}
+.back[disabled]{opacity:.35;cursor:default}
+
+.m .hd{cursor:pointer;user-select:none}
+.m .hd:hover{background:#ecebe60d}
+.m .g-col{border-bottom:3px solid #4a4946;text-align:left;font-weight:700;color:var(--ink);font-size:12px;padding:4px 6px;white-space:nowrap;vertical-align:bottom}
+.m .g-row{border-right:3px solid #4a4946;vertical-align:top;width:22px}
+.m .g-row div,.m .th-tier div{writing-mode:vertical-rl;transform:rotate(180deg);font-weight:700;font-size:12px;color:var(--ink);padding:6px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-height:calc(var(--rows) * 25px * var(--z) - 4px)}
+.m .th-tier{vertical-align:top;border-right:5px solid;width:24px}
+.m .th-tier div{font-weight:600;color:var(--ink-2)}
+.m .ch-tier{border-bottom:5px solid;text-align:left;vertical-align:bottom;padding:3px 5px;font-weight:600;font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;max-width:0}
+.m .agg-label{writing-mode:vertical-rl;transform:rotate(180deg);font-weight:600;color:var(--ink);padding-bottom:6px;max-height:124px;overflow:hidden;text-overflow:ellipsis;display:inline-block}
+.m .th-mod.agg{font-weight:600;color:var(--ink)}
+.m .th-mod.on,.m .ch-mod.on{color:var(--ink)}
+.m .th-mod.on button{text-decoration:underline;text-underline-offset:3px}
+.mod-list{margin-top:6px}
+.mod-list button,.mod-list a{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;width:100%;text-align:left;padding:6px 0;border-bottom:1px solid var(--line);color:var(--ink-2)}
+.mod-list button:hover{color:var(--ink)}
+.open-page{display:inline-flex;gap:6px;align-items:center;margin-top:16px;border:1px solid var(--line);border-radius:4px;padding:4px 10px;color:var(--ink)}
+.open-page:hover{border-color:var(--mute)}
+/* relation, tier tags and status */
+.node{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--ground)}
+.node .tt{display:flex;align-items:center;gap:6px;padding:5px 8px;font-size:12px;font-weight:600;color:#121212;background:var(--c);white-space:nowrap}
+.node .nm{padding:5px 10px;font:500 13px/1.4 var(--mono);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+a.node:hover{border-color:var(--mute)}
+.rel{display:flex;flex-direction:column;align-items:flex-start;gap:0}
+.arrow{display:flex;align-items:center;gap:8px;padding:4px 0 4px 18px;color:var(--ink-2);font-size:12px}
+.arrow svg{width:14px;height:30px;stroke:var(--ink-2);stroke-width:1.75;fill:none}
+.arrow.breach svg{stroke:var(--breach)} .arrow.breach{color:var(--breach)}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:3px;padding:2px 8px;margin-top:14px}
+.status.breach{background:var(--breach);color:#1a0d08}
+.status.ok{background:#22301f;color:#a9cf9e}
+.status.cond{background:#3b3319;color:#e2cf90}
+.status.no{background:#2c1b18;color:#e3a597}
+.reason{color:var(--ink-2);margin-top:8px;font-size:13px}
+.lst{margin-top:6px}
+.lst button{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;width:100%;text-align:left;padding:6px 0;border-bottom:1px solid var(--line)}
+.lst button:hover .nm2{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.lst .tt2{font-size:11px;font-weight:600;color:#121212;background:var(--c);border-radius:3px;padding:1px 6px;white-space:nowrap}
+.lst .nm2{font:12.5px var(--mono);color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lst .st{font-size:11px;font-weight:600;border-radius:3px;padding:1px 6px}
+.lst .st.breach{background:var(--breach);color:#1a0d08}.lst .st.cond{background:#3b3319;color:#e2cf90}.lst .st.no{background:#2c1b18;color:#e3a597}
+details.link summary{grid-template-columns:16px 1fr auto auto auto !important}
+details.link[open] summary .chev{transform:none}
+details.link:not([open]) summary .chev{transform:rotate(-90deg)}
+.to .tt2{font-size:11px;font-weight:600;color:#121212;background:var(--c);border-radius:3px;padding:1px 6px;white-space:nowrap}
+.openmod{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:4px;padding:1px 8px}
+.openmod:hover{color:var(--ink);border-color:var(--mute)}
+/* rules page */
+.rl{display:grid;grid-template-columns:auto 1fr;gap:32px;align-items:start;margin-top:18px}
+.tm{border-collapse:separate;border-spacing:0}
+.tm th{font-weight:400;font-size:12px;color:var(--ink-2);white-space:nowrap;padding:0}
+.tm th.r{text-align:left;padding-right:8px;cursor:pointer}
+.tm th.r span{display:flex;align-items:center;gap:6px;height:20px}
+.tm th.r:hover,.tm th.r.on{color:var(--ink)}
+.tm th.r.on span{font-weight:600}
+.tm th.c{height:130px;vertical-align:bottom;width:20px}
+.tm th.c span{writing-mode:vertical-rl;transform:rotate(180deg);display:inline-block;padding-bottom:4px}
+.tm th.c i{display:block;height:5px}
+.tm th.r i{width:5px;height:16px;border-radius:2px;display:block}
+.tm td{width:20px;height:20px;border-right:1px solid #ffffff0a;border-bottom:1px solid #ffffff0a;cursor:pointer}
+.tm td.ok{background:#22301f}.tm td.cond{background:#3b3319}.tm td.no{background:#2c1b18}.tm td.same{background:#262624}
+.tm tr.on td{box-shadow:inset 0 1px 0 #ecebe655,inset 0 -1px 0 #ecebe655}
+.tm .gl td{height:6px;border:0;cursor:default}
+.tdet{position:sticky;top:0;max-width:640px}
+.tdet .name{display:flex;align-items:center;gap:10px}
+.tdet .name i{width:28px;height:6px;border-radius:3px;display:block}
+.tdet h2{font-size:20px;font-weight:700;letter-spacing:-.01em}
+.tdet h4{font-size:12px;font-weight:600;color:var(--mute);margin:20px 0 6px}
+.tdet p.big{font-size:15px;color:var(--ink);max-width:62ch}
+.tdet ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+.tdet li{display:flex;align-items:center;gap:8px}
+.tdet li .cond{color:#e2cf90;font-size:12px}
+.tdet .paths code{display:block;color:var(--ink-2)}
+.grid{position:relative}
+.mini{position:absolute;right:30px;bottom:22px;z-index:8;background:#121212e6;border:1px solid var(--line);border-radius:4px;box-shadow:0 8px 24px #0009;cursor:pointer}
+.tgroup>div:first-child{display:none}
+.tgroup{margin-top:0}
+/* side panel */
+.side{border-left:1px solid var(--line);overflow:auto;padding:18px 20px 60px;background:var(--raise)}
+.pair{font-size:13px;color:var(--mute)}
+.pair b{color:var(--ink);font-weight:500}
+.verdict{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:12px 0 6px}
+.verdict.breach{color:var(--breach)} .verdict.no{color:#d79a8f} .verdict.ok{color:var(--ink)} .verdict.cond{color:#d6c48a}
+.why{color:var(--ink-2);max-width:62ch}
+.imports{margin-top:14px;border-top:1px solid var(--line)}
+.imp{display:block;width:100%;text-align:left;padding:9px 0;border-bottom:1px solid var(--line)}
+.imp:hover .file{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.imp .file{color:var(--ink-2)}
+.imp .names{display:block;color:var(--mute);margin-top:2px}
+.empty{color:var(--mute);margin-top:12px}
+
+/* pages */
+.pg{height:100%;overflow:auto;padding:24px 32px 80px}
+.pg h1{font-size:22px;letter-spacing:-.015em;font-weight:700}
+.pg .sub{color:var(--mute);margin-top:4px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:22px}
+.lane h2{font-size:15px;font-weight:700;margin-bottom:6px;display:flex;gap:8px;align-items:baseline}
+.tgroup{margin-top:14px}
+.tgroup>div:first-child{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mute);margin-bottom:4px}
+.tgroup .ln{display:block;width:22px;height:5px;border-radius:3px}
+details.link{border-bottom:1px solid var(--line)}
+details.link summary{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:8px 0;cursor:pointer;list-style:none}
+details.link summary::-webkit-details-marker{display:none}
+details.link summary:hover .to{color:var(--ink)}
+.to{display:flex;align-items:center;gap:8px;color:var(--ink-2)}
+.tag{font-size:11px;font-weight:600;border-radius:3px;padding:1px 6px;background:var(--line);color:var(--ink-2)}
+.tag.breach{background:var(--breach);color:#1a0d08} .tag.cond{background:#3a3524;color:#e2cf90}
+details.link .imp{padding-left:18px}
+.facts{display:flex;gap:24px;margin-top:14px;color:var(--ink-2);font-size:13px}
+.facts b{color:var(--ink);font-weight:500}
+.hero{display:flex;align-items:center;gap:12px}
+.hero .stn{width:16px;height:16px;border-width:3px}
+.rows .r{display:grid;grid-template-columns:120px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}
+.rows .r:hover{background:linear-gradient(90deg,transparent,var(--raise) 20%,var(--raise) 80%,transparent)}
+.when{color:var(--mute);font-size:13px}
+.ch{display:flex;flex-direction:column;gap:3px}
+.plus{color:var(--added)} .minus{color:var(--removed)}
+.unseen{position:relative}
+.unseen::before{content:"";position:absolute;left:-14px;top:18px;width:6px;height:6px;border-radius:50%;background:var(--ink)}
+.rules{width:100%;border-collapse:collapse;margin-top:8px}
+.rules th{text-align:left;font-size:12px;font-weight:600;color:var(--mute);padding:8px 16px 8px 0;border-bottom:1px solid var(--line);position:sticky;top:-24px;background:var(--ground)}
+.rules td{vertical-align:top;padding:14px 16px 14px 0;border-bottom:1px solid var(--line);color:var(--ink-2);max-width:56ch}
+.rules td.name{white-space:nowrap;color:var(--ink);font-weight:600}
+.rules td.name span{display:flex;gap:10px;align-items:center}
+.rules .ln{display:block;width:28px;height:6px;border-radius:3px;flex:none}
+.rules .gh td{padding-top:26px;color:var(--mute);font-size:12px;font-weight:600;border-bottom:0}
+.allow{display:flex;flex-direction:column;gap:5px}
+.allow a{display:flex;align-items:center;gap:8px;color:var(--ink)}
+.allow a:hover{text-decoration:underline;text-underline-offset:3px}
+.allow small{color:#d6c48a;font-size:11px}
+.allow .none{color:var(--mute)}
+
+/* source panel */
+.src{position:fixed;top:91px;right:0;bottom:0;width:min(820px,62vw);background:#0e0e0e;border-left:1px solid var(--line);box-shadow:-24px 0 48px #00000080;transform:translateX(100%);transition:transform .28s cubic-bezier(.16,1,.3,1);display:grid;grid-template-rows:auto 1fr;z-index:10}
+.src.open{transform:none}
+.src header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.src header .path{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.src pre{overflow:auto;padding:10px 0 60px;font:12.5px/20px var(--mono);counter-reset:l}
+.src .l{display:grid;grid-template-columns:52px 1fr;padding-right:20px}
+.src .l>span:first-child{color:#5a5955;text-align:right;padding-right:16px;user-select:none}
+.src .l.imp-line{background:linear-gradient(90deg,var(--tc) 0 3px,color-mix(in srgb,var(--tc) 12%,transparent) 3px)}
+.src .l.breach-line{background:linear-gradient(90deg,var(--breach) 0 3px,#ff5a3622 3px)}
+.src .l.target{outline:1px solid #ecebe655;outline-offset:-1px}
+.src .note{white-space:normal;grid-column:2;margin:4px 20px 8px 0;padding:8px 10px;border-radius:4px;background:#2a130d;color:#ffc2b3;font:13px/1.45 var(--sans);max-width:70ch}
+.src .note b{color:var(--breach)}
+.src .go{white-space:normal;grid-column:2;margin:-2px 0 6px;font:12px var(--sans);color:var(--ink-2)}
+.src .go a{text-decoration:underline;text-underline-offset:3px}
+.k{color:#c6a6d8}.s{color:#b9c98f}.c{color:#6f6d68;font-style:italic}
+.close{border:1px solid var(--line);border-radius:4px;padding:4px 10px}
+.close:hover{border-color:var(--mute)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <span class="brand">architecture</span>
+    <span class="repo">hvn-p/polly</span>
+    <span class="branch"><b>4-worktree-dev-env</b> against main</span>
+    <span class="live" title="Rebuilt on every saved file">watching, updated 3 s ago</span>
+    <nav class="tabs" id="tabs"></nav>
+    <span class="stats" id="stats"></span>
+  </header>
+  <nav class="crumbs" id="crumbs" aria-label="Where you are"></nav>
+  <main class="view" id="view"></main>
+</div>
+<aside class="src" id="src" aria-label="Source"></aside>
+<div class="synthetic">Mockup: real modules and imports from this repository; the breach, the changes and the history are examples.</div>
+<script>
+const DATA = {"tiers": [{"id": "interfaces", "group": "server", "name": "Routes & workflows", "criterion": "One process each. Parse, authorize, call one flow, answer. Its main.ts, the composition root, alone wires the adapters.", "paths": ["apps/api/src", "apps/api/src/entry", "apps/mcp/src", "apps/worker/src"], "mayImport": ["flows", {"tier": "domains", "onlyFrom": [], "typesOnly": true}, {"tier": "adapters", "onlyFrom": ["apps/*/src/main.ts", "apps/*/src/cli.ts", "apps/api/src/entry/main.ts", "apps/api/src/entry/cli.ts"], "typesOnly": false}, "kernel", "socle", "contract"], "isolated": "Two processes never import each other: share through a package below.", "technologies": ["node:*", "hono", "@hono/node-server", "zod", "@modelcontextprotocol/server", "@dbos-inc/dbos-sdk"], "fix": "A route calls one flow; only a composition root (main.ts, or cli.ts for a command) imports an adapter package, and hands what it builds to the flows through their ports.", "typesFix": "A route uses a domain's types only: what it needs done goes through a flow.", "technologyFix": "A route speaks HTTP or MCP and validates with Zod; any other technology sits in a capacity package, behind a port."}, {"id": "flows", "group": "server", "name": "Flows", "criterion": "One use case each: chain domain calls through their ports, compute nothing, no technology.", "paths": ["packages/back/src/flows/*"], "mayImport": ["domains", {"tier": "kernel", "onlyFrom": [], "typesOnly": true}, "socle"], "isolated": "Two flows never import each other: compose them in the process that calls them.", "technologies": [], "fix": "A flow chains domains and computes nothing: move the computation into a domain, the technology into a capacity package behind a port.", "typesFix": "A flow imports only types from the kernel: a value it needs comes from a domain.", "technologyFix": "A flow knows no technology: declare a port in the domain it calls and implement it in a capacity package."}, {"id": "domains", "group": "server", "name": "Domains", "criterion": "Product rules. A domain declares a port (an exported interface, in its own words) for what it needs; no technology, no Node built-in.", "paths": ["packages/back/src/domains/*"], "mayImport": ["kernel", "socle"], "isolated": "Two domains never import each other: declare a port in the importing domain and feed it from a flow.", "technologies": [], "fix": "A domain imports only the kernel and the socle.", "typesFix": null, "technologyFix": "A domain knows no technology: declare a port and implement it in a capacity package."}, {"id": "adapters", "group": "server", "name": "Adapters", "criterion": "One package per capacity, named by what it provides: implements the domains' ports with one technology. May depend on a lower capacity, never in a cycle.", "paths": ["packages/database", "packages/identity", "packages/queue", "packages/storage", "packages/logging", "packages/analysis", "packages/migrations"], "mayImport": ["adapters", {"tier": "domains", "onlyFrom": [], "typesOnly": true}, "kernel", "socle"], "isolated": null, "technologies": null, "fix": "An adapter implements ports: it imports the domains' types, the kernel, the socle and lower capacities, nothing above.", "typesFix": null, "technologyFix": null}, {"id": "kernel", "group": "server", "name": "Kernel", "criterion": "Polly's pure values (ids, the event code, scores) and the one hash function. No rule, no other technology.", "paths": ["packages/kernel"], "mayImport": ["socle"], "isolated": null, "technologies": ["node:crypto"], "fix": "The kernel holds values: a rule goes to a domain.", "typesFix": null, "technologyFix": "The kernel uses node:crypto for its hash and nothing else."}, {"id": "socle", "group": "server", "name": "Socle", "criterion": "What every process shares, with no product word and no chosen technology: Refusal, the Logger and Clock ports, the configuration schema.", "paths": ["packages/platform"], "mayImport": [], "isolated": null, "technologies": ["zod"], "fix": "The socle imports nothing of Polly.", "typesFix": null, "technologyFix": "The socle chooses no technology beyond the schema library."}, {"id": "contract", "group": "server", "name": "Contract", "criterion": "Generated from the API's routes: its client, its schemas and the refusal codes. Never edited by hand.", "paths": ["packages/contract"], "mayImport": [], "isolated": null, "technologies": null, "fix": "The contract is generated and imports nothing of Polly.", "typesFix": null, "technologyFix": null}, {"id": "web-app", "group": "web", "name": "Web app", "criterion": "The front end's entry: providers, router, global styles.", "paths": ["apps/web/src/app"], "mayImport": ["web-pages", "web-widgets", "web-features", "web-entities", "web-shared", "contract"], "isolated": null, "technologies": null, "fix": "Feature-Sliced Design: a layer imports only the layers below it.", "typesFix": null, "technologyFix": null}, {"id": "web-pages", "group": "web", "name": "Web pages", "criterion": "One screen each.", "paths": ["apps/web/src/pages/*"], "mayImport": ["web-widgets", "web-features", "web-entities", "web-shared", "contract"], "isolated": "Two pages never import each other: move what they share down a layer.", "technologies": null, "fix": "Feature-Sliced Design: a page imports only the layers below it.", "typesFix": null, "technologyFix": null}, {"id": "web-widgets", "group": "web", "name": "Web widgets", "criterion": "Self-contained blocks of a page.", "paths": ["apps/web/src/widgets/*"], "mayImport": ["web-features", "web-entities", "web-shared", "contract"], "isolated": "Two widgets never import each other: move what they share down a layer.", "technologies": null, "fix": "Feature-Sliced Design: a widget imports only the layers below it.", "typesFix": null, "technologyFix": null}, {"id": "web-features", "group": "web", "name": "Web features", "criterion": "One user action each.", "paths": ["apps/web/src/features/*"], "mayImport": ["web-entities", "web-shared", "contract"], "isolated": "Two features never import each other: compose them in a widget or a page.", "technologies": null, "fix": "Feature-Sliced Design: a feature imports only entities and shared.", "typesFix": null, "technologyFix": null}, {"id": "web-entities", "group": "web", "name": "Web entities", "criterion": "Product objects as the front end shows them.", "paths": ["apps/web/src/entities/*"], "mayImport": ["web-shared", "contract"], "isolated": "Two entities never import each other: compose them in a feature.", "technologies": null, "fix": "Feature-Sliced Design: an entity imports only shared.", "typesFix": null, "technologyFix": null}, {"id": "web-shared", "group": "web", "name": "Web shared", "criterion": "No product word: the API client, i18n, UI primitives.", "paths": ["apps/web/src/shared/*"], "mayImport": ["contract"], "isolated": "Two shared segments never import each other: merge them or split what they share.", "technologies": null, "fix": "Shared knows no layer above it.", "typesFix": null, "technologyFix": null}, {"id": "plugin", "group": "plugin", "name": "Plugin", "criterion": "The Claude Code plugin's scripts: the monitor. Reaches Polly through the generated contract only.", "paths": ["plugin/monitors", "plugin/src"], "mayImport": ["contract"], "isolated": null, "technologies": ["node:*"], "fix": "The plugin reaches Polly through the generated contract only.", "typesFix": null, "technologyFix": "The monitor is bundled from Node built-ins and the contract only."}, {"id": "dev-entry", "group": "dev", "name": "Dev entry", "criterion": "The dev commands' composition root: parses the command line, wires the real adapters.", "paths": ["dev/src/main.ts", "dev/src/real.ts"], "mayImport": ["dev-entry", "dev-commands", "dev-e2e", "dev-worktree", "dev-supervisor", "dev-infra", "dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"], "isolated": null, "technologies": null, "fix": "The dev entry wires the tiers below it.", "typesFix": null, "technologyFix": null}, {"id": "dev-commands", "group": "dev", "name": "Dev commands", "criterion": "One command each (up, down, worker, e2e, url, agent), written against the ports.", "paths": ["dev/src/commands"], "mayImport": ["dev-e2e", "dev-worktree", "dev-supervisor", "dev-infra", "dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"], "isolated": null, "technologies": null, "fix": "A dev command imports only the dev tiers below it.", "typesFix": null, "technologyFix": null}, {"id": "dev-e2e", "group": "dev", "name": "Dev end-to-end", "criterion": "The driven agent run and its scenarios.", "paths": ["dev/src/e2e"], "mayImport": ["dev-worktree", "dev-supervisor", "dev-infra", "dev-machine", "dev-ports", "dev-config", "dev-identity", "socle", "flows"], "isolated": null, "technologies": null, "fix": "The driven run imports only the dev tiers below it, and the demo account's definition.", "typesFix": null, "technologyFix": null}, {"id": "dev-worktree", "group": "dev", "name": "Dev worktree", "criterion": "A worktree's state: its lock, its recorded resources, its session.", "paths": ["dev/src/worktree"], "mayImport": ["dev-supervisor", "dev-infra", "dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"], "isolated": null, "technologies": null, "fix": "The worktree tier imports only the dev tiers below it.", "typesFix": null, "technologyFix": null}, {"id": "dev-supervisor", "group": "dev", "name": "Dev supervisor", "criterion": "The process group holding a worktree's processes.", "paths": ["dev/src/supervisor"], "mayImport": ["dev-infra", "dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"], "isolated": null, "technologies": null, "fix": "The supervisor imports only the dev tiers below it.", "typesFix": null, "technologyFix": null}, {"id": "dev-infra", "group": "dev", "name": "Dev infrastructure", "criterion": "The adapters of the shared infrastructure: compose, Postgres, Garage, portless.", "paths": ["dev/src/infra"], "mayImport": ["dev-machine", "dev-ports", "dev-config", "dev-identity", "socle"], "isolated": null, "technologies": null, "fix": "An infrastructure adapter imports only the dev tiers below it.", "typesFix": null, "technologyFix": null}, {"id": "dev-machine", "group": "dev", "name": "Dev machine", "criterion": "What the machine provides: prerequisites, locks, dependencies.", "paths": ["dev/src/machine"], "mayImport": ["dev-ports", "dev-config", "dev-identity", "socle"], "isolated": null, "technologies": null, "fix": "The machine tier imports only the dev tiers below it.", "typesFix": null, "technologyFix": null}, {"id": "dev-ports", "group": "dev", "name": "Dev ports", "criterion": "The interfaces the commands use, which the infrastructure and the fakes implement.", "paths": ["dev/src/ports"], "mayImport": ["dev-config", "dev-identity", "socle"], "isolated": null, "technologies": null, "fix": "The ports import only the dev tiers below them.", "typesFix": null, "technologyFix": null}, {"id": "dev-config", "group": "dev", "name": "Dev configuration", "criterion": "The worktree's .env.local and its template.", "paths": ["dev/src/config"], "mayImport": ["dev-identity", "socle"], "isolated": null, "technologies": null, "fix": "The configuration imports only the identity and the kernel.", "typesFix": null, "technologyFix": null}, {"id": "dev-identity", "group": "dev", "name": "Dev identity", "criterion": "A worktree's identity and the resource names derived from it.", "paths": ["dev/src/identity"], "mayImport": ["socle"], "isolated": null, "technologies": null, "fix": "The identity imports only the kernel.", "typesFix": null, "technologyFix": null}, {"id": "tools", "group": "tools", "name": "Tools", "criterion": "Tooling ready to leave for a repository of its own: imports nothing of Polly.", "paths": ["tools/architecture/ui/src"], "mayImport": [], "isolated": null, "technologies": null, "fix": "A tool imports nothing of Polly: it reads Polly's files, never its code.", "typesFix": null, "technologyFix": null}, {"id": "scripts", "group": "tools", "name": "Repository scripts", "criterion": "The repository's guards, generators and builds, run by nr and CI: they read Polly's files, never import its code.", "paths": ["scripts"], "mayImport": [], "isolated": null, "technologies": null, "fix": "A repository script reads Polly's files: it imports nothing of Polly's packages.", "typesFix": null, "technologyFix": null}], "modules": [{"id": "apps/api/src/entry", "tier": "interfaces", "package": "@polly/api", "files": ["apps/api/src/entry/access.ts", "apps/api/src/entry/agent-events/index.ts", "apps/api/src/entry/app.ts", "apps/api/src/entry/auth.ts", "apps/api/src/entry/cli.ts", "apps/api/src/entry/contracts/agent-events.ts", "apps/api/src/entry/contracts/api.ts", "apps/api/src/entry/learner/index.ts", "apps/api/src/entry/listen.ts", "apps/api/src/entry/main.ts", "apps/api/src/entry/refusals.ts", "apps/api/src/entry/routes.ts", "apps/api/src/entry/server.ts"]}, {"id": "apps/mcp/src", "tier": "interfaces", "package": "@polly/mcp", "files": ["apps/mcp/src/exchange.ts", "apps/mcp/src/main.ts", "apps/mcp/src/refusals.ts", "apps/mcp/src/tools.ts"]}, {"id": "apps/web/src/app", "tier": "web-app", "package": "@polly/web", "files": ["apps/web/src/app/index.tsx"]}, {"id": "apps/web/src/pages/consent", "tier": "web-pages", "package": "@polly/web", "files": ["apps/web/src/pages/consent/index.tsx"]}, {"id": "apps/web/src/pages/home", "tier": "web-pages", "package": "@polly/web", "files": ["apps/web/src/pages/home/index.tsx"]}, {"id": "apps/web/src/pages/sign-in", "tier": "web-pages", "package": "@polly/web", "files": ["apps/web/src/pages/sign-in/bounds.ts", "apps/web/src/pages/sign-in/index.tsx"]}, {"id": "apps/web/src/shared/auth", "tier": "web-shared", "package": "@polly/web", "files": ["apps/web/src/shared/auth/index.ts"]}, {"id": "apps/web/src/shared/i18n", "tier": "web-shared", "package": "@polly/web", "files": ["apps/web/src/shared/i18n/catalogues/en.ts", "apps/web/src/shared/i18n/catalogues/fr.ts", "apps/web/src/shared/i18n/index.ts"]}, {"id": "apps/worker/src", "tier": "interfaces", "package": "@polly/worker", "files": ["apps/worker/src/main.ts"]}, {"id": "dev/src/commands", "tier": "dev-commands", "package": "@polly/dev", "files": ["dev/src/commands/agent.ts", "dev/src/commands/down.ts", "dev/src/commands/e2e.ts", "dev/src/commands/index.ts", "dev/src/commands/up.ts", "dev/src/commands/url.ts", "dev/src/commands/worker.ts"]}, {"id": "dev/src/config", "tier": "dev-config", "package": "@polly/dev", "files": ["dev/src/config/index.ts"]}, {"id": "dev/src/e2e", "tier": "dev-e2e", "package": "@polly/dev", "files": ["dev/src/e2e/claude.ts", "dev/src/e2e/client.ts", "dev/src/e2e/index.ts", "dev/src/e2e/redact.ts", "dev/src/e2e/scenario.ts", "dev/src/e2e/scenarios/smoke.ts", "dev/src/e2e/session.ts"]}, {"id": "dev/src/identity", "tier": "dev-identity", "package": "@polly/dev", "files": ["dev/src/identity/index.ts"]}, {"id": "dev/src/infra", "tier": "dev-infra", "package": "@polly/dev", "files": ["dev/src/infra/compose.ts", "dev/src/infra/compute.ts", "dev/src/infra/garage.ts", "dev/src/infra/index.ts", "dev/src/infra/listening.ts", "dev/src/infra/portless.ts", "dev/src/infra/postgres.ts"]}, {"id": "dev/src/machine", "tier": "dev-machine", "package": "@polly/dev", "files": ["dev/src/machine/dependencies.ts", "dev/src/machine/index.ts", "dev/src/machine/lock.ts", "dev/src/machine/prerequisites.ts", "dev/src/machine/tools.ts"]}, {"id": "dev/src/main.ts", "tier": "dev-entry", "package": "@polly/dev", "files": ["dev/src/main.ts"]}, {"id": "dev/src/ports", "tier": "dev-ports", "package": "@polly/dev", "files": ["dev/src/ports/index.ts"]}, {"id": "dev/src/real.ts", "tier": "dev-entry", "package": "@polly/dev", "files": ["dev/src/real.ts"]}, {"id": "dev/src/supervisor", "tier": "dev-supervisor", "package": "@polly/dev", "files": ["dev/src/supervisor/index.ts", "dev/src/supervisor/main.ts", "dev/src/supervisor/mark.ts"]}, {"id": "dev/src/worktree", "tier": "dev-worktree", "package": "@polly/dev", "files": ["dev/src/worktree/index.ts", "dev/src/worktree/session.ts", "dev/src/worktree/state.ts", "dev/src/worktree/worktree.ts"]}, {"id": "packages/analysis", "tier": "adapters", "package": "@polly/analysis", "files": ["packages/analysis/src/generated.ts", "packages/analysis/src/index.ts"]}, {"id": "packages/back/src/domains/accounts", "tier": "domains", "package": "@polly/back", "files": ["packages/back/src/domains/accounts/index.ts"]}, {"id": "packages/back/src/domains/analysis", "tier": "domains", "package": "@polly/back", "files": ["packages/back/src/domains/analysis/index.ts"]}, {"id": "packages/back/src/domains/event-codes", "tier": "domains", "package": "@polly/back", "files": ["packages/back/src/domains/event-codes/index.ts"]}, {"id": "packages/back/src/flows/connect-event-stream", "tier": "flows", "package": "@polly/back", "files": ["packages/back/src/flows/connect-event-stream/index.ts"]}, {"id": "packages/back/src/flows/run-placeholder-analysis", "tier": "flows", "package": "@polly/back", "files": ["packages/back/src/flows/run-placeholder-analysis/index.ts"]}, {"id": "packages/back/src/flows/seed-demo-account", "tier": "flows", "package": "@polly/back", "files": ["packages/back/src/flows/seed-demo-account/index.ts"]}, {"id": "packages/back/src/flows/start-lesson", "tier": "flows", "package": "@polly/back", "files": ["packages/back/src/flows/start-lesson/index.ts"]}, {"id": "packages/back/src/flows/submit-placeholder-analysis", "tier": "flows", "package": "@polly/back", "files": ["packages/back/src/flows/submit-placeholder-analysis/index.ts"]}, {"id": "packages/contract", "tier": "contract", "package": "@polly/contract", "files": ["packages/contract/src/generated.ts", "packages/contract/src/index.ts"]}, {"id": "packages/database", "tier": "adapters", "package": "@polly/database", "files": ["packages/database/src/connection.ts", "packages/database/src/generated/last-migration.ts", "packages/database/src/generated/tables.ts", "packages/database/src/index.ts", "packages/database/src/postgres-store.ts", "packages/database/src/schema.ts"]}, {"id": "packages/identity", "tier": "adapters", "package": "@polly/identity", "files": ["packages/identity/src/better-auth.ts", "packages/identity/src/index.ts", "packages/identity/src/token-exchange.ts"]}, {"id": "packages/kernel", "tier": "kernel", "package": "@polly/kernel", "files": ["packages/kernel/src/event-code.ts", "packages/kernel/src/hash.ts", "packages/kernel/src/index.ts"]}, {"id": "packages/logging", "tier": "adapters", "package": "@polly/logging", "files": ["packages/logging/src/index.ts"]}, {"id": "packages/migrations", "tier": "adapters", "package": "@polly/migrations", "files": ["packages/migrations/src/cli.ts", "packages/migrations/src/connect.ts", "packages/migrations/src/generate.ts", "packages/migrations/src/index.ts", "packages/migrations/src/migrate.ts", "packages/migrations/src/migrations/0001-auth.ts", "packages/migrations/src/migrations/0002-agent-event-code.ts", "packages/migrations/src/migrations/index.ts", "packages/migrations/src/test-database.ts"]}, {"id": "packages/platform", "tier": "socle", "package": "@polly/platform", "files": ["packages/platform/src/clock.ts", "packages/platform/src/config.ts", "packages/platform/src/index.ts", "packages/platform/src/logger.ts", "packages/platform/src/refusal.ts"]}, {"id": "packages/queue", "tier": "adapters", "package": "@polly/queue", "files": ["packages/queue/src/index.ts"]}, {"id": "packages/storage", "tier": "adapters", "package": "@polly/storage", "files": ["packages/storage/src/index.ts"]}, {"id": "plugin/monitors", "tier": "plugin", "package": "@polly/plugin", "files": ["plugin/monitors/agent-events.mjs"]}, {"id": "plugin/src", "tier": "plugin", "package": "@polly/plugin", "files": ["plugin/src/agent-events.ts"]}, {"id": "scripts", "tier": "scripts", "package": "@polly/scripts", "files": ["scripts/checks/agents-md.mjs", "scripts/checks/bundles.mjs", "scripts/checks/contracts.mjs", "scripts/checks/pinned-actions.mjs", "scripts/checks/refusals.mjs", "scripts/checks/report.mjs", "scripts/checks/strict-configs.mjs", "scripts/contracts/generate.ts"]}], "edges": [{"from": "apps/api/src/entry", "to": "packages/back/src/domains/event-codes", "file": "apps/api/src/entry/agent-events/index.ts", "line": 8, "spec": "@polly/back", "typeOnly": true, "names": ["EventCodeStore"]}, {"from": "apps/api/src/entry", "to": "packages/back/src/domains/event-codes", "file": "apps/api/src/entry/learner/index.ts", "line": 5, "spec": "@polly/back", "typeOnly": true, "names": ["EventCodeStore"]}, {"from": "apps/api/src/entry", "to": "packages/back/src/domains/event-codes", "file": "apps/api/src/entry/server.ts", "line": 6, "spec": "@polly/back", "typeOnly": true, "names": ["EventCodeStore"]}, {"from": "apps/api/src/entry", "to": "packages/back/src/flows/connect-event-stream", "file": "apps/api/src/entry/agent-events/index.ts", "line": 8, "spec": "@polly/back", "typeOnly": false, "names": ["bindingOf", "connectEventStream"]}, {"from": "apps/api/src/entry", "to": "packages/back/src/flows/seed-demo-account", "file": "apps/api/src/entry/cli.ts", "line": 4, "spec": "@polly/back", "typeOnly": false, "names": ["DEMO_ACCOUNT", "seedDemoAccount"]}, {"from": "apps/api/src/entry", "to": "packages/back/src/flows/start-lesson", "file": "apps/api/src/entry/learner/index.ts", "line": 5, "spec": "@polly/back", "typeOnly": false, "names": ["startLesson"]}, {"from": "apps/api/src/entry", "to": "packages/database", "file": "apps/api/src/entry/cli.ts", "line": 5, "spec": "@polly/database", "typeOnly": false, "names": ["connect"]}, {"from": "apps/api/src/entry", "to": "packages/database", "file": "apps/api/src/entry/main.ts", "line": 9, "spec": "@polly/database", "typeOnly": false, "names": ["PostgresStore", "SchemaBehind", "assertSchemaCurrent", "connect"]}, {"from": "apps/api/src/entry", "to": "packages/identity", "file": "apps/api/src/entry/cli.ts", "line": 6, "spec": "@polly/identity", "typeOnly": false, "names": ["createIdentity", "learnerAccounts"]}, {"from": "apps/api/src/entry", "to": "packages/identity", "file": "apps/api/src/entry/main.ts", "line": 10, "spec": "@polly/identity", "typeOnly": false, "names": ["IdentitySettings", "apiResource", "authenticator", "createIdentity", "registerMcpClient"]}, {"from": "apps/api/src/entry", "to": "packages/logging", "file": "apps/api/src/entry/cli.ts", "line": 7, "spec": "@polly/logging", "typeOnly": false, "names": ["createLogger"]}, {"from": "apps/api/src/entry", "to": "packages/logging", "file": "apps/api/src/entry/main.ts", "line": 17, "spec": "@polly/logging", "typeOnly": false, "names": ["createLogger"]}, {"from": "apps/api/src/entry", "to": "packages/platform", "file": "apps/api/src/entry/agent-events/index.ts", "line": 9, "spec": "@polly/platform", "typeOnly": true, "names": ["Clock"]}, {"from": "apps/api/src/entry", "to": "packages/platform", "file": "apps/api/src/entry/agent-events/index.ts", "line": 10, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "apps/api/src/entry", "to": "packages/platform", "file": "apps/api/src/entry/app.ts", "line": 1, "spec": "@polly/platform", "typeOnly": false, "names": ["Logger", "Refusal"]}, {"from": "apps/api/src/entry", "to": "packages/platform", "file": "apps/api/src/entry/cli.ts", "line": 8, "spec": "@polly/platform", "typeOnly": false, "names": ["Logger", "Refusal", "readConfig"]}, {"from": "apps/api/src/entry", "to": "packages/platform", "file": "apps/api/src/entry/main.ts", "line": 18, "spec": "@polly/platform", "typeOnly": false, "names": ["Clock", "Config", "Logger", "readConfig", "systemClock"]}, {"from": "apps/api/src/entry", "to": "packages/platform", "file": "apps/api/src/entry/refusals.ts", "line": 5, "spec": "@polly/platform", "typeOnly": true, "names": ["Refusal"]}, {"from": "apps/api/src/entry", "to": "packages/platform", "file": "apps/api/src/entry/routes.ts", "line": 6, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "apps/api/src/entry", "to": "packages/platform", "file": "apps/api/src/entry/server.ts", "line": 7, "spec": "@polly/platform", "typeOnly": true, "names": ["Clock", "Logger"]}, {"from": "apps/mcp/src", "to": "packages/contract", "file": "apps/mcp/src/main.ts", "line": 10, "spec": "@polly/contract", "typeOnly": false, "names": ["createApiClient"]}, {"from": "apps/mcp/src", "to": "packages/contract", "file": "apps/mcp/src/refusals.ts", "line": 7, "spec": "@polly/contract", "typeOnly": true, "names": ["Outcome"]}, {"from": "apps/mcp/src", "to": "packages/contract", "file": "apps/mcp/src/tools.ts", "line": 6, "spec": "@polly/contract", "typeOnly": true, "names": ["ApiClient", "Outcome"]}, {"from": "apps/mcp/src", "to": "packages/logging", "file": "apps/mcp/src/main.ts", "line": 11, "spec": "@polly/logging", "typeOnly": false, "names": ["createLogger"]}, {"from": "apps/mcp/src", "to": "packages/platform", "file": "apps/mcp/src/main.ts", "line": 12, "spec": "@polly/platform", "typeOnly": false, "names": ["Logger", "readConfigOf"]}, {"from": "apps/web/src/app", "to": "apps/web/src/pages/consent", "file": "apps/web/src/app/index.tsx", "line": 3, "spec": "../pages/consent/index.tsx", "typeOnly": false, "names": ["ConsentPage"]}, {"from": "apps/web/src/app", "to": "apps/web/src/pages/home", "file": "apps/web/src/app/index.tsx", "line": 4, "spec": "../pages/home/index.tsx", "typeOnly": false, "names": ["HomePage"]}, {"from": "apps/web/src/app", "to": "apps/web/src/pages/sign-in", "file": "apps/web/src/app/index.tsx", "line": 5, "spec": "../pages/sign-in/index.tsx", "typeOnly": false, "names": ["SignInPage"]}, {"from": "apps/web/src/app", "to": "apps/web/src/shared/i18n", "file": "apps/web/src/app/index.tsx", "line": 6, "spec": "../shared/i18n/index.ts", "typeOnly": false, "names": ["readerLanguage", "translator"]}, {"from": "apps/web/src/pages/consent", "to": "apps/web/src/shared/auth", "file": "apps/web/src/pages/consent/index.tsx", "line": 2, "spec": "../../shared/auth/index.ts", "typeOnly": false, "names": ["authClient", "nextLocation"]}, {"from": "apps/web/src/pages/consent", "to": "apps/web/src/shared/i18n", "file": "apps/web/src/pages/consent/index.tsx", "line": 3, "spec": "../../shared/i18n/index.ts", "typeOnly": true, "names": ["Translate"]}, {"from": "apps/web/src/pages/home", "to": "apps/web/src/shared/auth", "file": "apps/web/src/pages/home/index.tsx", "line": 1, "spec": "../../shared/auth/index.ts", "typeOnly": false, "names": ["authClient"]}, {"from": "apps/web/src/pages/home", "to": "apps/web/src/shared/i18n", "file": "apps/web/src/pages/home/index.tsx", "line": 2, "spec": "../../shared/i18n/index.ts", "typeOnly": true, "names": ["Translate"]}, {"from": "apps/web/src/pages/sign-in", "to": "apps/web/src/shared/auth", "file": "apps/web/src/pages/sign-in/index.tsx", "line": 2, "spec": "../../shared/auth/index.ts", "typeOnly": false, "names": ["authClient", "nextLocation"]}, {"from": "apps/web/src/pages/sign-in", "to": "apps/web/src/shared/i18n", "file": "apps/web/src/pages/sign-in/bounds.ts", "line": 1, "spec": "../../shared/i18n/index.ts", "typeOnly": true, "names": ["MessageKey"]}, {"from": "apps/web/src/pages/sign-in", "to": "apps/web/src/shared/i18n", "file": "apps/web/src/pages/sign-in/index.tsx", "line": 3, "spec": "../../shared/i18n/index.ts", "typeOnly": true, "names": ["MessageKey", "Translate"]}, {"from": "apps/worker/src", "to": "packages/analysis", "file": "apps/worker/src/main.ts", "line": 7, "spec": "@polly/analysis", "typeOnly": false, "names": ["computeAnalyzer", "computeFingerprint", "fakeAnalyzer"]}, {"from": "apps/worker/src", "to": "packages/back/src/domains/analysis", "file": "apps/worker/src/main.ts", "line": 8, "spec": "@polly/back", "typeOnly": true, "names": ["Analyzer"]}, {"from": "apps/worker/src", "to": "packages/back/src/flows/run-placeholder-analysis", "file": "apps/worker/src/main.ts", "line": 8, "spec": "@polly/back", "typeOnly": false, "names": ["runPlaceholderAnalysis"]}, {"from": "apps/worker/src", "to": "packages/logging", "file": "apps/worker/src/main.ts", "line": 9, "spec": "@polly/logging", "typeOnly": false, "names": ["createLogger"]}, {"from": "apps/worker/src", "to": "packages/platform", "file": "apps/worker/src/main.ts", "line": 10, "spec": "@polly/platform", "typeOnly": false, "names": ["Logger", "readConfigOf"]}, {"from": "apps/worker/src", "to": "packages/queue", "file": "apps/worker/src/main.ts", "line": 11, "spec": "@polly/queue", "typeOnly": false, "names": ["PLACEHOLDER_ANALYSIS"]}, {"from": "dev/src/commands", "to": "dev/src/config", "file": "dev/src/commands/up.ts", "line": 10, "spec": "../config/index.ts", "typeOnly": false, "names": ["completeEnv"]}, {"from": "dev/src/commands", "to": "dev/src/e2e", "file": "dev/src/commands/e2e.ts", "line": 5, "spec": "../e2e/index.ts", "typeOnly": false, "names": ["ClientStatus", "RunResult", "Scenario", "probeClaude", "probeDriverTools", "runScenario", "smoke"]}, {"from": "dev/src/commands", "to": "dev/src/machine", "file": "dev/src/commands/down.ts", "line": 6, "spec": "../machine/index.ts", "typeOnly": false, "names": ["lock"]}, {"from": "dev/src/commands", "to": "dev/src/machine", "file": "dev/src/commands/up.ts", "line": 11, "spec": "../machine/index.ts", "typeOnly": false, "names": ["tryLock"]}, {"from": "dev/src/commands", "to": "dev/src/machine", "file": "dev/src/commands/worker.ts", "line": 8, "spec": "../machine/index.ts", "typeOnly": false, "names": ["lock"]}, {"from": "dev/src/commands", "to": "dev/src/ports", "file": "dev/src/commands/down.ts", "line": 7, "spec": "../ports/index.ts", "typeOnly": true, "names": ["Infrastructure"]}, {"from": "dev/src/commands", "to": "dev/src/ports", "file": "dev/src/commands/e2e.ts", "line": 14, "spec": "../ports/index.ts", "typeOnly": true, "names": ["Infrastructure"]}, {"from": "dev/src/commands", "to": "dev/src/ports", "file": "dev/src/commands/up.ts", "line": 12, "spec": "../ports/index.ts", "typeOnly": true, "names": ["Infrastructure", "Prerequisites"]}, {"from": "dev/src/commands", "to": "dev/src/ports", "file": "dev/src/commands/worker.ts", "line": 9, "spec": "../ports/index.ts", "typeOnly": true, "names": ["ComputeService", "Infrastructure", "SupervisorState"]}, {"from": "dev/src/commands", "to": "dev/src/worktree", "file": "dev/src/commands/agent.ts", "line": 6, "spec": "../worktree/index.ts", "typeOnly": false, "names": ["agentSession"]}, {"from": "dev/src/commands", "to": "dev/src/worktree", "file": "dev/src/commands/down.ts", "line": 8, "spec": "../worktree/index.ts", "typeOnly": false, "names": ["Worktree", "deleteState", "readEnv", "readState", "resourcesOf", "worktreeAt"]}, {"from": "dev/src/commands", "to": "dev/src/worktree", "file": "dev/src/commands/e2e.ts", "line": 15, "spec": "../worktree/index.ts", "typeOnly": false, "names": ["readEnv", "readState", "worktreeAt"]}, {"from": "dev/src/commands", "to": "dev/src/worktree", "file": "dev/src/commands/up.ts", "line": 13, "spec": "../worktree/index.ts", "typeOnly": false, "names": ["bucketAccessOf", "currentBranch", "readEnv", "readState", "required", "resourcesOf", "worktreeAt", "writeState"]}, {"from": "dev/src/commands", "to": "dev/src/worktree", "file": "dev/src/commands/url.ts", "line": 2, "spec": "../worktree/index.ts", "typeOnly": false, "names": ["readEnv", "required", "worktreeAt"]}, {"from": "dev/src/commands", "to": "dev/src/worktree", "file": "dev/src/commands/worker.ts", "line": 10, "spec": "../worktree/index.ts", "typeOnly": false, "names": ["Worktree", "readEnv", "readState", "required", "worktreeAt", "writeState"]}, {"from": "dev/src/commands", "to": "packages/platform", "file": "dev/src/commands/e2e.ts", "line": 4, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "dev/src/commands", "to": "packages/platform", "file": "dev/src/commands/up.ts", "line": 9, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "dev/src/commands", "to": "packages/platform", "file": "dev/src/commands/url.ts", "line": 1, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "dev/src/commands", "to": "packages/platform", "file": "dev/src/commands/worker.ts", "line": 7, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "dev/src/config", "to": "dev/src/identity", "file": "dev/src/config/index.ts", "line": 5, "spec": "../identity/index.ts", "typeOnly": false, "names": ["ResourceNames", "deriveIdentity", "resourceNames"]}, {"from": "dev/src/e2e", "to": "dev/src/machine", "file": "dev/src/e2e/claude.ts", "line": 14, "spec": "../machine/index.ts", "typeOnly": false, "names": ["AGENT_BROWSER"]}, {"from": "dev/src/e2e", "to": "dev/src/worktree", "file": "dev/src/e2e/session.ts", "line": 6, "spec": "../worktree/index.ts", "typeOnly": false, "names": ["Session", "agentSession"]}, {"from": "dev/src/e2e", "to": "packages/back/src/flows/seed-demo-account", "file": "dev/src/e2e/claude.ts", "line": 13, "spec": "@polly/back", "typeOnly": false, "names": ["DEMO_ACCOUNT"]}, {"from": "dev/src/e2e", "to": "packages/platform", "file": "dev/src/e2e/session.ts", "line": 5, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "dev/src/infra", "to": "dev/src/identity", "file": "dev/src/infra/garage.ts", "line": 13, "spec": "../identity/index.ts", "typeOnly": false, "names": ["releaseKeyOf"]}, {"from": "dev/src/infra", "to": "dev/src/machine", "file": "dev/src/infra/compose.ts", "line": 9, "spec": "../machine/index.ts", "typeOnly": false, "names": ["lock"]}, {"from": "dev/src/infra", "to": "dev/src/machine", "file": "dev/src/infra/compute.ts", "line": 11, "spec": "../machine/index.ts", "typeOnly": false, "names": ["lock"]}, {"from": "dev/src/infra", "to": "dev/src/machine", "file": "dev/src/infra/portless.ts", "line": 5, "spec": "../machine/index.ts", "typeOnly": false, "names": ["PORTLESS"]}, {"from": "dev/src/infra", "to": "dev/src/ports", "file": "dev/src/infra/compose.ts", "line": 10, "spec": "../ports/index.ts", "typeOnly": true, "names": ["SharedInfrastructure"]}, {"from": "dev/src/infra", "to": "dev/src/ports", "file": "dev/src/infra/compute.ts", "line": 12, "spec": "../ports/index.ts", "typeOnly": true, "names": ["ComputeServices"]}, {"from": "dev/src/infra", "to": "dev/src/ports", "file": "dev/src/infra/garage.ts", "line": 14, "spec": "../ports/index.ts", "typeOnly": true, "names": ["BucketAccess", "GarageAdmin"]}, {"from": "dev/src/infra", "to": "dev/src/ports", "file": "dev/src/infra/listening.ts", "line": 5, "spec": "../ports/index.ts", "typeOnly": true, "names": ["PortTable"]}, {"from": "dev/src/infra", "to": "dev/src/ports", "file": "dev/src/infra/portless.ts", "line": 6, "spec": "../ports/index.ts", "typeOnly": true, "names": ["RouteTable"]}, {"from": "dev/src/infra", "to": "dev/src/ports", "file": "dev/src/infra/postgres.ts", "line": 6, "spec": "../ports/index.ts", "typeOnly": true, "names": ["PostgresAdmin"]}, {"from": "dev/src/infra", "to": "packages/platform", "file": "dev/src/infra/compose.ts", "line": 8, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "dev/src/infra", "to": "packages/platform", "file": "dev/src/infra/compute.ts", "line": 10, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "dev/src/machine", "to": "dev/src/ports", "file": "dev/src/machine/prerequisites.ts", "line": 4, "spec": "../ports/index.ts", "typeOnly": true, "names": ["Prerequisites"]}, {"from": "dev/src/main.ts", "to": "dev/src/commands", "file": "dev/src/main.ts", "line": 7, "spec": "./commands/index.ts", "typeOnly": false, "names": ["agent", "down", "e2e", "up", "url", "worker"]}, {"from": "dev/src/main.ts", "to": "dev/src/machine", "file": "dev/src/main.ts", "line": 8, "spec": "./machine/index.ts", "typeOnly": false, "names": ["installDependencies", "prerequisites"]}, {"from": "dev/src/main.ts", "to": "dev/src/ports", "file": "dev/src/main.ts", "line": 9, "spec": "./ports/index.ts", "typeOnly": true, "names": ["Infrastructure"]}, {"from": "dev/src/main.ts", "to": "dev/src/real.ts", "file": "dev/src/main.ts", "line": 22, "spec": "./real.ts", "typeOnly": false, "names": ["*"]}, {"from": "dev/src/main.ts", "to": "packages/platform", "file": "dev/src/main.ts", "line": 6, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "dev/src/ports", "to": "dev/src/identity", "file": "dev/src/ports/index.ts", "line": 5, "spec": "../identity/index.ts", "typeOnly": true, "names": ["ResourceNames"]}, {"from": "dev/src/real.ts", "to": "dev/src/infra", "file": "dev/src/real.ts", "line": 4, "spec": "./infra/index.ts", "typeOnly": false, "names": ["computeServices", "garageAdmin", "listeningPorts", "portlessRoutes", "postgresAdmin", "run", "sharedInfrastructure"]}, {"from": "dev/src/real.ts", "to": "dev/src/machine", "file": "dev/src/real.ts", "line": 13, "spec": "./machine/index.ts", "typeOnly": false, "names": ["prerequisites"]}, {"from": "dev/src/real.ts", "to": "dev/src/ports", "file": "dev/src/real.ts", "line": 14, "spec": "./ports/index.ts", "typeOnly": true, "names": ["Application", "Infrastructure"]}, {"from": "dev/src/real.ts", "to": "dev/src/supervisor", "file": "dev/src/real.ts", "line": 15, "spec": "./supervisor/index.ts", "typeOnly": false, "names": ["processSupervisor"]}, {"from": "dev/src/supervisor", "to": "dev/src/ports", "file": "dev/src/supervisor/index.ts", "line": 9, "spec": "../ports/index.ts", "typeOnly": true, "names": ["Supervisor"]}, {"from": "dev/src/supervisor", "to": "dev/src/ports", "file": "dev/src/supervisor/main.ts", "line": 11, "spec": "../ports/index.ts", "typeOnly": true, "names": ["SupervisedProcess"]}, {"from": "dev/src/worktree", "to": "dev/src/config", "file": "dev/src/worktree/state.ts", "line": 7, "spec": "../config/index.ts", "typeOnly": false, "names": ["parseEnv"]}, {"from": "dev/src/worktree", "to": "dev/src/identity", "file": "dev/src/worktree/state.ts", "line": 8, "spec": "../identity/index.ts", "typeOnly": false, "names": ["resourceNames"]}, {"from": "dev/src/worktree", "to": "dev/src/ports", "file": "dev/src/worktree/state.ts", "line": 9, "spec": "../ports/index.ts", "typeOnly": true, "names": ["BucketAccess", "DatabaseAccess", "SupervisorState"]}, {"from": "dev/src/worktree", "to": "packages/platform", "file": "dev/src/worktree/state.ts", "line": 6, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "dev/src/worktree", "to": "packages/platform", "file": "dev/src/worktree/worktree.ts", "line": 6, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "packages/analysis", "to": "packages/back/src/domains/analysis", "file": "packages/analysis/src/index.ts", "line": 5, "spec": "@polly/back", "typeOnly": true, "names": ["Analyzer"]}, {"from": "packages/back/src/domains/accounts", "to": "packages/platform", "file": "packages/back/src/domains/accounts/index.ts", "line": 4, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "packages/back/src/domains/event-codes", "to": "packages/kernel", "file": "packages/back/src/domains/event-codes/index.ts", "line": 4, "spec": "@polly/kernel", "typeOnly": false, "names": ["hash", "isEventCode"]}, {"from": "packages/back/src/domains/event-codes", "to": "packages/platform", "file": "packages/back/src/domains/event-codes/index.ts", "line": 5, "spec": "@polly/platform", "typeOnly": false, "names": ["Refusal"]}, {"from": "packages/back/src/flows/connect-event-stream", "to": "packages/back/src/domains/event-codes", "file": "packages/back/src/flows/connect-event-stream/index.ts", "line": 4, "spec": "../../domains/event-codes/index.ts", "typeOnly": false, "names": ["CodeState", "EventCodeStore", "admit", "stateOf"]}, {"from": "packages/back/src/flows/run-placeholder-analysis", "to": "packages/back/src/domains/analysis", "file": "packages/back/src/flows/run-placeholder-analysis/index.ts", "line": 3, "spec": "../../domains/analysis/index.ts", "typeOnly": false, "names": ["AnalysisResult", "Analyzer", "analyzeRecording"]}, {"from": "packages/back/src/flows/seed-demo-account", "to": "packages/back/src/domains/accounts", "file": "packages/back/src/flows/seed-demo-account/index.ts", "line": 5, "spec": "../../domains/accounts/index.ts", "typeOnly": false, "names": ["LearnerAccounts", "createLocalAccount"]}, {"from": "packages/back/src/flows/start-lesson", "to": "packages/back/src/domains/event-codes", "file": "packages/back/src/flows/start-lesson/index.ts", "line": 4, "spec": "../../domains/event-codes/index.ts", "typeOnly": false, "names": ["EventCodeStore", "bind"]}, {"from": "packages/back/src/flows/submit-placeholder-analysis", "to": "packages/back/src/domains/analysis", "file": "packages/back/src/flows/submit-placeholder-analysis/index.ts", "line": 3, "spec": "../../domains/analysis/index.ts", "typeOnly": false, "names": ["AnalysisQueue", "AnalysisResult", "requestAnalysis"]}, {"from": "packages/database", "to": "packages/back/src/domains/event-codes", "file": "packages/database/src/postgres-store.ts", "line": 4, "spec": "@polly/back", "typeOnly": true, "names": ["EventCodeStore"]}, {"from": "packages/identity", "to": "packages/back/src/domains/accounts", "file": "packages/identity/src/better-auth.ts", "line": 8, "spec": "@polly/back", "typeOnly": true, "names": ["LearnerAccount", "LearnerAccounts"]}, {"from": "packages/logging", "to": "packages/platform", "file": "packages/logging/src/index.ts", "line": 7, "spec": "@polly/platform", "typeOnly": true, "names": ["LogFields", "Logger"]}, {"from": "packages/queue", "to": "packages/back/src/domains/analysis", "file": "packages/queue/src/index.ts", "line": 5, "spec": "@polly/back", "typeOnly": true, "names": ["AnalysisQueue", "AnalysisResult"]}, {"from": "packages/storage", "to": "packages/platform", "file": "packages/storage/src/index.ts", "line": 5, "spec": "@polly/platform", "typeOnly": true, "names": ["Config"]}, {"from": "plugin/src", "to": "packages/contract", "file": "plugin/src/agent-events.ts", "line": 11, "spec": "@polly/contract", "typeOnly": false, "names": ["STREAMS"]}], "technologies": [{"module": "apps/api/src/entry", "file": "apps/api/src/entry/agent-events/index.ts", "line": 11, "name": "zod"}, {"module": "apps/api/src/entry", "file": "apps/api/src/entry/app.ts", "line": 2, "name": "hono"}, {"module": "apps/api/src/entry", "file": "apps/api/src/entry/contracts/agent-events.ts", "line": 6, "name": "zod"}, {"module": "apps/api/src/entry", "file": "apps/api/src/entry/contracts/api.ts", "line": 6, "name": "zod"}, {"module": "apps/api/src/entry", "file": "apps/api/src/entry/main.ts", "line": 8, "name": "node:net"}, {"module": "apps/api/src/entry", "file": "apps/api/src/entry/server.ts", "line": 4, "name": "node:net"}, {"module": "apps/api/src/entry", "file": "apps/api/src/entry/server.ts", "line": 5, "name": "@hono/node-server"}, {"module": "apps/mcp/src", "file": "apps/mcp/src/main.ts", "line": 7, "name": "node:net"}, {"module": "apps/mcp/src", "file": "apps/mcp/src/main.ts", "line": 8, "name": "@hono/node-server"}, {"module": "apps/mcp/src", "file": "apps/mcp/src/main.ts", "line": 9, "name": "@modelcontextprotocol/server"}, {"module": "apps/mcp/src", "file": "apps/mcp/src/refusals.ts", "line": 6, "name": "@modelcontextprotocol/server"}, {"module": "apps/mcp/src", "file": "apps/mcp/src/tools.ts", "line": 5, "name": "@modelcontextprotocol/server"}, {"module": "apps/mcp/src", "file": "apps/mcp/src/tools.ts", "line": 7, "name": "zod"}, {"module": "apps/web/src/app", "file": "apps/web/src/app/index.tsx", "line": 1, "name": "react"}, {"module": "apps/web/src/app", "file": "apps/web/src/app/index.tsx", "line": 2, "name": "react-dom"}, {"module": "apps/web/src/pages/consent", "file": "apps/web/src/pages/consent/index.tsx", "line": 1, "name": "react"}, {"module": "apps/web/src/pages/sign-in", "file": "apps/web/src/pages/sign-in/index.tsx", "line": 1, "name": "react"}, {"module": "apps/web/src/shared/auth", "file": "apps/web/src/shared/auth/index.ts", "line": 5, "name": "@better-auth/oauth-provider"}, {"module": "apps/web/src/shared/auth", "file": "apps/web/src/shared/auth/index.ts", "line": 6, "name": "better-auth"}, {"module": "apps/worker/src", "file": "apps/worker/src/main.ts", "line": 6, "name": "@dbos-inc/dbos-sdk"}, {"module": "dev/src/commands", "file": "dev/src/commands/agent.ts", "line": 5, "name": "node:child_process"}, {"module": "dev/src/commands", "file": "dev/src/commands/down.ts", "line": 5, "name": "node:fs"}, {"module": "dev/src/commands", "file": "dev/src/commands/up.ts", "line": 4, "name": "node:child_process"}, {"module": "dev/src/commands", "file": "dev/src/commands/up.ts", "line": 5, "name": "node:crypto"}, {"module": "dev/src/commands", "file": "dev/src/commands/up.ts", "line": 6, "name": "node:fs"}, {"module": "dev/src/commands", "file": "dev/src/commands/up.ts", "line": 7, "name": "node:net"}, {"module": "dev/src/commands", "file": "dev/src/commands/up.ts", "line": 8, "name": "node:path"}, {"module": "dev/src/commands", "file": "dev/src/commands/worker.ts", "line": 6, "name": "node:fs"}, {"module": "dev/src/e2e", "file": "dev/src/e2e/claude.ts", "line": 7, "name": "node:child_process"}, {"module": "dev/src/e2e", "file": "dev/src/e2e/claude.ts", "line": 8, "name": "node:crypto"}, {"module": "dev/src/e2e", "file": "dev/src/e2e/claude.ts", "line": 9, "name": "node:fs"}, {"module": "dev/src/e2e", "file": "dev/src/e2e/claude.ts", "line": 10, "name": "node:os"}, {"module": "dev/src/e2e", "file": "dev/src/e2e/claude.ts", "line": 11, "name": "node:path"}, {"module": "dev/src/e2e", "file": "dev/src/e2e/claude.ts", "line": 12, "name": "node:timers"}, {"module": "dev/src/e2e", "file": "dev/src/e2e/client.ts", "line": 4, "name": "node:child_process"}, {"module": "dev/src/identity", "file": "dev/src/identity/index.ts", "line": 5, "name": "node:crypto"}, {"module": "dev/src/infra", "file": "dev/src/infra/compose.ts", "line": 3, "name": "node:child_process"}, {"module": "dev/src/infra", "file": "dev/src/infra/compose.ts", "line": 4, "name": "node:crypto"}, {"module": "dev/src/infra", "file": "dev/src/infra/compose.ts", "line": 5, "name": "node:fs"}, {"module": "dev/src/infra", "file": "dev/src/infra/compose.ts", "line": 6, "name": "node:os"}, {"module": "dev/src/infra", "file": "dev/src/infra/compose.ts", "line": 7, "name": "node:path"}, {"module": "dev/src/infra", "file": "dev/src/infra/compute.ts", "line": 6, "name": "node:crypto"}, {"module": "dev/src/infra", "file": "dev/src/infra/compute.ts", "line": 7, "name": "node:fs"}, {"module": "dev/src/infra", "file": "dev/src/infra/compute.ts", "line": 8, "name": "node:path"}, {"module": "dev/src/infra", "file": "dev/src/infra/compute.ts", "line": 9, "name": "node:timers"}, {"module": "dev/src/infra", "file": "dev/src/infra/garage.ts", "line": 7, "name": "@aws-sdk/client-s3"}, {"module": "dev/src/infra", "file": "dev/src/infra/listening.ts", "line": 4, "name": "node:net"}, {"module": "dev/src/machine", "file": "dev/src/machine/dependencies.ts", "line": 4, "name": "node:child_process"}, {"module": "dev/src/machine", "file": "dev/src/machine/lock.ts", "line": 6, "name": "node:fs"}, {"module": "dev/src/machine", "file": "dev/src/machine/lock.ts", "line": 7, "name": "node:path"}, {"module": "dev/src/machine", "file": "dev/src/machine/lock.ts", "line": 8, "name": "node:sqlite"}, {"module": "dev/src/machine", "file": "dev/src/machine/lock.ts", "line": 9, "name": "node:timers"}, {"module": "dev/src/machine", "file": "dev/src/machine/prerequisites.ts", "line": 3, "name": "node:child_process"}, {"module": "dev/src/machine", "file": "dev/src/machine/tools.ts", "line": 4, "name": "node:path"}, {"module": "dev/src/real.ts", "file": "dev/src/real.ts", "line": 3, "name": "node:path"}, {"module": "dev/src/supervisor", "file": "dev/src/supervisor/index.ts", "line": 5, "name": "node:child_process"}, {"module": "dev/src/supervisor", "file": "dev/src/supervisor/index.ts", "line": 6, "name": "node:fs"}, {"module": "dev/src/supervisor", "file": "dev/src/supervisor/index.ts", "line": 7, "name": "node:path"}, {"module": "dev/src/supervisor", "file": "dev/src/supervisor/index.ts", "line": 8, "name": "node:timers"}, {"module": "dev/src/supervisor", "file": "dev/src/supervisor/main.ts", "line": 8, "name": "node:child_process"}, {"module": "dev/src/supervisor", "file": "dev/src/supervisor/main.ts", "line": 9, "name": "node:fs"}, {"module": "dev/src/supervisor", "file": "dev/src/supervisor/main.ts", "line": 10, "name": "node:path"}, {"module": "dev/src/worktree", "file": "dev/src/worktree/session.ts", "line": 5, "name": "node:path"}, {"module": "dev/src/worktree", "file": "dev/src/worktree/state.ts", "line": 4, "name": "node:fs"}, {"module": "dev/src/worktree", "file": "dev/src/worktree/state.ts", "line": 5, "name": "node:path"}, {"module": "dev/src/worktree", "file": "dev/src/worktree/worktree.ts", "line": 4, "name": "node:child_process"}, {"module": "dev/src/worktree", "file": "dev/src/worktree/worktree.ts", "line": 5, "name": "node:path"}, {"module": "packages/database", "file": "packages/database/src/connection.ts", "line": 1, "name": "kysely"}, {"module": "packages/database", "file": "packages/database/src/connection.ts", "line": 2, "name": "pg"}, {"module": "packages/database", "file": "packages/database/src/generated/tables.ts", "line": 6, "name": "kysely"}, {"module": "packages/database", "file": "packages/database/src/schema.ts", "line": 4, "name": "kysely"}, {"module": "packages/identity", "file": "packages/identity/src/better-auth.ts", "line": 5, "name": "@better-auth/cimd"}, {"module": "packages/identity", "file": "packages/identity/src/better-auth.ts", "line": 6, "name": "@better-auth/cimd"}, {"module": "packages/identity", "file": "packages/identity/src/better-auth.ts", "line": 7, "name": "@better-auth/mcp"}, {"module": "packages/identity", "file": "packages/identity/src/better-auth.ts", "line": 9, "name": "better-auth"}, {"module": "packages/identity", "file": "packages/identity/src/better-auth.ts", "line": 10, "name": "better-auth"}, {"module": "packages/identity", "file": "packages/identity/src/better-auth.ts", "line": 11, "name": "better-auth"}, {"module": "packages/identity", "file": "packages/identity/src/better-auth.ts", "line": 12, "name": "kysely"}, {"module": "packages/identity", "file": "packages/identity/src/index.ts", "line": 5, "name": "@better-auth/mcp"}, {"module": "packages/identity", "file": "packages/identity/src/token-exchange.ts", "line": 6, "name": "node:crypto"}, {"module": "packages/identity", "file": "packages/identity/src/token-exchange.ts", "line": 7, "name": "@better-auth/oauth-provider"}, {"module": "packages/identity", "file": "packages/identity/src/token-exchange.ts", "line": 8, "name": "better-auth"}, {"module": "packages/kernel", "file": "packages/kernel/src/hash.ts", "line": 1, "name": "node:crypto"}, {"module": "packages/logging", "file": "packages/logging/src/index.ts", "line": 8, "name": "pino"}, {"module": "packages/migrations", "file": "packages/migrations/src/connect.ts", "line": 1, "name": "kysely"}, {"module": "packages/migrations", "file": "packages/migrations/src/connect.ts", "line": 2, "name": "pg"}, {"module": "packages/migrations", "file": "packages/migrations/src/generate.ts", "line": 7, "name": "node:child_process"}, {"module": "packages/migrations", "file": "packages/migrations/src/generate.ts", "line": 8, "name": "node:fs"}, {"module": "packages/migrations", "file": "packages/migrations/src/generate.ts", "line": 9, "name": "node:path"}, {"module": "packages/migrations", "file": "packages/migrations/src/generate.ts", "line": 10, "name": "kysely"}, {"module": "packages/migrations", "file": "packages/migrations/src/migrate.ts", "line": 3, "name": "kysely"}, {"module": "packages/migrations", "file": "packages/migrations/src/migrate.ts", "line": 4, "name": "kysely"}, {"module": "packages/migrations", "file": "packages/migrations/src/migrations/0001-auth.ts", "line": 5, "name": "kysely"}, {"module": "packages/migrations", "file": "packages/migrations/src/migrations/0002-agent-event-code.ts", "line": 5, "name": "kysely"}, {"module": "packages/migrations", "file": "packages/migrations/src/migrations/index.ts", "line": 4, "name": "kysely"}, {"module": "packages/migrations", "file": "packages/migrations/src/test-database.ts", "line": 4, "name": "node:fs"}, {"module": "packages/migrations", "file": "packages/migrations/src/test-database.ts", "line": 5, "name": "node:path"}, {"module": "packages/migrations", "file": "packages/migrations/src/test-database.ts", "line": 6, "name": "node:util"}, {"module": "packages/platform", "file": "packages/platform/src/config.ts", "line": 5, "name": "zod"}, {"module": "packages/queue", "file": "packages/queue/src/index.ts", "line": 4, "name": "@dbos-inc/dbos-sdk"}, {"module": "packages/storage", "file": "packages/storage/src/index.ts", "line": 4, "name": "@aws-sdk/client-s3"}, {"module": "plugin/monitors", "file": "plugin/monitors/agent-events.mjs", "line": 4, "name": "node:crypto"}, {"module": "plugin/monitors", "file": "plugin/monitors/agent-events.mjs", "line": 5, "name": "node:timers"}, {"module": "plugin/src", "file": "plugin/src/agent-events.ts", "line": 9, "name": "node:crypto"}, {"module": "plugin/src", "file": "plugin/src/agent-events.ts", "line": 10, "name": "node:timers"}, {"module": "scripts", "file": "scripts/checks/agents-md.mjs", "line": 19, "name": "node:child_process"}, {"module": "scripts", "file": "scripts/checks/agents-md.mjs", "line": 20, "name": "node:fs"}, {"module": "scripts", "file": "scripts/checks/agents-md.mjs", "line": 21, "name": "node:path"}, {"module": "scripts", "file": "scripts/checks/agents-md.mjs", "line": 22, "name": "node:url"}, {"module": "scripts", "file": "scripts/checks/bundles.mjs", "line": 7, "name": "node:fs"}, {"module": "scripts", "file": "scripts/checks/bundles.mjs", "line": 8, "name": "node:path"}, {"module": "scripts", "file": "scripts/checks/bundles.mjs", "line": 9, "name": "node:url"}, {"module": "scripts", "file": "scripts/checks/contracts.mjs", "line": 8, "name": "node:fs"}, {"module": "scripts", "file": "scripts/checks/contracts.mjs", "line": 9, "name": "node:path"}, {"module": "scripts", "file": "scripts/checks/contracts.mjs", "line": 10, "name": "node:url"}, {"module": "scripts", "file": "scripts/checks/contracts.mjs", "line": 11, "name": "zod"}, {"module": "scripts", "file": "scripts/checks/pinned-actions.mjs", "line": 8, "name": "node:fs"}, {"module": "scripts", "file": "scripts/checks/pinned-actions.mjs", "line": 9, "name": "node:path"}, {"module": "scripts", "file": "scripts/checks/pinned-actions.mjs", "line": 10, "name": "node:url"}, {"module": "scripts", "file": "scripts/checks/refusals.mjs", "line": 11, "name": "node:fs"}, {"module": "scripts", "file": "scripts/checks/refusals.mjs", "line": 12, "name": "node:path"}, {"module": "scripts", "file": "scripts/checks/refusals.mjs", "line": 13, "name": "node:url"}, {"module": "scripts", "file": "scripts/checks/strict-configs.mjs", "line": 10, "name": "node:child_process"}, {"module": "scripts", "file": "scripts/checks/strict-configs.mjs", "line": 11, "name": "node:fs"}, {"module": "scripts", "file": "scripts/checks/strict-configs.mjs", "line": 12, "name": "node:path"}, {"module": "scripts", "file": "scripts/checks/strict-configs.mjs", "line": 13, "name": "node:url"}, {"module": "scripts", "file": "scripts/contracts/generate.ts", "line": 7, "name": "node:child_process"}, {"module": "scripts", "file": "scripts/contracts/generate.ts", "line": 8, "name": "node:fs"}, {"module": "scripts", "file": "scripts/contracts/generate.ts", "line": 9, "name": "node:path"}, {"module": "scripts", "file": "scripts/contracts/generate.ts", "line": 10, "name": "node:url"}, {"module": "scripts", "file": "scripts/contracts/generate.ts", "line": 11, "name": "zod"}], "violations": [], "base": null};
+const SOURCES = {"packages/back/src/flows/start-lesson/index.ts": "// Connects a lesson's event stream to the learner: binds the code the agent's\n// event listener drew.\n\nimport { bind, type EventCodeStore } from '../../domains/event-codes/index.ts'\nimport { PostgresStore } from '@polly/database'\n\nexport async function startLesson(\n  { codes }: { codes: EventCodeStore },\n  learnerId: string,\n  code: string,\n): Promise<{ bound: true }> {\n  await bind(codes, learnerId, code)\n  return { bound: true }\n}", "apps/worker/src/main.ts": "// The worker's composition root: runs the analyses the API enqueues, as DBOS\n// workflows on the worktree's database, with the analyzer its mode names: the\n// fake one by default, the compute service's in real mode. A workflow\n// interrupted by the worker's death resumes when a worker starts again.\n\nimport { DBOS } from '@dbos-inc/dbos-sdk'\nimport { computeAnalyzer, computeFingerprint, fakeAnalyzer } from '@polly/analysis'\nimport { type Analyzer, runPlaceholderAnalysis } from '@polly/back'\nimport { createLogger } from '@polly/logging'\nimport { type Logger, readConfigOf } from '@polly/platform'\nimport { PLACEHOLDER_ANALYSIS } from '@polly/queue'\n\nexport interface WorkerOptions {\n  databaseUrl: string\n  analyzer: Analyzer\n  log: Logger\n}\n\nexport async function startWorker({\n  databaseUrl,\n  analyzer,\n  log,\n}: WorkerOptions): Promise<{ close: () => Promise<void> }> {\n  const entry = (level: 'debug' | 'info' | 'warn' | 'error') => (value: unknown) =>\n    typeof value === 'string' ? log[level](value) : log[level]('dbos', { value })\n  DBOS.setConfig({\n    name: 'polly',\n    systemDatabaseUrl: databaseUrl,\n    applicationVersion: PLACEHOLDER_ANALYSIS.applicationVersion,\n    logger: { debug: entry('debug'), info: entry('info'), warn: entry('warn'), error: entry('error') },\n  })\n  DBOS.registerWorkflow((recordingId: string) => runPlaceholderAnalysis({ analyzer }, recordingId), {\n    name: PLACEHOLDER_ANALYSIS.workflowName,\n  })\n  await DBOS.launch()\n  // A queue persists its configuration in the system database: after launch.\n  await DBOS.registerQueue(PLACEHOLDER_ANALYSIS.queueName)\n  log.info('worker ready', { queue: PLACEHOLDER_ANALYSIS.queueName })\n  return { close: () => DBOS.shutdown() }\n}\n\n// The analyzer of the worktree's POLLY_WORKER_MODE, or the setting that\n// prevents it.\nexport function analyzerFor(\n  env: Record<string, string | undefined>,\n): { analyzer: Analyzer } | { invalid: string } {\n  const mode = env['POLLY_WORKER_MODE'] ?? 'fake'\n  if (mode === 'fake') {\n    return { analyzer: fakeAnalyzer }\n  }\n  if (mode !== 'real') {\n    return { invalid: 'POLLY_WORKER_MODE' }\n  }\n  const computeUrl = env['POLLY_COMPUTE_URL'] ?? ''\n  return URL.canParse(computeUrl)\n    ? { analyzer: computeAnalyzer({ baseUrl: computeUrl }) }\n    : { invalid: 'POLLY_COMPUTE_URL' }\n}\n\n// Warns when the compute service runs another version of the code than the\n// worktree's services/compute: comparing two versions is legitimate, testing\n// one without knowing is not.\nexport async function checkComputeVersion(\n  env: Record<string, string | undefined>,\n  log: Logger,\n): Promise<void> {\n  const baseUrl = env['POLLY_COMPUTE_URL'] ?? ''\n  const worktree = env['POLLY_COMPUTE_FINGERPRINT'] ?? 'unversioned'\n  try {\n    const service = await computeFingerprint({ baseUrl })\n    if (service !== worktree) {\n      log.warn('COMPUTE_VERSION_MISMATCH', { worktree, service })\n    }\n  } catch (error) {\n    log.warn('the compute service did not report its version', { url: baseUrl, error })\n  }\n}\n\nif (process.argv[1] === import.meta.filename) {\n  const log = createLogger({ name: 'polly-worker' })\n  const chosen = analyzerFor(process.env)\n  if ('invalid' in chosen) {\n    log.error('INVALID_CONFIGURATION', { keys: [chosen.invalid] })\n    process.exit(1)\n  }\n  try {\n    const config = readConfigOf(process.env, ['DATABASE_URL'])\n    if (process.env['POLLY_WORKER_MODE'] === 'real') {\n      await checkComputeVersion(process.env, log)\n    }\n    await startWorker({ databaseUrl: config.DATABASE_URL, analyzer: chosen.analyzer, log })\n  } catch (error) {\n    log.error('the worker stopped', { error })\n    process.exit(1)\n  }\n}", "apps/mcp/src/tools.ts": "// The MCP tools. Each acts for the learner through the API's client, with the\n// token the request exchanged; a refusal of the API reaches the agent as a\n// tool error starting with its code. The tools know no particular client.\n\nimport type { McpServer } from '@modelcontextprotocol/server'\nimport type { ApiClient, Outcome } from '@polly/contract'\nimport { z } from 'zod'\nimport { toolResult } from './refusals.ts'\n\n// A tool registers itself on the server of one request.\nexport type ToolDefinition = (server: McpServer, api: ApiClient) => void\n\nfunction defineTool<Input extends z.ZodObject, Output extends z.ZodObject>(tool: {\n  name: string\n  description: string\n  inputSchema: Input\n  outputSchema: Output\n  call: (input: z.infer<Input>, api: ApiClient) => Promise<Outcome<z.infer<Output>>>\n}): ToolDefinition {\n  // Registered as any object schema: the server's callback type cannot be\n  // resolved for a schema left generic. The call gets its input typed by\n  // parsing it with its own schema.\n  const inputSchema: z.ZodObject = tool.inputSchema\n  const outputSchema: z.ZodObject = tool.outputSchema\n  return (server, api) => {\n    server.registerTool(\n      tool.name,\n      { description: tool.description, inputSchema, outputSchema },\n      async (input) => toolResult(await tool.call(tool.inputSchema.parse(input), api)),\n    )\n  }\n}\n\nexport const whoami = defineTool({\n  name: 'whoami',\n  description:\n    'Returns the identifier of the learner this connection is signed in as. Call it to check that Polly is reachable and that you are signed in.',\n  inputSchema: z.object({}),\n  outputSchema: z.object({ learnerId: z.string() }),\n  call: (_input, api) => api.call('getMe'),\n})\n\nexport const startLesson = defineTool({\n  name: 'start_lesson',\n  description:\n    \"Connects the lesson's event stream to the signed-in learner. Call it with the event code your Polly event listener gave you, each time it gives a new one. The code is a secret: do not repeat it to the user.\",\n  // Bounded here, checked exactly by the API, so a malformed code gets its\n  // named refusal.\n  inputSchema: z.object({ code: z.string().max(256) }),\n  outputSchema: z.object({ bound: z.literal(true) }),\n  call: ({ code }, api) => api.call('bindEventCode', { code }),\n})\n\nexport const TOOLS: readonly ToolDefinition[] = [whoami, startLesson]", "apps/api/src/entry/learner/index.ts": "// The learner's routes of the contract: who the token names, and binding an\n// event listener's code to them. Each calls one flow; the event code is checked\n// exactly by the back, so a malformed one gets its named refusal.\n\nimport { type EventCodeStore, startLesson } from '@polly/back'\nimport { operations } from '../contracts/api.ts'\nimport type { RouteRegistry } from '../routes.ts'\n\nexport function registerLearnerRoutes(registry: RouteRegistry, codes: EventCodeStore): void {\n  const { getMe, bindEventCode } = operations\n  registry.add({\n    method: getMe.method,\n    path: getMe.path,\n    access: getMe.access,\n    handle: (_request, { learnerId }) => Response.json({ learnerId }),\n  })\n  registry.add({\n    method: bindEventCode.method,\n    path: bindEventCode.path,\n    access: bindEventCode.access,\n    handle: async (request, { learnerId }) => {\n      const body = (await request.json().catch(() => undefined)) as { code?: unknown } | undefined\n      const code = typeof body?.code === 'string' ? body.code : ''\n      return Response.json(await startLesson({ codes }, learnerId, code))\n    },\n  })\n}"};
+const SAMPLE = {"edges": [{"from": "packages/back/src/flows/start-lesson", "to": "packages/database", "file": "packages/back/src/flows/start-lesson/index.ts", "line": 5, "spec": "@polly/database", "typeOnly": false, "names": ["PostgresStore"], "breach": true, "fix": "A flow chains domains and computes nothing: move the computation into a domain, the technology into a capacity package behind a port."}], "violations": [{"rule": "tier", "file": "packages/back/src/flows/start-lesson/index.ts", "line": 5, "message": "'@polly/database': Flows may not import Adapters (packages/database).", "fix": "A flow chains domains and computes nothing: move the computation into a domain, the technology into a capacity package behind a port."}], "base": {"added": [["packages/back/src/flows/start-lesson", "packages/database"], ["apps/worker/src", "packages/analysis"]], "removed": [["apps/api/src/entry", "packages/queue"]]}, "history": [{"at": "14:32:40", "unseen": true, "file": "packages/back/src/flows/start-lesson/index.ts", "changes": ["+flows/start-lesson \u2192 database"], "breach": "tier, Flows may not import Adapters"}, {"at": "14:21:12", "unseen": true, "file": "apps/worker/src/main.ts", "changes": ["+worker \u2192 analysis"]}, {"at": "13:58:03", "unseen": false, "file": "apps/api/src/entry/main.ts", "changes": ["-api \u2192 queue"]}, {"at": "13:40:55", "unseen": false, "file": "apps/mcp/src/tools.ts", "changes": ["+mcp \u2192 contract", "-mcp \u2192 identity"]}]};
+
+const PALETTE=['#d96c5b','#c9a227','#9bb35a','#5fb3a1','#6f8fc9','#a27cc0','#8c8a84','#c8a07a','#c97b9a','#7d9c6b'];
+const tiers=DATA.tiers, tierById=Object.fromEntries(tiers.map(t=>[t.id,t]));
+const groups=[...new Set(tiers.map(t=>t.group))];
+const colour={}; groups.forEach(g=>tiers.filter(t=>t.group===g).forEach((t,i)=>colour[t.id]=PALETTE[i%PALETTE.length]));
+const order=Object.fromEntries(tiers.map((t,i)=>[t.id,i]));
+const modules=[...DATA.modules].sort((a,b)=>order[a.tier]-order[b.tier]||a.id.localeCompare(b.id));
+const modById=Object.fromEntries(modules.map(m=>[m.id,m]));
+const edges=[...DATA.edges,...SAMPLE.edges];
+const violations=[...DATA.violations,...SAMPLE.violations];
+const short=id=>id.replace(/^packages\/back\/src\//,'').replace(/^packages\//,'').replace(/^apps\//,'').replace(/\/src\/entry$/,'').replace(/\/src$/,'').replace(/^dev\/src\//,'dev/');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const icon={
+  chev:'<svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+  x:'<svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  ext:'<svg class="i" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg>',
+};
+const collapsed=new Set();
+let selected={kind:'pair',from:'packages/back/src/flows/start-lesson',to:'packages/database'};
+function modByFile(f){return modules.find(m=>m.files.includes(f))?.id}
+
+// the rule for a pair of tiers
+function ruleOf(a,b){
+  if(a===b) return {kind:'same',why:tierById[a].isolated||'Inside one tier.'};
+  const t=tierById[a], e=(t.mayImport||[]).find(x=>(typeof x==='string'?x:x.tier)===b);
+  if(!e) return {kind:'no',why:t.fix||`${t.name} may not import ${tierById[b].name}.`};
+  if(typeof e==='string') return {kind:'ok',why:`${t.name} may import ${tierById[b].name}.`};
+  const parts=[]; if(e.typesOnly) parts.push('types only'); if(e.onlyFrom?.length) parts.push('only from '+e.onlyFrom.join(', '));
+  return {kind:'cond',why:`${t.name} may import ${tierById[b].name}, ${parts.join(', ')}.`+(t.typesFix&&e.typesOnly?' '+t.typesFix:'')};
+}
+const isBreach=(f,t)=>edges.some(e=>e.from===f&&e.to===t&&e.breach);
+const added=new Set(SAMPLE.base.added.map(p=>p.join('>')));
+
+// counts per module pair, computed once
+const pairs=new Map(); edges.forEach(e=>{const k=e.from+'>'+e.to, p=pairs.get(k)||{n:0,breach:false};p.n++;p.breach||=!!e.breach;pairs.set(k,p)});
+// the matrix's axis: groups, then tiers, then modules; a collapsed group or tier is one entry
+const collapsedGroups=new Set(groups.filter(g=>g!=='server'));
+function axisTree(){
+  return groups.map(g=>{
+    const ts=tiers.filter(t=>t.group===g).map(t=>({tier:t.id,ms:modules.filter(m=>m.tier===t.id)})).filter(t=>t.ms.length);
+    const all=ts.flatMap(t=>t.ms.map(m=>m.id));
+    if(collapsedGroups.has(g)) return {group:g,folded:true,tiers:[{tier:null,items:[{agg:'group',group:g,tier:ts[0].tier,ids:all,label:`${g} group · ${all.length} module${all.length===1?'':'s'}`}]}]};
+    return {group:g,tiers:ts.map(t=>({tier:t.tier,items:collapsed.has(t.tier)?[{agg:'tier',tier:t.tier,ids:t.ms.map(m=>m.id),label:`${tierById[t.tier].name} · ${t.ms.length}`}]:t.ms.map(m=>({tier:t.tier,ids:[m.id],id:m.id}))}))};
+  }).filter(g=>g.tiers.length);
+}
+const firstTier=(g,t,k)=>g.tiers[0]===t&&k===0;
+let zoom=1;
+const flat=tree=>tree.flatMap(g=>g.tiers.flatMap(t=>t.items));
+function cellOf(r,c){
+  let n=0,breach=false,add=false;
+  for(const f of r.ids) for(const t of c.ids){const p=pairs.get(f+'>'+t); if(p){n+=p.n;breach||=p.breach} if(added.has(f+'>'+t)) add=true}
+  return {n,breach,add};
+}
+function zone(r,c){
+  if(r.agg==='group'||c.agg==='group'){
+    if(r.group===c.group) return 'same';
+    const rt=tiers.filter(t=>t.group===r.group).map(t=>t.id), ct=tiers.filter(t=>t.group===c.group).map(t=>t.id);
+    const kinds=rt.flatMap(a=>ct.map(b=>ruleOf(a,b).kind));
+    return kinds.includes('ok')?'ok':kinds.includes('cond')?'cond':'no';
+  }
+  const k=ruleOf(r.tier,c.tier).kind; return k;
+}
+function matrixPage(){
+  const tree=axisTree(), ax=flat(tree);
+  const gHead=tree.map(g=>{const n=g.tiers.reduce((a,t)=>a+t.items.length,0);
+    return `<th class="g-col hd" colspan="${n}" data-group="${g.group}" title="${g.folded?'Expand':'Collapse'} the ${esc(g.group)} group">${g.folded?'':`<span class="mute">group</span> ${esc(g.group)}`}</th>`}).join('');
+  const tHead=tree.map(g=>g.folded?'<th></th>':g.tiers.map(t=>`<th class="ch-tier hd" colspan="${t.items.length}" style="border-bottom-color:${colour[t.tier]}" data-tier="${t.tier}" title="${collapsed.has(t.tier)?'Expand':'Collapse'} ${esc(tierById[t.tier].name)}">${t.items.length>2?esc(tierById[t.tier].name):''}</th>`).join('')).join('');
+  const mHead=ax.map((c,j)=>c.agg?`<th class="ch-mod hd" data-j="${j}" ${c.agg==='group'?`data-group="${c.group}"`:`data-tier="${c.tier}"`}><span class="agg-label">${esc(c.label)}</span></th>`:`<th class="ch-mod" data-j="${j}"><button data-mod="${esc(c.id)}" title="${esc(short(c.id))}"><span>${esc(short(c.id))}</span></button></th>`).join('');
+  let i=0;
+  const body=tree.map(g=>{const gRows=g.tiers.reduce((a,t)=>a+t.items.length,0); let firstOfGroup=true;
+    return g.tiers.map(t=>t.items.map((r,k)=>{
+      const ri=i++;
+      const gCell=firstOfGroup?`<th class="g-row hd sl c0" rowspan="${gRows}" style="--rows:${gRows}" data-group="${g.group}" title="${g.folded?'Expand':'Collapse'} ${esc(g.group)}"><div>${g.folded?'':esc(g.group)}</div></th>`:''; firstOfGroup=false;
+      const tCell=g.folded?(firstTier(g,t,k)?`<th class="sl c1" rowspan="${gRows}"></th>`:''):k===0?`<th class="th-tier hd sl c1" rowspan="${t.items.length}" style="border-right-color:${colour[t.tier]};--rows:${t.items.length}" data-tier="${t.tier}" title="${collapsed.has(t.tier)?'Expand':'Collapse'} ${esc(tierById[t.tier].name)}"><div>${t.items.length>2?esc(tierById[t.tier].name):''}</div></th>`:'';
+      const label=r.agg?`<th class="th-mod agg hd sl c2" data-i="${ri}" ${r.agg==='group'?`data-group="${r.group}"`:`data-tier="${r.tier}"`}><button><span class="stn" style="color:${r.agg==='group'?'#8c8a84':colour[r.tier]}"></span>${esc(r.label)}</button></th>`
+        :`<th class="sl c2 th-mod${selected.kind==='module'&&selected.id===r.id?' on':''}" data-i="${ri}"><button data-mod="${esc(r.id)}" title="${esc(short(r.id))}"><span class="stn" style="color:${colour[r.tier]}"></span>${esc(short(r.id))}</button></th>`;
+      const tds=ax.map((c,j)=>{
+        if(ri===j) return '<td class="diag"></td>';
+        const x=cellOf(r,c), kind=x.breach?'breach':zone(r,c);
+        const sel=selected.kind==='pair'&&r.ids.includes(selected.from)&&c.ids.includes(selected.to);
+        return `<td class="${kind}${r.agg||c.agg?' agg':''}${x.add?' add':''}${sel?' sel':''}" data-i="${ri}" data-j="${j}">${x.n||''}</td>`;
+      }).join('');
+      return `<tr>${gCell}${tCell}${label}${tds}</tr>`;
+    }).join('')).join('')}).join('');
+  return `<div class="mx"><section class="grid">
+    <div class="toolbar"><span class="hint">Rows import columns. Click a group or a tier to fold it, a module to read it. Wheel to scroll, Ctrl or Cmd with the wheel to zoom, drag to move.</span><span class="k"><i style="background:#22301f"></i>allowed</span><span class="k"><i style="background:#3b3319"></i>on a condition</span><span class="k"><i style="background:#2c1b18"></i>forbidden</span><span class="k"><i style="background:#262624"></i>same tier</span><span class="k"><i style="background:var(--breach)"></i>breach</span>
+    <span class="bulk"><span class="zoom" aria-label="Zoom"><button data-zoom="-1" title="Zoom out (−)">−</button><output id="zv">${Math.round(zoom*100)}%</output><button data-zoom="1" title="Zoom in (+)">+</button><button data-zoom="fit" title="Fill the view, from 100% (0)">Fit</button></span><button class="chip" data-all="open">Expand all</button><button class="chip" data-all="close">Collapse all</button></span></div>
+    <canvas class="mini" id="mini" title="Overview: click or drag to move"></canvas><div class="scroller" id="scroller">
+    <div class="wrap" id="wrap"><div class="band" id="bandR"></div><div class="band" id="bandC"></div>
+    <table class="m${zoom*25-9<8?' tiny':''}" id="m" style="--z:${zoom}"><tr class="h"><th class="sl c0"></th><th class="sl c1"></th><th class="sl c2"></th>${gHead}</tr><tr class="h"><th class="sl c0"></th><th class="sl c1"></th><th class="sl c2"></th>${tHead}</tr><tr class="h"><th class="sl c0"></th><th class="sl c1"></th><th class="sl c2"></th>${mHead}</tr>${body}</table></div></div></section>
+    <aside class="side" id="side">${selected.kind==='module'?modulePanel(selected.id):pairPanel()}</aside></div>`;
+}
+function modulePanel(id){
+  const list=(es,other)=>{const by={};es.forEach(e=>(by[e[other]]=by[e[other]]||[]).push(e));
+    return Object.keys(by).sort((x,y)=>order[modById[x].tier]-order[modById[y].tier]).map(t=>{const f=other==='to'?id:t,to=other==='to'?t:id,br=by[t].some(e=>e.breach),k=ruleOf(modById[f].tier,modById[to].tier).kind, st=br?'breach':k;
+      return `<button data-pair="${esc(f)}|${esc(to)}"><span class="tt2" style="--c:${colour[modById[t].tier]}">${esc(tierById[modById[t].tier].name)}</span><span class="nm2">${esc(short(t))}</span>${st==='ok'||st==='same'?'<span></span>':`<span class="st ${st}">${STATUS[st]}</span>`}<span class="mute">${by[t].length}</span></button>`}).join('')||'<p class="empty">None.</p>'};
+  return `${node(id)}
+    <h3>Imports</h3><div class="lst">${list(edges.filter(e=>e.from===id),'to')}</div>
+    <h3>Imported by</h3><div class="lst">${list(edges.filter(e=>e.to===id),'from')}</div>
+    <a class="open-page" href="#/module/${encodeURIComponent(id)}">Open module page ${icon.ext}</a>`;
+}
+const node=id=>{const m=modById[id];return `<button class="node" data-mod="${esc(id)}" style="--c:${colour[m.tier]}"><span class="tt">${esc(tierById[m.tier].name)}</span><span class="nm">${esc(short(id))}</span></button>`};
+const STATUS={breach:'Breach',ok:'Allowed',same:'Allowed, same tier',cond:'Allowed on a condition',no:'Forbidden'};
+function pairPanel(){
+  if(selected.kind!=='pair') return '<p class="empty">Select a cell to read the rule for its pair and the imports behind it.</p>';
+  const a=modById[selected.from], b=modById[selected.to], rule=ruleOf(a.tier,b.tier);
+  const es=edges.filter(e=>e.from===a.id&&e.to===b.id), breach=es.some(e=>e.breach), kind=breach?'breach':rule.kind;
+  return `<span class="status ${kind==='same'?'ok':kind}" style="margin-top:0">${STATUS[kind]}</span>
+    <p class="reason">${esc(breach?es.find(e=>e.breach).fix:rule.why)}</p>
+    <div class="rel" style="margin-top:16px">${node(a.id)}<div class="arrow${breach?' breach':''}"><svg viewBox="0 0 14 30"><path d="M7 1v26M2 21l5 6 5-6"/></svg>imports</div>${node(b.id)}</div>
+    <h3>${es.length} import${es.length===1?'':'s'}</h3>
+    <div class="imports">${es.map(impRow).join('')||'<p class="empty">No import between these modules.</p>'}</div>`;
+}
+const impRow=e=>`<button class="imp" data-src="${esc(e.file)}" data-line="${e.line}"><span class="file mono">${esc(e.file)}:${e.line}</span><span class="names mono">${esc(e.typeOnly?'type ':'')}{ ${esc((e.names||[]).join(', ')||'*')} } from '${esc(e.spec)}'</span></button>`;
+
+function modulePage(id){
+  const m=modById[id]; if(!m) return `<div class="pg"><h1>No module ${esc(id)}</h1></div>`;
+  const lane=(title,list,other)=>{
+    const by={}; list.forEach(e=>{const k=e[other];(by[k]=by[k]||[]).push(e)});
+    const targets=Object.keys(by).sort((x,y)=>order[modById[x].tier]-order[modById[y].tier]);
+    const tiersIn=[...new Set(targets.map(t=>modById[t].tier))];
+    return `<section class="lane"><h2>${title} <span class="count">${targets.length} module${targets.length===1?'':'s'}</span></h2>${tiersIn.map(ti=>`<div class="tgroup"><div><i class="ln" style="background:${colour[ti]}"></i>${esc(tierById[ti].name)}</div>${targets.filter(t=>modById[t].tier===ti).map(t=>{
+      const es=by[t], f=other==='to'?m.id:t, to=other==='to'?t:m.id, rule=ruleOf(modById[f].tier,modById[to].tier), br=es.some(e=>e.breach);
+      const tag=br?'<span class="tag breach">breach</span>':rule.kind==='cond'?'<span class="tag cond">condition</span>':'';
+      return `<details class="link"${br?' open':''}><summary>${icon.chev}<span class="to"><span class="tt2" style="--c:${colour[modById[t].tier]}">${esc(tierById[modById[t].tier].name)}</span><span class="mono">${esc(short(t))}</span></span>${tag}<span class="mute">${es.length} import line${es.length===1?'':'s'}</span><a class="openmod" href="#/module/${encodeURIComponent(t)}" title="Open the page of ${esc(short(t))}">Open ${icon.ext}</a></summary>${es.map(impRow).join('')}</details>`;
+    }).join('')}</div>`).join('')||'<p class="empty">None.</p>'}</section>`;
+  };
+  const techs=[...new Set(DATA.technologies.filter(t=>t.module===id).map(t=>t.name))];
+  return `<div class="pg"><div class="hero"><span class="stn" style="color:${colour[m.tier]}"></span><h1>${esc(short(m.id))}</h1></div>
+    <p class="sub mono">${esc(m.id)}</p>
+    <div class="facts"><span>Tier <b>${esc(tierById[m.tier].name)}</b></span><span>Package <b>${esc(m.package)}</b></span><span><b>${m.files.length}</b> file${m.files.length===1?'':'s'}</span><span>Technologies <b>${techs.map(esc).join(', ')||'none'}</b></span></div>
+    <div class="cols">${lane('Imports',edges.filter(e=>e.from===id),'to')}${lane('Imported by',edges.filter(e=>e.to===id),'from')}</div>
+    <h3>Files</h3>${m.files.map(f=>`<button class="imp" data-src="${esc(f)}" data-line="1"><span class="file mono">${esc(f)}</span></button>`).join('')}</div>`;
+}
+
+function breachesPage(){
+  const by={}; violations.forEach(v=>(by[v.rule]=by[v.rule]||[]).push(v));
+  return `<div class="pg"><h1>Breaches</h1><p class="sub">Every import the rules refuse, grouped by rule. Open one to read it in its source.</p>
+  ${Object.entries(by).map(([rule,vs])=>`<h3>${esc(rule)} · ${vs.length}</h3><div class="rows">${vs.map(v=>`<div class="r"><span class="tag breach" style="justify-self:start">${esc(rule)}</span><div><button class="imp" data-src="${esc(v.file)}" data-line="${v.line}" style="padding:0;border:0"><span class="file mono">${esc(v.file)}:${v.line}</span></button><p>${esc(v.message)}</p><p class="mute">${esc(v.fix)}</p></div></div>`).join('')}</div>`).join('')||'<p class="empty">No breach: the repository follows its rules.</p>'}</div>`;
+}
+
+function changesPage(){
+  const base=SAMPLE.base;
+  return `<div class="pg"><h1>Changes</h1><p class="sub">What this branch changes against main, and what changed since this session started.</p>
+  <div class="cols"><section class="lane"><h2>Against main <span class="count">+${base.added.length} −${base.removed.length}</span></h2><div class="rows">
+    ${base.added.map(p=>`<div class="r"><span class="plus">added</span><a class="plus mono" href="#/module/${encodeURIComponent(p[0])}">${esc(short(p[0]))} → ${esc(short(p[1]))}</a></div>`).join('')}
+    ${base.removed.map(p=>`<div class="r"><span class="minus">removed</span><span class="minus mono">${esc(short(p[0]))} → ${esc(short(p[1]))}</span></div>`).join('')}
+    <div class="r"><span class="tag breach" style="justify-self:start">+1 breach</span><span>tier, ${esc(SAMPLE.violations[0].file)}:${SAMPLE.violations[0].line}</span></div></div></section>
+  <section class="lane"><h2>This session <span class="count new">${SAMPLE.history.filter(h=>h.unseen).length} new</span> <button class="chip" style="margin-left:auto">Mark all as seen</button></h2><div class="rows">
+    ${SAMPLE.history.map(h=>`<div class="r ${h.unseen?'unseen':''}"><span class="when">${h.at}</span><div class="ch"><button class="imp" data-src="${esc(h.file)}" data-line="1" style="padding:0;border:0"><span class="file mono">${esc(h.file)}</span></button>${h.changes.map(c=>`<span class="${c[0]==='+'?'plus':'minus'} mono">${c[0]==='+'?'+':'−'} ${esc(c.slice(1))}</span>`).join('')}${h.breach?`<span class="tag breach" style="align-self:start">breach: ${esc(h.breach)}</span>`:''}</div></div>`).join('')}
+  </div></section></div></div>`;
+}
+
+let ruleTier=tiers[0].id;
+function rulesPage(){
+  const ts=tiers, t=tierById[ruleTier];
+  const head=ts.map(c=>`<th class="c"><span>${esc(c.name)}</span><i style="background:${colour[c.id]}"></i></th>`).join('');
+  const rows=groups.map(g=>`<tr class="gl"><td colspan="${ts.length+1}"></td></tr>`+ts.filter(r=>r.group===g).map(r=>`<tr class="${r.id===ruleTier?'on':''}"><th class="r${r.id===ruleTier?' on':''}" data-rule="${r.id}"><span><i style="background:${colour[r.id]}"></i>${esc(r.name)}</span></th>${ts.map(c=>`<td class="${r.id===c.id?'same':ruleOf(r.id,c.id).kind}" data-rule="${r.id}" title="${esc(r.name)} → ${esc(c.name)}: ${{ok:'allowed',cond:'allowed on a condition',no:'forbidden',same:'same tier'}[r.id===c.id?'same':ruleOf(r.id,c.id).kind]}"></td>`).join('')}</tr>`).join('')).join('');
+  const may=(t.mayImport||[]).map(x=>{const id=typeof x==='string'?x:x.tier, cond=typeof x==='string'?'':[x.typesOnly&&'its types only',x.onlyFrom?.length&&`only from ${x.onlyFrom.join(', ')}`].filter(Boolean).join('; ');
+    return `<li><i class="ln" style="background:${colour[id]};width:16px;height:5px;border-radius:3px;display:block"></i>${esc(tierById[id]?.name||id)}${cond?`<span class="cond">${esc(cond)}</span>`:''}</li>`}).join('')||'<li class="mute">Nothing: this tier imports no other tier.</li>';
+  const ms=modules.filter(m=>m.tier===t.id);
+  return `<div class="pg"><h1>Rules</h1><p class="sub">Who may import whom, from <span class="mono">architecture.rules.json</span>. Rows import columns; click a tier to read its rule.</p>
+  <div class="key" style="display:flex;gap:16px;margin-top:12px;font-size:12px;color:var(--ink-2)"><span class="k" style="display:flex;gap:6px;align-items:center"><i style="width:14px;height:14px;background:#22301f;display:inline-block"></i>allowed</span><span class="k" style="display:flex;gap:6px;align-items:center"><i style="width:14px;height:14px;background:#3b3319;display:inline-block"></i>on a condition</span><span class="k" style="display:flex;gap:6px;align-items:center"><i style="width:14px;height:14px;background:#2c1b18;display:inline-block"></i>forbidden</span></div>
+  <div class="rl"><table class="tm"><tr><th></th>${head}</tr>${rows}</table>
+  <section class="tdet"><div class="name"><i style="background:${colour[t.id]}"></i><h2>${esc(t.name)}</h2><span class="mute">${esc(t.group)} group</span></div>
+    <h4>What belongs here</h4><p class="big">${esc(t.criterion)}</p>
+    <h4>May import</h4><ul>${may}</ul>
+    ${t.isolated?`<h4>Within the tier</h4><p>${esc(t.isolated)}</p>`:''}
+    <h4>Technologies it may use</h4><p>${t.technologies?(t.technologies.length?t.technologies.map(x=>`<code>${esc(x)}</code>`).join(', '):'None.'):'Any.'}</p>
+    <h4>Paths, and the modules they make</h4><div class="paths">${t.paths.map(x=>`<code>${esc(x)}</code>`).join('')}</div><p class="mute" style="margin-top:6px">${ms.length} module${ms.length===1?'':'s'}: ${ms.map(m=>`<a href="#/module/${encodeURIComponent(m.id)}" style="text-decoration:underline;text-underline-offset:3px">${esc(short(m.id))}</a>`).join(', ')||'none yet'}</p>
+    <h4>When it is breached</h4><p>${esc(t.fix||'')}</p>
+  </section></div></div>`;
+}
+
+// source panel
+function highlight(line){
+  return esc(line).replace(/(\/\/.*$)/,'<span class="c">$1</span>').replace(/('[^']*')/g,'<span class="s">$1</span>').replace(/\b(import|export|from|const|let|async|await|function|return|type|interface|if|else|new|throw)\b/g,'<span class="k">$1</span>');
+}
+function openSource(file,line){
+  const src=document.getElementById('src'), text=SOURCES[file];
+  const fileEdges=edges.filter(e=>e.file===file), fileBreach=violations.filter(v=>v.file===file);
+  const body=text===undefined?`<p class="empty" style="padding:16px">In the mockup, the source is embedded for a few files only; the app reads any analyzed file from the analyzer.</p>`:
+    `<pre>${text.split('\n').map((l,i)=>{
+      const n=i+1, es=fileEdges.filter(e=>e.line===n), br=fileBreach.find(v=>v.line===n);
+      const tc=es[0]?colour[modById[es[0].to].tier]:'';
+      const cls=['l',br?'breach-line':es.length?'imp-line':'',n===line?'target':''].join(' ');
+      return `<div class="${cls}" id="L${n}" style="${tc?`--tc:${tc}`:''}"><span>${n}</span><span>${highlight(l)||' '}</span>${es.length&&!br?`<span class="go">imports <a href="#/module/${encodeURIComponent(es[0].to)}">${esc(short(es[0].to))}</a>, ${esc(tierById[modById[es[0].to].tier].name)}</span>`:''}${br?`<div class="note"><b>Breach, ${esc(br.rule)}.</b> ${esc(br.message)}<br>${esc(br.fix)}</div>`:''}</div>`;
+    }).join('')}</pre>`;
+  src.innerHTML=`<header><span class="path mono">${esc(file)}</span><span class="mute">${fileEdges.length} import${fileEdges.length===1?'':'s'}${fileBreach.length?`, <span style="color:var(--breach)">${fileBreach.length} breach</span>`:''}</span><button class="close" data-close>${icon.x} Close</button></header>${body}`;
+  src.classList.add('open');
+  requestAnimationFrame(()=>document.getElementById('L'+line)?.scrollIntoView({block:'center'}));
+}
+
+// routing, the trail of views visited, and events
+const trail=[];
+function labelOf(hash){
+  const [,page='matrix',arg]=hash.split('/');
+  return page==='module'?short(decodeURIComponent(arg)):{matrix:'Matrix',breaches:'Breaches',changes:'Changes',rules:'Rules'}[page]||'Matrix';
+}
+function track(){
+  const h=location.hash||'#/matrix', [,page]=h.split('/');
+  if(page!=='module'){trail.length=0;trail.push(h);return}
+  const at=trail.indexOf(h);
+  if(at>=0) trail.length=at+1; else trail.push(h);
+}
+function render(){
+  track();
+  const [,page='matrix',arg]=location.hash.split('/');
+  const tabs=[['matrix','Matrix'],['breaches','Breaches',`<span class="count breach">${violations.length}</span>`],['changes','Changes',`<span class="count new">${SAMPLE.history.filter(h=>h.unseen).length}</span>`],['rules','Rules']];
+  const tab=page==='module'?(trail[0]||'#/matrix').split('/')[1]:page;
+  document.getElementById('tabs').innerHTML=tabs.map(([id,l,c=''])=>`<a href="#/${id}"${tab===id?' aria-current="page"':''}>${l}${c}</a>`).join('');
+  document.getElementById('stats').textContent=`${modules.length} modules · ${edges.length} imports · ${tiers.length} tiers`;
+  const shown=trail.length>6?[trail[0],null,...trail.slice(-4)]:trail;
+  document.getElementById('crumbs').innerHTML=`<button class="back" data-back ${trail.length<2?'disabled':''}><svg class="i" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Back</button>`+
+    shown.map((h,k)=>h===null?'<span class="sep">…</span>':k===shown.length-1?`<span class="here">${esc(labelOf(h))}</span>`:`<a href="${h}">${esc(labelOf(h))}</a><span class="sep">›</span>`).join('');
+  document.getElementById('view').innerHTML=page==='module'?modulePage(decodeURIComponent(arg)):page==='breaches'?breachesPage():page==='changes'?changesPage():page==='rules'?rulesPage():matrixPage();
+  heads(); sticky(); minimap();
+}
+function sticky(){
+  const m=document.getElementById('m'); if(!m) return;
+  const hs=[...m.querySelectorAll('tr.h')]; let t=0; hs.forEach(r=>{r.querySelectorAll('th').forEach(th=>th.style.setProperty('--t',t+'px')); t+=r.offsetHeight});
+  const first=hs[2]; if(!first) return; let l=0; ['c0','c1','c2'].forEach(c=>{const w=first.querySelector('.'+c)?.offsetWidth||0; m.querySelectorAll('.'+c).forEach(th=>th.style.setProperty('--l',l+'px')); l+=w});
+}
+// the crosshair: two bands follow the hovered cell, nothing else is touched
+let rowHeads=[],colHeads=[],hovered=null,bandW=0,bandH=0;
+function heads(){
+  const m=document.getElementById('m'); if(!m) return;
+  rowHeads=[...m.querySelectorAll('th.th-mod')]; colHeads=[...m.querySelectorAll('th.ch-mod')];
+  const w=document.getElementById('m'); bandW=w.offsetWidth; bandH=w.offsetHeight;
+}
+document.addEventListener('pointerover',ev=>{
+  const td=ev.target.closest('.m td[data-i]'), R=document.getElementById('bandR'), C=document.getElementById('bandC'); if(!R) return;
+  if(td===hovered) return;
+  if(hovered){rowHeads[hovered.dataset.i]?.classList.remove('hl');colHeads[hovered.dataset.j]?.classList.remove('hl')}
+  hovered=td;
+  if(!td){R.style.opacity=C.style.opacity=0;return}
+  R.style.width=bandW+'px'; R.style.height=td.offsetHeight+'px'; R.style.transform=`translateY(${td.offsetTop}px)`; R.style.opacity=1;
+  C.style.height=bandH+'px'; C.style.width=td.offsetWidth+'px'; C.style.transform=`translateX(${td.offsetLeft}px)`; C.style.opacity=1;
+  rowHeads[td.dataset.i]?.classList.add('hl');colHeads[td.dataset.j]?.classList.add('hl');
+});
+document.addEventListener('click',ev=>{
+  const z=ev.target.closest('[data-zoom]'); if(z){ return z.dataset.zoom==='fit'?fit():setZoom(zoom*(z.dataset.zoom==='1'?1.2:1/1.2)) }
+  const rt=ev.target.closest('[data-rule]'); if(rt){ruleTier=rt.dataset.rule;return render()}
+  const t=ev.target.closest('[data-back],[data-mod],[data-pair],[data-group],[data-tier],[data-all],td[data-i],[data-src],[data-close]'); if(!t) return;
+  if(t.dataset.mod){selected={kind:'module',id:t.dataset.mod};return render()}
+  if(t.dataset.pair){const [f,to]=t.dataset.pair.split('|');selected={kind:'pair',from:f,to};return render()}
+  if(t.dataset.group){collapsedGroups.has(t.dataset.group)?collapsedGroups.delete(t.dataset.group):collapsedGroups.add(t.dataset.group);return render()}
+  if(t.dataset.back!==undefined) return history.back();
+  if(t.dataset.close!==undefined) return document.getElementById('src').classList.remove('open');
+  if(t.dataset.src) return openSource(t.dataset.src,+t.dataset.line);
+  if(t.dataset.all){const open=t.dataset.all==='open';tiers.forEach(x=>open?collapsed.delete(x.id):collapsed.add(x.id));groups.forEach(g=>open?collapsedGroups.delete(g):collapsedGroups.add(g));return render()}
+  if(t.dataset.tier){collapsed.has(t.dataset.tier)?collapsed.delete(t.dataset.tier):collapsed.add(t.dataset.tier);return render()}
+  if(t.dataset.i!==undefined&&t.dataset.j!==undefined){
+    const ax=flat(axisTree()), r=ax[+t.dataset.i], c=ax[+t.dataset.j];
+    for(const x of [r,c]){ if(x.agg==='group') collapsedGroups.delete(x.group); else if(x.agg) collapsed.delete(x.tier) }
+    if(r.agg||c.agg) return render();
+    selected={kind:'pair',from:r.id,to:c.id}; render();
+  }
+});
+// the overview: every cell as a pixel block, the visible part framed; click or drag to move
+let miniBase=null;
+function minimap(){
+  const c=document.getElementById('mini'), m=document.getElementById('m'); if(!c) return;
+  const tds=[...m.querySelectorAll('tr:not(.h)')].map(r=>[...r.querySelectorAll('td')]), n=tds.length; if(!n) return;
+  const px=Math.max(2,Math.floor(150/n)), W=n*px; c.width=c.height=W+8;
+  const g=c.getContext('2d'), col={ok:'#3d5a37',cond:'#6b5d2c',no:'#4a2a24',same:'#3a3a37',breach:'#ff5a36',diag:'#121212'};
+  tds.forEach((row,i)=>row.forEach((td,j)=>{g.fillStyle=col[td.classList[0]]||'#222';g.fillRect(4+j*px,4+i*px,px,px)}));
+  miniBase=g.getImageData(0,0,c.width,c.height); frame();
+  const sc=document.getElementById('scroller');
+  sc.onscroll=()=>requestAnimationFrame(frame);
+  const go=e=>{const b=c.getBoundingClientRect(), f=fit2();sc.scrollLeft=(e.clientX-b.left-4)/f.x-sc.clientWidth/2;sc.scrollTop=(e.clientY-b.top-4)/f.y-sc.clientHeight/2};
+  c.onpointerdown=e=>{e.stopPropagation();c.setPointerCapture(e.pointerId);go(e);c.onpointermove=go};
+  c.onpointerup=e=>{c.onpointermove=null};
+}
+function fit2(){const c=document.getElementById('mini'),m=document.getElementById('m');const W=c.width-8;return {x:W/m.scrollWidth,y:W/m.scrollHeight}}
+function frame(){
+  const c=document.getElementById('mini'), sc=document.getElementById('scroller'); if(!c||!miniBase) return;
+  const g=c.getContext('2d'); g.putImageData(miniBase,0,0); const f=fit2(), W=c.width-8;
+  g.strokeStyle='#ecebe6';g.lineWidth=1.5;
+  g.strokeRect(4+sc.scrollLeft*f.x,4+sc.scrollTop*f.y,Math.min(W,sc.clientWidth*f.x),Math.min(W,sc.clientHeight*f.y));
+}
+function setZoom(z,cx,cy){
+  const sc=document.getElementById('scroller'), m=document.getElementById('m'); if(!sc) return;
+  z=Math.min(3,Math.max(1,z)); const r=z/zoom;
+  const px=(cx??sc.clientWidth/2)+sc.scrollLeft, py=(cy??sc.clientHeight/2)+sc.scrollTop;
+  zoom=z; m.style.setProperty('--z',z); m.classList.toggle('tiny',z*25-9<8); document.getElementById('zv').value=Math.round(z*100)+'%';
+  sc.scrollLeft=px*r-(cx??sc.clientWidth/2); sc.scrollTop=py*r-(cy??sc.clientHeight/2);
+  heads(); sticky(); minimap();
+}
+function fit(){
+  const sc=document.getElementById('scroller'), m=document.getElementById('m'); if(!sc) return;
+  setZoom(zoom*Math.min(sc.clientWidth/m.offsetWidth,sc.clientHeight/m.offsetHeight)*.98);
+}
+// The wheel scrolls (Shift for sideways, two fingers on a touchpad in every direction);
+// Ctrl or Cmd with the wheel, or a pinch, zooms around the pointer.
+document.addEventListener('wheel',ev=>{
+  const sc=ev.target.closest('#scroller'); if(!sc||!(ev.ctrlKey||ev.metaKey)) return;
+  ev.preventDefault(); const b=sc.getBoundingClientRect();
+  setZoom(zoom*Math.exp(-ev.deltaY*(Math.abs(ev.deltaY)<20?.01:.0025)),ev.clientX-b.left,ev.clientY-b.top);
+},{passive:false});
+let pan=null, suppress=false;
+document.addEventListener('pointerdown',ev=>{
+  const sc=ev.target.closest('#scroller'); if(!sc||ev.button!==0) return;
+  pan={sc,id:ev.pointerId,x:ev.clientX,y:ev.clientY,l:sc.scrollLeft,t:sc.scrollTop,moved:false};
+});
+document.addEventListener('pointermove',ev=>{
+  if(!pan||ev.pointerId!==pan.id) return; const dx=ev.clientX-pan.x, dy=ev.clientY-pan.y;
+  if(!pan.moved){ if(Math.hypot(dx,dy)<5) return; pan.moved=true; pan.sc.setPointerCapture(pan.id); pan.sc.classList.add('panning') }
+  pan.sc.scrollLeft=pan.l-dx; pan.sc.scrollTop=pan.t-dy;
+});
+const endPan=()=>{ if(pan?.moved){suppress=true; pan.sc.classList.remove('panning'); setTimeout(()=>suppress=false,0)} pan=null };
+document.addEventListener('pointerup',endPan); document.addEventListener('pointercancel',endPan);
+document.addEventListener('click',ev=>{ if(suppress){suppress=false; ev.stopPropagation(); ev.preventDefault()} },true);
+document.addEventListener('keydown',ev=>{
+  if(!document.getElementById('scroller')||ev.target.closest('input,textarea')) return;
+  if(ev.key==='+'||ev.key==='=') setZoom(zoom*1.2); else if(ev.key==='-') setZoom(zoom/1.2); else if(ev.key==='0') fit();
+});
+document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') document.getElementById('src').classList.remove('open') });
+addEventListener('hashchange',()=>{document.getElementById('src').classList.remove('open');render()}); render();
+</script>
+</body>
+</html>

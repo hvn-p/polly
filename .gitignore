@@ -12,6 +12,14 @@ dist/
 # Claude Code's per-person settings.
 .claude/settings.local.json
 
+# A worktree's runtime state, written by dev:up: its supervisor, locks and
+# process logs (dev/README.md).
+.dev/
+
+# What Python leaves next to the worker's code: bytecode and coverage data.
+__pycache__/
+.coverage
+
 # Local noise
 *.log
 .DS_Store

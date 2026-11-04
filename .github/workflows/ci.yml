@@ -1,0 +1,195 @@
+# Checks every pull request: lint, types, the repository guards, the tests with
+# their coverage gate, the worker, the architecture analyzer, and secret scanning. vendors/infra is
+# private and nothing here reads it, so submodules are not fetched.
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # nr lint's architecture check runs in the analyzer job, which builds it.
+      - run: pnpm exec biome check --error-on-warnings .
+
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The agents-md check diffs against the base branch.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      # The contract guard writes the compute service's OpenAPI with its synced
+      # environment.
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --locked
+        working-directory: services/compute
+      - run: node scripts/checks/strict-configs.mjs
+      - run: node scripts/checks/pinned-actions.mjs
+      - run: node scripts/checks/contracts.mjs
+      - run: node scripts/checks/bundles.mjs
+      - run: node scripts/checks/refusals.mjs
+      - run: node scripts/checks/log-events.mjs
+      - run: node scripts/checks/agents-md.mjs --base "origin/${{ github.base_ref }}"
+
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a # pg16
+        env:
+          POSTGRES_PASSWORD: ci-only
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgresql://polly_ci:ci-only@127.0.0.1:5432/polly_ci__test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: pnpm install --frozen-lockfile
+      # The contract tests write the compute service's OpenAPI with its synced
+      # environment, and download nothing.
+      - run: uv sync --locked
+        working-directory: services/compute
+      # The test database belongs to a role that is not a superuser, as a
+      # worktree's does.
+      - name: Create the test role and database
+        env:
+          PGPASSWORD: ci-only
+        run: |
+          psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE polly_ci LOGIN PASSWORD 'ci-only'" \
+            -c "CREATE DATABASE polly_ci__test OWNER polly_ci"
+      # The table types are generated from the migrated test database: a
+      # migration without its regenerated types fails here.
+      - run: pnpm run generate && git diff --exit-code packages/database/src/generated
+      - run: pnpm exec vitest run --coverage
+
+  # A required check: it always reports, and skips its steps when the pull
+  # request leaves the compute service's sources as they are on its base.
+  compute:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/compute
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: sources
+        run: git diff --quiet "origin/$GITHUB_BASE_REF...HEAD" -- . || echo "changed=true" >> "$GITHUB_OUTPUT"
+      - if: steps.sources.outputs.changed == 'true'
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - if: steps.sources.outputs.changed == 'true'
+        run: uv sync --locked
+      - if: steps.sources.outputs.changed == 'true'
+        run: uv run ruff check
+      - if: steps.sources.outputs.changed == 'true'
+        run: uv run ruff format --check
+      - if: steps.sources.outputs.changed == 'true'
+        run: uv run mypy src tests
+      - if: steps.sources.outputs.changed == 'true'
+        run: uv run pytest
+
+  # A required check: the repository's architecture is checked on every pull
+  # request; the analyzer is built and tested only when the pull request
+  # changes it, its committed schemas included.
+  analyzer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/architecture/analyzer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: sources
+        run: |
+          git diff --quiet "origin/$GITHUB_BASE_REF...HEAD" -- . ../npm/launcher/architecture.rules.schema.json ../ui/report.schema.json \
+            || echo "changed=true" >> "$GITHUB_OUTPUT"
+      # rust-toolchain.toml pins the toolchain, which rustup installs on first use.
+      - if: steps.sources.outputs.changed == 'true'
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-llvm-cov@0.9.1
+      - if: steps.sources.outputs.changed == 'true'
+        run: cargo fmt --check
+      - if: steps.sources.outputs.changed == 'true'
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - if: steps.sources.outputs.changed == 'true'
+        run: cargo llvm-cov --locked --fail-under-lines 90
+      # The release build the architecture check below runs, as lint:architecture
+      # runs a worktree's build; without one it runs the pinned package.
+      - if: steps.sources.outputs.changed == 'true'
+        run: cargo build --locked --release
+      # The repository's architecture against architecture.rules.json: imports
+      # resolve through the installed packages.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: pnpm run lint:architecture
+        working-directory: .
+
+  # The analyzer's tests on macOS, whose file watching differs from Linux's.
+  analyzer-macos:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: tools/architecture/analyzer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: sources
+        run: git diff --quiet "origin/$GITHUB_BASE_REF...HEAD" -- . || echo "changed=true" >> "$GITHUB_OUTPUT"
+      - if: steps.sources.outputs.changed == 'true'
+        run: cargo test --locked
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Scans the files of the pull request's head; the history before it was
+      # scanned by the pull requests that brought it.
+      - uses: docker://ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f # v8.30.1
+        with:
+          args: dir --redact --verbose .

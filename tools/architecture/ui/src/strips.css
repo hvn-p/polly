@@ -1,0 +1,9 @@
+/* The tiers' line strips along the matrix's axes, coloured inline by their tier. Apart
+   from the other styles so the design detector's side-tab waiver covers them alone. */
+
+.m .th-tier {
+  border-right: 5px solid;
+}
+.m .ch-tier {
+  border-bottom: 5px solid;
+}

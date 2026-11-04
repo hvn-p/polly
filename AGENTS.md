@@ -10,6 +10,9 @@ the MCP.
   before designing or judging a change.
 - **The product direction** and its teaching principles are in `PRODUCT.md`. An
   interface is composed with the Impeccable skill, which reads it.
+- **The platform** Polly runs on (shared Postgres, Garage, vault, the contract with an
+  application) is the submodule `vendors/infra`, read-only. Read its `CLAUDE.md` before
+  touching infrastructure, configuration or deployment.
 
 ## Where a decision is written
 
@@ -47,46 +50,53 @@ vague idea goes through `/speckit-assess-intake` first. A bug goes through
 - an issue comment starting with `<!-- speckit-artifact: … -->` is an artifact (spec,
   plan…) and is authoritative: the local cache, ignored by git, is only a copy rebuilt
   at each step;
-- the tasks are in the PR description, between the `speckit-tasks` markers;
+- the tasks are in the PR description, between the `speckit-tasks` markers; completed
+  Convergence phases may sit in the PR comment the description links to in their place,
+  which the pull puts back into the cached tasks;
 - comments are read in order: when two decisions contradict each other, the most
   recent wins.
 
 **Write consent**: Spec Kit commands write to the issue and PR of the current feature,
-through the `issue-sync` extension, and open that PR as a draft, without asking. The
-consent covers only those two and that channel: any other issue or PR is asked for.
+through the `issue-sync` extension, and open that PR as a draft, without asking;
+`/speckit-converge` also answers that PR's comments in their threads. The consent covers
+only those two and these channels: any other issue or PR is asked for.
 
 ## Stack
 
 - **Separate React front end and Hono 4 API**, in a pnpm monorepo. The API is also the
   MCP's OAuth authorization server, through Better Auth (`mcp` and `cimd` plugins),
   which polly's code only reaches through its extension points.
-- **TypeScript 7 only**, compiled by `tsc`.
+- **TypeScript 7 only**, type-checked by `tsc`. esbuild bundles every Node process, which
+  runs from its build in development as in production (`nr build`); Vite builds the
+  front end.
 - **Biome** for lint and format.
 - **Boundaries**: Zod schemas, an OpenAPI contract generated from them, a generated
   client through which the front end and the MCP go. A refusal that depends on state
   comes back as a named error code.
 - **Postgres**: the shared instance of the pikmine platform, reached only through
-  `DATABASE_URL`.
-- **Audio analysis** is a separate Python service, on CPU. No analysis runs inside an
-  HTTP request: the API answers at once and the result arrives through the event
-  stream.
+  `DATABASE_URL`, queried with Kysely and changed by versioned Kysely migrations.
+- **MCP server**: the official SDK v2 (`@modelcontextprotocol/server`), stateless.
+- **Audio analysis** runs in a Python compute service, on CPU, called by the worker. No
+  analysis runs inside an HTTP request: the API answers at once and the result arrives
+  through the event stream.
 
 ## Layout
 
-- The API (`apps/api/src`) is split into tiers, each importing only those below it:
-  `entry` (Hono routes, SSE, MCP, composition root), `flows` (one use case per file,
-  DBOS workflows included), `domains`, `reference` (read-only language packs, identity),
-  `kernel` (ids, language code, score, clock; no domain rule).
-- The domains are `learner-memory`, `session-log`, `catalogue`, `evaluation` and
-  `audio`. No domain imports another, no flow imports another, and a module is imported
-  through its index file only. Review enforces this until a dependency check exists.
+- Every directory belongs to a tier of `architecture.rules.json`, which gives its
+  criterion, what it may import and the fix for a breach; `nr lint` checks the repository
+  against it. A file that fits no tier stops the work: ask before adding a tier.
 - A domain that needs another domain's data declares a port it owns, and a flow feeds
   it. Domains share events only through the session log: no in-process event bus.
-- The front end (`apps/web`) follows the Feature-Sliced Design layers.
-- Outside the apps: `services/pron-worker` (Python audio analysis), `languages/<code>/`
-  (language packs as neutral data, read by the API and the worker),
-  `packages/api-client` (client generated from the OpenAPI, for the front end and the
-  plugin), `plugin/` (the Claude Code plugin).
+- Outside `apps/` and `packages/`: `services/compute` (Python audio analysis, behind its
+  own OpenAPI), `plugin/` (the Claude Code plugin), `dev/` (each worktree's local Polly:
+  read `dev/README.md` before running or validating anything locally),
+  `tools/architecture` (the analyzer and its view, which import nothing of Polly).
+- A contract between two processes is changed in its source (the Zod schemas under
+  `apps/api/src/contracts/`, or the compute service's code), then regenerated with
+  `nr contracts`.
+- A unit test (no process, database or network) sits next to its file as
+  `<name>.test.ts`. An integration test, and its support, goes in its package's
+  `test/`. End-to-end scenarios run through `nr dev:e2e`, never Vitest.
 
 ## Workflow
 

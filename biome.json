@@ -9,6 +9,9 @@
     "includes": [
       "**",
       "!node_modules",
+      "!vendors",
+      "!plugin/monitors",
+      "!tools/architecture/ui/mockup",
       "!pnpm-lock.yaml",
       "!.claude/skills/impeccable",
       "!.specify",
@@ -40,7 +43,28 @@
       "preset": "recommended",
       "nursery": {
         "noFloatingPromises": "error"
+      },
+      "complexity": {
+        "useLiteralKeys": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "apps/**/src/**",
+        "packages/**/src/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!packages/platform/src/config.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noProcessEnv": "error"
+          }
+        }
+      }
+    }
+  ]
 }

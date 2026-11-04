@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": [".", "../vitest.setup.ts", "../vitest.config.ts"],
+  "exclude": ["checks/agents-md.mjs"]
+}
