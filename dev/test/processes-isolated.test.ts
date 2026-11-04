@@ -131,6 +131,20 @@ describe("the worktree's processes", { timeout: 120_000 }, () => {
     }
   })
 
+  it("C77: a rebuild of the API's command line, beside its build output, restarts nothing", async () => {
+    await sleep(3000)
+    const before = startsOfEach()
+    const cli = join(codeRoot, 'apps/api/dist/cli.js')
+    const original = readFileSync(cli)
+    writeBuild(cli, `${original}\n// a rebuild\n`)
+    try {
+      await sleep(4000)
+      expect(startsOfEach()).toEqual(before)
+    } finally {
+      writeBuild(cli, original)
+    }
+  })
+
   it("C77: a change of the API's build output restarts the API only", async () => {
     const before = startsOfEach()
     const build = join(codeRoot, 'apps/api/dist/main.js')

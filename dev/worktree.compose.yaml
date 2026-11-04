@@ -80,7 +80,7 @@ services:
     command:
       - sh
       - -c
-      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/api/dist -e js apps/api/dist/main.js >>"${POLLY_LOGS}/api.log" 2>&1
+      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/api/dist/main.js -e js apps/api/dist/main.js >>"${POLLY_LOGS}/api.log" 2>&1
     healthcheck:
       <<: *health
       test:
@@ -96,7 +96,7 @@ services:
     command:
       - sh
       - -c
-      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/mcp/dist -e js apps/mcp/dist/main.js >>"${POLLY_LOGS}/mcp.log" 2>&1
+      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/mcp/dist/main.js -e js apps/mcp/dist/main.js >>"${POLLY_LOGS}/mcp.log" 2>&1
     healthcheck:
       <<: *health
       test:
@@ -113,7 +113,7 @@ services:
     command:
       - sh
       - -c
-      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/worker/dist -e js apps/worker/dist/main.js >>"${POLLY_LOGS}/worker.log" 2>&1
+      - exec node dev/node_modules/nodemon/bin/nodemon.js --exitcrash --watch apps/worker/dist/main.js -e js apps/worker/dist/main.js >>"${POLLY_LOGS}/worker.log" 2>&1
 
   web:
     <<: *process
