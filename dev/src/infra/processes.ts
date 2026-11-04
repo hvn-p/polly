@@ -115,15 +115,19 @@ export function composeProcesses(settings: ProcessesSettings): WorktreeProcesses
       .split('\n')
       .filter((line) => line.trim() !== '')
       .map((line) => JSON.parse(line) as ComposeService)
-  // Runs an `up`; when it fails, names the first process that is not ready.
-  const up = async (project: WorktreeProject, args: readonly string[]) => {
+  // Runs an `up` of every process, or of the one given; when it fails, names
+  // the first of them that is not ready, or else lets the `up`'s error through.
+  const up = async (project: WorktreeProject, args: readonly string[], only?: string) => {
     mkdirSync(logsOf(project), { recursive: true })
     await run('docker', ['volume', 'create', STORE])
     try {
       await compose(project, ['up', '--detach', '--wait', '--quiet-pull', ...args])
     } catch (error) {
-      const failed = (await services(project)).find(
-        (service) => !isUp(service) || (service.Health !== '' && service.Health !== 'healthy'),
+      const listed = await services(project).catch(() => [])
+      const failed = listed.find(
+        (service) =>
+          (only === undefined || service.Service === only) &&
+          (!isUp(service) || (service.Health !== '' && service.Health !== 'healthy')),
       )
       if (failed === undefined) {
         throw error
@@ -143,7 +147,7 @@ export function composeProcesses(settings: ProcessesSettings): WorktreeProcesses
       const running = new Set((await services(project)).filter(isUp).map(({ Service }) => Service))
       return expected.every((service) => running.has(service))
     },
-    restart: (project, service) => up(project, ['--no-deps', '--force-recreate', service]),
+    restart: (project, service) => up(project, ['--no-deps', '--force-recreate', service], service),
     stop: async (name) => {
       // By name alone: the project's containers and volumes carry it, whatever
       // the files. The store is not the project's.
