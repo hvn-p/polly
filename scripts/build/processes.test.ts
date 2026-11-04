@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { bundleProcess, PROCESSES, pathsOf } from './processes.ts'
+import { bundleProcess, PROCESSES, pathsOf, watchProcess } from './processes.ts'
 
 // The analyzer's runs, counted.
 vi.mock('./log-plugin.ts', async (actual) => {
@@ -76,6 +76,26 @@ describe('building a Node process', () => {
     await bundleProcess(paths)
     expect(written()[0]).toBeGreaterThan(first[0] ?? 0)
     expect(readFileSync(paths.outfile, 'utf8')).toContain('console.log(2)')
+  })
+
+  it('leaves an unchanged output unwritten in watch mode too, at its first build and at each rebuild', async () => {
+    const root = fixture({ 'src/main.ts': 'console.log(1) // a\n' })
+    const paths = { entry: join(root, 'src', 'main.ts'), outfile: join(root, 'dist', 'main.js') }
+    const mapOf = () => statSync(`${paths.outfile}.map`).mtimeMs
+    await bundleProcess(paths)
+    const bundle = statSync(paths.outfile).mtimeMs
+    const map = mapOf()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const stop = await watchProcess(paths)
+    try {
+      expect([statSync(paths.outfile).mtimeMs, mapOf()]).toEqual([bundle, map])
+      // A comment changes the source map only: the bundle stays as it was.
+      writeFileSync(paths.entry, 'console.log(1) // b\n')
+      await vi.waitFor(() => expect(mapOf()).toBeGreaterThan(map), { timeout: 5000 })
+      expect(statSync(paths.outfile).mtimeMs).toBe(bundle)
+    } finally {
+      await stop()
+    }
   })
 
   it('run twice on the real processes, the script leaves their outputs unwritten the second time', () => {

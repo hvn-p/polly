@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
-import type { BuildOptions, Plugin } from 'esbuild'
+import type { BuildOptions, OutputFile, Plugin } from 'esbuild'
 import type { ModuleIndex } from './log-plugin.ts'
 
 // Loaded when a build runs, so a failure to load them (no install yet) is the
@@ -118,25 +118,44 @@ async function options({ entry, outfile, development = false }: Paths): Promise<
   }
 }
 
-// Builds a process; resolves with the source files it bundled. An output
-// identical to the one on disk is left unwritten: a running process that
-// watches its build (node --watch) restarts on a write, changed or not.
-export async function bundleProcess(paths: Paths): Promise<string[]> {
-  const { build } = await esbuild()
-  const { metafile, outputFiles } = await build({ ...(await options(paths)), write: false })
+// An output identical to the one on disk is left unwritten: a running process
+// that watches its build (nodemon) restarts on a write, changed or not.
+function writeChanged(outputFiles: readonly OutputFile[]): void {
   for (const { path, contents } of outputFiles) {
     if (!existsSync(path) || !Buffer.from(contents).equals(readFileSync(path))) {
       mkdirSync(dirname(path), { recursive: true })
       writeFileSync(path, contents)
     }
   }
+}
+
+// Builds a process; resolves with the source files it bundled.
+export async function bundleProcess(paths: Paths): Promise<string[]> {
+  const { build } = await esbuild()
+  const { metafile, outputFiles } = await build({ ...(await options(paths)), write: false })
+  writeChanged(outputFiles)
   return Object.keys(metafile?.inputs ?? {})
 }
 
-// Rebuilds a process on every change to its sources, until killed.
-export async function watchProcess(paths: Paths): Promise<void> {
+// Rebuilds a process on every change to its sources, until stopped; resolves
+// once its first build is written.
+export async function watchProcess(paths: Paths): Promise<() => Promise<void>> {
   const { context } = await esbuild()
-  await (await context(await options(paths))).watch()
+  const built = Promise.withResolvers<void>()
+  const writer: Plugin = {
+    name: 'write-changed',
+    setup: (pluginBuild) => {
+      pluginBuild.onEnd(({ outputFiles }) => {
+        writeChanged(outputFiles ?? [])
+        built.resolve()
+      })
+    },
+  }
+  const base = await options(paths)
+  const watching = await context({ ...base, write: false, plugins: [...(base.plugins ?? []), writer] })
+  await watching.watch()
+  await built.promise
+  return () => watching.dispose()
 }
 
 export function selected(names: string[]): Process[] {
