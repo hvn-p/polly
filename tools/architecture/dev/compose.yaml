@@ -1,0 +1,41 @@
+# The analyzer in watch mode, serving its view for one checkout, as the Compose
+# project serve.ts starts. It runs on the host's network, as the invoking user,
+# with the checkout and its repository's git directory mounted at their own
+# paths, so it reads the same paths and compares with the same base branch as
+# the host. serve.ts sets the variables below.
+
+services:
+  analyzer:
+    image: ${ARCHITECTURE_IMAGE:?}
+    user: ${ARCHITECTURE_UID:?}:${ARCHITECTURE_GID:?}
+    network_mode: host
+    init: true
+    restart: on-failure
+    working_dir: ${ARCHITECTURE_ROOT:?}
+    environment:
+      # The invoking user may have no home in the image.
+      HOME: /tmp
+      ARCHITECTURE_PORT: ${ARCHITECTURE_PORT:?}
+    volumes:
+      - ${ARCHITECTURE_ROOT}:${ARCHITECTURE_ROOT}
+      - ${ARCHITECTURE_GIT_DIR:?}:${ARCHITECTURE_GIT_DIR}
+      - ${ARCHITECTURE_LOGS:?}:${ARCHITECTURE_LOGS}
+    command:
+      - sh
+      - -c
+      - >-
+        exec architecture watch --root "${ARCHITECTURE_ROOT}" --port "${ARCHITECTURE_PORT}"
+        --ui /usr/local/share/architecture/view --base "${ARCHITECTURE_BASE:?}"
+        --allow-host "${ARCHITECTURE_HOST:?}" >>"${ARCHITECTURE_LOGS}/architecture.log" 2>&1
+    # Ready once its port accepts connections.
+    healthcheck:
+      interval: 1s
+      timeout: 2s
+      retries: 30
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "require('net').connect(process.env.ARCHITECTURE_PORT, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))",
+        ]

@@ -10,6 +10,8 @@ export interface FakeInfrastructure extends Infrastructure {
   heldPorts: Set<number>
   // The worktree projects whose every process runs.
   runningProjects: Set<string>
+  // Whether the architecture view's source holds a view.
+  viewAvailable: boolean
 }
 
 export interface FakeCompute extends ComputeServices {
@@ -71,6 +73,7 @@ export function fakeInfrastructure(): FakeInfrastructure {
     routeTable: new Map(),
     heldPorts: new Set(),
     runningProjects: new Set(),
+    viewAvailable: true,
     compute: fakeCompute(),
     prerequisites: { missing: async () => fake.missingPrerequisite },
     shared: {
@@ -115,7 +118,16 @@ export function fakeInfrastructure(): FakeInfrastructure {
       seed: async (env) => {
         calls.push(`application.seed ${env['POLLY_ENV']}`)
       },
-      architecture: () => 'prebuilt',
+    },
+    architecture: {
+      projectOf: (identity) => `polly-${identity}-architecture`,
+      start: async (name, { from }) => {
+        calls.push(`architecture.start ${name} ${from}`)
+        return fake.viewAvailable ? 'served' : 'unavailable'
+      },
+      stop: async (name) => {
+        calls.push(`architecture.stop ${name}`)
+      },
     },
     processes: {
       projectOf: (identity, root) => ({ name: `polly-${identity}`, identity, root }),

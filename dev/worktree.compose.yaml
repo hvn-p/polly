@@ -10,8 +10,8 @@
 # output to .dev/logs/<process>.log.
 
 x-process: &process
-  # Node 24 on Debian 13: the analyzer built on the host needs its glibc, and
-  # runs git and tar against the base branch.
+  # Node 24 on Debian 13: the image the architecture view's project runs on,
+  # pulled once for both.
   image: node:24.22.1-trixie@sha256:f1e034976f948cf212ef1f659c12e5dd58ac7eab947831813e81a62401ca38be
   user: ${POLLY_UID:?}:${POLLY_GID:?}
   network_mode: host
@@ -99,25 +99,3 @@ services:
           -e,
           "require('net').connect(process.env.POLLY_WEB_PORT, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))",
         ]
-
-  # The architecture view, when the worktree has an analyzer holding it:
-  # Vite rebuilds the view, the analyzer serves it with the branch against main.
-  architecture-view:
-    <<: *process
-    profiles: [architecture]
-    working_dir: ${POLLY_CODE_ROOT}/tools/architecture/ui
-    command:
-      - sh
-      - -c
-      - exec node node_modules/vite/bin/vite.js build --watch >>"${POLLY_LOGS}/architecture-view.log" 2>&1
-
-  architecture:
-    <<: *process
-    profiles: [architecture]
-    command:
-      - sh
-      - -c
-      - >-
-        exec "${POLLY_ANALYZER:-}" watch --root "${POLLY_CODE_ROOT}" --port "$$POLLY_ARCH_PORT"
-        --ui "${POLLY_CODE_ROOT}/tools/architecture/ui/dist" --base main
-        --allow-host "${POLLY_ARCH_HOST:-}" >>"${POLLY_LOGS}/architecture.log" 2>&1

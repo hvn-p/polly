@@ -320,7 +320,7 @@
       "group": "tools",
       "name": "Tools",
       "criterion": "Tooling ready to leave for a repository of its own: imports nothing of Polly.",
-      "paths": ["tools/architecture/ui/src"],
+      "paths": ["tools/architecture/ui/src", "tools/architecture/dev"],
       "mayImport": [],
       "fix": "A tool imports nothing of Polly: it reads Polly's files, never its code."
     },

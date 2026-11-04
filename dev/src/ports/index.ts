@@ -62,9 +62,23 @@ export interface PortTable {
 export interface Application {
   migrate: (env: Record<string, string>) => Promise<void>
   seed: (env: Record<string, string>) => Promise<void>
-  // Which architecture analyzer the worktree runs: none until it builds one or
-  // installs a published version holding the view.
-  architecture: () => 'local' | 'prebuilt' | 'missing'
+}
+
+// The architecture view of a worktree, as a project of its own: the analyzer
+// in watch mode, from the version the repository pins or from the worktree's
+// sources.
+export interface ArchitectureView {
+  // The project's name for a worktree identity.
+  projectOf: (identity: string) => string
+  // Starts or recreates the project and waits until it answers; unavailable,
+  // with nothing running, when the pinned version holds no view.
+  // PROCESS_NOT_READY when it does not build or answer.
+  start: (
+    name: string,
+    view: { root: string; port: number; host: string; from: 'package' | 'source' },
+  ) => Promise<'served' | 'unavailable'>
+  // Removes the project; one already gone is skipped.
+  stop: (name: string) => Promise<void>
 }
 
 // A worktree's processes, as one project: its name, the worktree's identity,
@@ -123,4 +137,5 @@ export interface Infrastructure {
   ports: PortTable
   application: Application
   processes: WorktreeProcesses
+  architecture: ArchitectureView
 }

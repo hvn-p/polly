@@ -41,6 +41,9 @@ export async function down({ root, infra, out }: DownOptions): Promise<void> {
     if (state.project !== undefined) {
       await infra.processes.stop(state.project)
     }
+    if (state.architecture !== undefined) {
+      await infra.architecture.stop(state.architecture)
+    }
     const resources = resourcesOf(env)
     if (state.compute !== undefined) {
       await infra.compute.release(state.compute, resources.identity)

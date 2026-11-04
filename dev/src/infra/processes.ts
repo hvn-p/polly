@@ -8,9 +8,7 @@ import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Refusal } from '@polly/platform'
-import { architectureHostOf } from '../identity/index.ts'
 import type { WorktreeProcesses, WorktreeProject } from '../ports/index.ts'
-import { analyzerPathOf } from './architecture.ts'
 import { run } from './compose.ts'
 
 const defaultComposeFile = join(import.meta.dirname, '..', '..', 'worktree.compose.yaml')
@@ -20,9 +18,6 @@ export interface ProcessesSettings {
   codeRoot: string
   // Put before the identity to name a project: polly- on the machine.
   prefix?: string
-  // Whether the architecture view runs: by default, when the checkout has an
-  // analyzer holding it.
-  architecture?: boolean
   composeFile?: string
 }
 
@@ -34,8 +29,6 @@ interface ComposeService {
 
 export function composeProcesses(settings: ProcessesSettings): WorktreeProcesses {
   const { codeRoot, prefix = 'polly-', composeFile = defaultComposeFile } = settings
-  const analyzer = analyzerPathOf(codeRoot)
-  const architecture = settings.architecture ?? analyzer !== undefined
   // The repository's git directory: a worktree's .git is a file naming it.
   const gitDirectory = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
     cwd: codeRoot,
@@ -44,31 +37,17 @@ export function composeProcesses(settings: ProcessesSettings): WorktreeProcesses
 
   const logsOf = (project: WorktreeProject) => join(project.root, '.dev', 'logs')
   const compose = (project: WorktreeProject, args: readonly string[]) =>
-    run(
-      'docker',
-      [
-        'compose',
-        '-f',
-        composeFile,
-        '-p',
-        project.name,
-        ...(architecture ? ['--profile', 'architecture'] : []),
-        ...args,
-      ],
-      {
-        env: {
-          ...process.env,
-          POLLY_UID: String(process.getuid?.() ?? 1000),
-          POLLY_GID: String(process.getgid?.() ?? 1000),
-          POLLY_CODE_ROOT: codeRoot,
-          POLLY_GIT_DIR: gitDirectory,
-          POLLY_ENV_FILE: join(project.root, '.env.local'),
-          POLLY_LOGS: logsOf(project),
-          POLLY_ANALYZER: analyzer ?? '',
-          POLLY_ARCH_HOST: architectureHostOf(project.identity),
-        },
+    run('docker', ['compose', '-f', composeFile, '-p', project.name, ...args], {
+      env: {
+        ...process.env,
+        POLLY_UID: String(process.getuid?.() ?? 1000),
+        POLLY_GID: String(process.getgid?.() ?? 1000),
+        POLLY_CODE_ROOT: codeRoot,
+        POLLY_GIT_DIR: gitDirectory,
+        POLLY_ENV_FILE: join(project.root, '.env.local'),
+        POLLY_LOGS: logsOf(project),
       },
-    )
+    })
   const services = async (project: WorktreeProject): Promise<ComposeService[]> =>
     (await compose(project, ['ps', '--all', '--format', 'json']))
       .split('\n')

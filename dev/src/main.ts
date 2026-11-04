@@ -4,7 +4,7 @@
 // exits 2.
 
 import { Refusal } from '@polly/platform'
-import { agent, down, e2e, up, url, worker } from './commands/index.ts'
+import { agent, architecture, down, e2e, up, url, worker } from './commands/index.ts'
 import { prerequisites } from './machine/index.ts'
 import type { Infrastructure } from './ports/index.ts'
 
@@ -60,6 +60,15 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
         })
         return 0
       }
+      case 'architecture':
+        await architecture({
+          root: io.cwd,
+          infra: await infrastructure(io),
+          from: argv[1] ?? '',
+          out: io.stdout,
+          warn: io.stderr,
+        })
+        return 0
       case 'e2e':
         await e2e({ root: io.cwd, infra: await infrastructure(io), scenario: argv[1] ?? '', out: io.stdout })
         return 0
@@ -67,7 +76,10 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
         url({ root: io.cwd, out: io.stdout })
         return 0
       default:
-        throw new Refusal('UNKNOWN_COMMAND', `${command}; the commands are up, down, worker, e2e, url, agent`)
+        throw new Refusal(
+          'UNKNOWN_COMMAND',
+          `${command}; the commands are up, down, worker, architecture, e2e, url, agent`,
+        )
     }
   } catch (error) {
     if (error instanceof Refusal) {

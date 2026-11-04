@@ -1,6 +1,7 @@
 // The dev commands, one per file.
 
 export { agent, launchInteractive } from './agent.ts'
+export { architecture } from './architecture.ts'
 export { down } from './down.ts'
 export { e2e } from './e2e.ts'
 export { up } from './up.ts'

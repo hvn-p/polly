@@ -1,34 +1,69 @@
-// The analyzer of a worktree's architecture view (dev/worktree.compose.yaml
-// runs it, and Vite rebuilding the view). The analyzer is the one built in the worktree when there is one (whoever
-// changes it builds it with cargo), the prebuilt package otherwise, once a
-// published version holds the view; with neither, nothing runs.
+// A worktree's architecture view, run by the analyzer's own command
+// (tools/architecture/dev/serve.ts) as a Compose project of its own: from the
+// version of @hvn-p/architecture the repository pins, or from the worktree's
+// sources (research R19).
 
-import { existsSync } from 'node:fs'
+import { execFile } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-export type Analyzer = 'local' | 'prebuilt' | 'missing'
+import { Refusal } from '@polly/platform'
+import type { ArchitectureView } from '../ports/index.ts'
 
-const LOCAL_BUILD = 'tools/architecture/analyzer/target/release/architecture-analyzer'
-
-// Which analyzer the worktree can run.
-export function analyzerOf(codeRoot: string, exists: (path: string) => boolean = existsSync): Analyzer {
-  if (exists(join(codeRoot, LOCAL_BUILD))) {
-    return 'local'
-  }
-  return exists(join(codeRoot, 'node_modules/@hvn-p/architecture/view')) ? 'prebuilt' : 'missing'
+export interface ArchitectureSettings {
+  // The checkout the analyzer's sources and command come from.
+  codeRoot: string
+  // Put before the identity to name a project: polly- on the machine.
+  prefix?: string
 }
 
-// The analyzer the worktree's architecture view runs, or undefined when it has
-// none holding the view.
-export function analyzerPathOf(
-  codeRoot: string,
-  exists: (path: string) => boolean = existsSync,
-): string | undefined {
-  switch (analyzerOf(codeRoot, exists)) {
-    case 'local':
-      return join(codeRoot, LOCAL_BUILD)
-    case 'prebuilt':
-      return join(codeRoot, 'node_modules/@hvn-p/architecture/bin/architecture.js')
-    default:
-      return undefined
+export function architectureView({ codeRoot, prefix = 'polly-' }: ArchitectureSettings): ArchitectureView {
+  const tool = join(codeRoot, 'tools/architecture')
+  // Runs serve.ts; its refusal, `<CODE>: <message>`, becomes a Refusal.
+  const serve = (args: readonly string[]) =>
+    new Promise<void>((resolve, reject) => {
+      execFile(
+        process.execPath,
+        [join(tool, 'dev/serve.ts'), ...args],
+        { encoding: 'utf8' },
+        (error, _, stderr) => {
+          if (error === null) {
+            resolve()
+            return
+          }
+          const refusal = /^([A-Z_]+): (.*)$/m.exec(stderr)
+          reject(
+            refusal === null
+              ? new Error(`the architecture view's ${args[0]} failed: ${stderr.trim() || error.message}`)
+              : new Refusal(refusal[1] ?? '', refusal[2] ?? ''),
+          )
+        },
+      )
+    })
+  const pinned = () =>
+    (
+      JSON.parse(readFileSync(join(codeRoot, 'package.json'), 'utf8')) as {
+        devDependencies: Record<string, string>
+      }
+    ).devDependencies['@hvn-p/architecture'] ?? ''
+
+  return {
+    projectOf: (identity) => `${prefix}${identity}-architecture`,
+    start: async (name, { root, port, host, from }) => {
+      try {
+        await serve([
+          'up',
+          ...['--project', name, '--root', root, '--port', String(port), '--allow-host', host],
+          ...['--logs', join(root, '.dev', 'logs')],
+          ...(from === 'source' ? ['--source', tool] : ['--version', pinned()]),
+        ])
+        return 'served'
+      } catch (error) {
+        if (error instanceof Refusal && error.code === 'ARCHITECTURE_VIEW_UNAVAILABLE') {
+          return 'unavailable'
+        }
+        throw error
+      }
+    },
+    stop: (name) => serve(['down', '--project', name]),
   }
 }

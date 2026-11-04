@@ -1,8 +1,8 @@
 // The adapters of the machine's shared infrastructure, which need Polly's
 // dependencies installed: compose, Postgres, Garage, portless, the port table,
-// and the processes of the architecture view.
+// the worktree's processes and its architecture view.
 
-export { analyzerOf, analyzerPathOf } from './architecture.ts'
+export { architectureView } from './architecture.ts'
 export { type ComposeInfrastructure, composeInfrastructure, run, sharedInfrastructure } from './compose.ts'
 export { computeServices } from './compute.ts'
 export { garageAdmin } from './garage.ts'

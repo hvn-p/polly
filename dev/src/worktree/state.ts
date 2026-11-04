@@ -14,6 +14,8 @@ export interface WorktreeState {
   project?: string
   route?: string
   architectureRoute?: string
+  // The name of the architecture view's Compose project.
+  architecture?: string
   role?: string
   garageKeyId?: string
   // The fingerprint of the compute service the real worker uses.

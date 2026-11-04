@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Refusal } from '@polly/platform'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { architecture } from '../src/commands/architecture.ts'
 import { up } from '../src/commands/up.ts'
 import { url } from '../src/commands/url.ts'
 import { parseEnv } from '../src/config/index.ts'
@@ -58,6 +59,7 @@ describe('dev:up with faked infrastructure', () => {
       `routes.add ${id}.polly ${env(root).get('POLLY_WEB_PORT')}`,
       `routes.add arch.${id}.polly ${env(root).get('POLLY_ARCH_PORT')}`,
       `processes.start polly-${id}`,
+      `architecture.start polly-${id}-architecture package`,
     ])
     expect(out.lines).toContain(`architecture view: https://arch.${id}.polly.localhost`)
     expect(out.lines.at(-1)).toBe(`https://${id}.polly.localhost`)
@@ -65,19 +67,50 @@ describe('dev:up with faked infrastructure', () => {
       project: `polly-${id}`,
       route: `${id}.polly`,
       architectureRoute: `arch.${id}.polly`,
+      architecture: `polly-${id}-architecture`,
       role,
       garageKeyId: env(root).get('S3_ACCESS_KEY_ID'),
     })
   })
 
-  it('says the architecture view needs a local analyzer build when none is installed, instead of its URL', async () => {
+  it('C70: with a pinned analyzer holding no view, names nr dev:architecture source instead of its URL, and prints the worktree URL', async () => {
     const root = temporaryRepository()
     const infra = fakeInfrastructure()
-    infra.application.architecture = () => 'missing'
+    infra.viewAvailable = false
     const warnings: string[] = []
-    await up({ root, ...loaded(infra), out: output().write, warn: (line) => warnings.push(line) })
+    const out = output()
+    await up({ root, ...loaded(infra), out: out.write, warn: (line) => warnings.push(line) })
     expect(warnings).toEqual([
-      expect.stringMatching(/^ARCHITECTURE_VIEW_UNAVAILABLE: .*cargo build --release/),
+      expect.stringMatching(/^ARCHITECTURE_VIEW_UNAVAILABLE: .*nr dev:architecture source/),
+    ])
+    expect(out.lines).toEqual([env(root).get('PUBLIC_URL')])
+  })
+
+  it('C70: starts the view from the pinned version even after dev:architecture source', async () => {
+    const root = temporaryRepository()
+    const infra = fakeInfrastructure()
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
+    await architecture({ root, infra, from: 'source', out: () => undefined, warn: () => undefined })
+    infra.calls.length = 0
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
+    expect(infra.calls.filter((call) => call.startsWith('architecture.'))).toEqual([
+      expect.stringMatching(/^architecture\.start .* package$/),
+    ])
+  })
+
+  it("removes what is left of the view's project with the worktree's, before a port counts as held", async () => {
+    const root = temporaryRepository()
+    const infra = fakeInfrastructure()
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
+    const id = env(root).get('POLLY_WORKTREE_ID') ?? ''
+    infra.runningProjects.clear()
+    infra.calls.length = 0
+    await up({ root, ...loaded(infra), out: output().write, warn: () => undefined })
+    expect(infra.calls.slice(0, 4)).toEqual([
+      'infrastructure.load',
+      'shared.ensureRunning',
+      `processes.stop polly-${id}`,
+      `architecture.stop polly-${id}-architecture`,
     ])
   })
 

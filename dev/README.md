@@ -4,9 +4,9 @@ Each worktree runs its own Polly at its own URL, on its own data: a database, a
 test database and a bucket in the machine's shared Postgres and Garage, and a Docker
 Compose project of its own, `polly-<identity>` (the identity is `POLLY_WORKTREE_ID` in
 `.env.local`), that runs the worktree's API, MCP server, front-end dev server, worker,
-the build that rebuilds the first three on each change, and the architecture view.
-Compose restarts a process that crashes; a new build restarts only the process it
-belongs to.
+and the build that rebuilds the first three on each change. Compose restarts a process
+that crashes; a new build restarts only the process it belongs to. The architecture
+view runs in a project of its own, `polly-<identity>-architecture`.
 
 ## Prerequisites
 
@@ -30,6 +30,7 @@ Every command acts on the worktree it runs in.
 | `nr dev:down` | Removes the processes and releases the worktree's databases, bucket and routes. |
 | `nr dev:url` | Prints the worktree's URL. |
 | `nr dev:worker real [--compute <fingerprint>]` / `nr dev:worker fake` | Restarts the worktree's worker with the machine's compute service for its fingerprint of `services/compute` (or the one named), or with the fake analyzer that loads none. Worktrees with the same fingerprint share one service; `nr dev:down` puts the worktree back in fake mode. |
+| `nr dev:architecture source` / `nr dev:architecture package` | Restarts the architecture view from this worktree's sources, built in containers, or from the pinned version. |
 | `nr dev:e2e <scenario>` | Plays a scenario (`smoke`) in a driven Claude Code session against this worktree, then prints pass or fail and the transcript's path. Needs `claude` signed in and util-linux `script`; never runs in CI. macOS ships BSD `script` instead, which the command refuses (`MISSING_PREREQUISITE`): install util-linux and put its `script` first on the `PATH`. |
 | `nr agent` | Starts Claude Code with this worktree's plugin, pointed at this worktree's server. |
 
@@ -45,8 +46,8 @@ with the demo account.
 - `.env.local`: the worktree's configuration, generated from
   [`env.template`](env.template). Generated values are never rewritten.
 - `.dev/logs/api.log`, `.dev/logs/mcp.log`, `.dev/logs/web.log`, `.dev/logs/worker.log`,
-  `.dev/logs/build.log`, `.dev/logs/architecture.log`, `.dev/logs/architecture-view.log`:
-  the output of each process.
+  `.dev/logs/build.log`: the output of each process. `.dev/logs/architecture.log`: the
+  analyzer's, and its build's.
 - `docker compose -p polly-<identity> ps`: the worktree's processes and their health.
 - `.dev/state.json`: what `dev:down` releases.
 
@@ -54,13 +55,12 @@ with the demo account.
 
 `https://arch.<identity>.polly.localhost` shows the worktree's architecture as
 `architecture.rules.json` and the analyzer see it, compared with `main`, updated on
-every saved file. The analyzer is the one built in the worktree
-(`cargo build --release` in `tools/architecture/analyzer`) when there is one, the
-prebuilt package otherwise, once a published version holds the view (`dev:up` says
-`ARCHITECTURE_VIEW_UNAVAILABLE` when neither exists). Only whoever changes the analyzer
-needs Rust. After the first `cargo build --release`, `nr dev:up` starts the view on it;
-after a later one, restart the analyzer on the new build:
-`docker compose -p polly-<identity> restart architecture`.
+every saved file. `nr dev:up` runs the version of `@hvn-p/architecture` the repository
+pins, and says `ARCHITECTURE_VIEW_UNAVAILABLE` while that version holds no view.
+`nr dev:architecture source` serves the view from this worktree's sources instead: the
+view built by Vite, the analyzer by cargo in a container, so no Rust is needed. It
+builds again each time it runs, and the next `nr dev:up` goes back to the pinned
+version.
 
 ## Demo account
 

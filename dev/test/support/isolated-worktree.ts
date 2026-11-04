@@ -28,7 +28,6 @@ export function testProcesses() {
   const processes = composeProcesses({
     codeRoot,
     prefix: `polly-test-${randomBytes(3).toString('hex')}-`,
-    architecture: false,
   })
   const started = new Set<string>()
   return {

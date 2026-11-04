@@ -20,6 +20,7 @@ import {
   worktreeAt,
   writeState,
 } from '../worktree/index.ts'
+import { startView } from './architecture.ts'
 import { setEnv, useCompute } from './worker.ts'
 
 const template = join(import.meta.dirname, '..', '..', 'env.template')
@@ -109,6 +110,9 @@ export async function up({ root, prerequisites, infrastructure, out, warn }: UpO
       if (state.project !== undefined) {
         await infra.processes.stop(state.project)
       }
+      if (state.architecture !== undefined) {
+        await infra.architecture.stop(state.architecture)
+      }
       for (const key of ['POLLY_API_PORT', 'POLLY_MCP_PORT', 'POLLY_WEB_PORT', 'POLLY_ARCH_PORT']) {
         const port = Number(required(env, key))
         if (await infra.ports.isHeld(port)) {
@@ -162,23 +166,24 @@ export async function up({ root, prerequisites, infrastructure, out, warn }: UpO
       // releases the service this worktree now uses.
       writeState(worktree, { ...readState(worktree), compute })
     }
-    writeState(worktree, { ...readState(worktree), project: project.name })
+    const view = infra.architecture.projectOf(resources.identity)
+    writeState(worktree, { ...readState(worktree), project: project.name, architecture: view })
     // Compose starts what does not run and recreates a process whose
     // configuration changed, .env.local included; the others keep running.
     await infra.processes.start(project)
+    // From the pinned version, whatever the worktree holds: an agent that
+    // changes the analyzer asks for its sources with nr dev:architecture.
+    const served = await startView(root, infra, view, 'package')
     writeState(worktree, {
       project: project.name,
+      architecture: view,
       route: resources.route,
       architectureRoute: resources.architectureRoute,
       role: resources.database.names.role,
       garageKeyId: bucket.accessKeyId,
       ...(compute === undefined ? {} : { compute }),
     })
-    warn(
-      infra.application.architecture() === 'missing'
-        ? 'ARCHITECTURE_VIEW_UNAVAILABLE: no analyzer here holds the view; run cargo build --release in tools/architecture/analyzer, then nr dev:up'
-        : `architecture view: https://${resources.architectureHost}`,
-    )
+    warn(served.line)
     out(required(env, 'PUBLIC_URL'))
   } finally {
     await lock.release()
