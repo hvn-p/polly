@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { down } from '../src/commands/down.ts'
 import { up } from '../src/commands/up.ts'
 import { loaded } from './support/fake-infrastructure.ts'
-import { containerIds, isolatedInfrastructure } from './support/isolated-infrastructure.ts'
+import { containerIds, isolatedInfrastructure, volumesOf } from './support/isolated-infrastructure.ts'
 import {
   envOf,
   garage as garageOf,
@@ -67,6 +67,7 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     await up({ root, ...loaded(infra), out, warn: out })
     const { project } = stateOf(root)
     expect(containerIds(project)).not.toBe('')
+    expect(volumesOf(project)).not.toBe('')
     const client = new pg.Client({ connectionString: envOf(root)['DATABASE_URL'] })
     client.on('error', () => undefined)
     await client.connect()
@@ -75,6 +76,7 @@ describe('dev:down against an isolated infrastructure', { timeout: 240_000 }, ()
     expect(routeTable.has(`${id}.polly`)).toBe(true)
     await down({ root, infra: infrastructure(), out })
     expect(containerIds(project)).toBe('')
+    expect(volumesOf(project)).toBe('')
     await released(env)
     expect([routeTable.has(`${id}.polly`), routeTable.has(`arch.${id}.polly`)]).toEqual([false, false])
     await expect(down({ root, infra, out })).resolves.toBeUndefined()

@@ -42,6 +42,20 @@ export async function isolatedInfrastructure(): Promise<
   }
 }
 
+// The names of a project's volumes, comma-separated.
+export function volumesOf(project: string): string {
+  return execFileSync(
+    'docker',
+    ['volume', 'ls', '--quiet', '--filter', `label=com.docker.compose.project=${project}`],
+    { encoding: 'utf8' },
+  )
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .sort()
+    .join(',')
+}
+
 export function containerIds(project: string): string {
   return execFileSync('docker', ['compose', '-p', project, 'ps', '-q'], { encoding: 'utf8' })
     .trim()

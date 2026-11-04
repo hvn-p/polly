@@ -2,7 +2,7 @@
 // restarted, a process that cannot start stops dev:up, and only a process's
 // own build restarts it.
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, linkSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { createConnection } from 'node:net'
 import { dirname, join } from 'node:path'
@@ -67,9 +67,8 @@ function setEnv(key: string, value: string): void {
   writeFileSync(file, readFileSync(file, 'utf8').replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${value}`))
 }
 
-// The host PID of the API's own process, under nodemon in its container.
-function apiPid(): number {
-  const container = execFileSync(
+function apiContainer(): string {
+  return execFileSync(
     'docker',
     [
       'ps',
@@ -81,7 +80,11 @@ function apiPid(): number {
     ],
     { encoding: 'utf8' },
   ).trim()
-  const line = execFileSync('docker', ['top', container, '-eo', 'pid,args'], { encoding: 'utf8' })
+}
+
+// The host PID of the API's own process, under nodemon in its container.
+function apiPid(): number {
+  const line = execFileSync('docker', ['top', apiContainer(), '-eo', 'pid,args'], { encoding: 'utf8' })
     .split('\n')
     .find((each) => each.includes('apps/api/dist/main.js') && !each.includes('nodemon'))
   return Number(line?.trim().split(/\s+/)[0])
@@ -96,6 +99,19 @@ describe("the worktree's processes", { timeout: 120_000 }, () => {
     const killedAt = Date.now()
     await until(() => accepts(port), 10_000)
     expect(Date.now() - killedAt).toBeLessThan(5000)
+  })
+
+  it("C81: the API runs on the dependencies its project installed, never on the host's", () => {
+    const inApi = (path: string) =>
+      spawnSync('docker', ['exec', apiContainer(), 'test', '-e', path], { stdio: 'ignore' }).status === 0
+    const marker = join(codeRoot, 'apps/api/node_modules/.host-only')
+    writeFileSync(marker, '')
+    try {
+      expect(inApi(join(codeRoot, 'apps/api/node_modules/hono/package.json'))).toBe(true)
+      expect(inApi(marker)).toBe(false)
+    } finally {
+      rmSync(marker, { force: true })
+    }
   })
 
   it('C77: a hard link added under node_modules, and a source change that leaves the build unchanged, restart nothing', async () => {

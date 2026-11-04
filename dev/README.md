@@ -5,8 +5,10 @@ test database and a bucket in the machine's shared Postgres and Garage, and a Do
 Compose project of its own, `polly-<identity>` (the identity is `POLLY_WORKTREE_ID` in
 `.env.local`), that runs the worktree's API, MCP server, front-end dev server, worker,
 and the build that rebuilds the first three on each change. Compose restarts a process
-that crashes; a new build restarts only the process it belongs to. The architecture
-view runs in a project of its own, `polly-<identity>-architecture`.
+that crashes; a new build restarts only the process it belongs to. The processes run on
+dependencies their project installs for Linux in volumes of its own, never on the
+host's `node_modules`, which serve the dev commands. The architecture view runs in a
+project of its own, `polly-<identity>-architecture`.
 
 ## Prerequisites
 
@@ -27,7 +29,7 @@ Every command acts on the worktree it runs in.
 | Command | Does |
 |---|---|
 | `nr dev:up` | Creates what is missing, migrates, seeds the demo account, starts the processes and waits until they answer, prints the worktree's URL (stdout) and the architecture view's (stderr). A process that does not start stops it with `PROCESS_NOT_READY`, naming the process and its log. Safe to run again: it repairs a stopped or partly set up worktree, and restarts a process whose configuration changed. |
-| `nr dev:down` | Removes the processes and releases the worktree's databases, bucket and routes. |
+| `nr dev:down` | Removes the processes and their dependencies, and releases the worktree's databases, bucket and routes. |
 | `nr dev:url` | Prints the worktree's URL. |
 | `nr dev:worker real [--compute <fingerprint>]` / `nr dev:worker fake` | Restarts the worktree's worker with the machine's compute service for its fingerprint of `services/compute` (or the one named), or with the fake analyzer that loads none. Worktrees with the same fingerprint share one service; `nr dev:down` puts the worktree back in fake mode. |
 | `nr dev:architecture source` / `nr dev:architecture package` | Restarts the architecture view from this worktree's sources, built in containers, or from the pinned version. |
@@ -46,7 +48,7 @@ with the demo account.
 - `.env.local`: the worktree's configuration, generated from
   [`env.template`](env.template). Generated values are never rewritten.
 - `.dev/logs/api.log`, `.dev/logs/mcp.log`, `.dev/logs/web.log`, `.dev/logs/worker.log`,
-  `.dev/logs/build.log`: the output of each process. `.dev/logs/architecture.log`: the
+  `.dev/logs/build.log`, `.dev/logs/install.log`: the output of each process. `.dev/logs/architecture.log`: the
   analyzer's, and its build's.
 - `docker compose -p polly-<identity> ps`: the worktree's processes and their health.
 - `.dev/state.json`: what `dev:down` releases.
