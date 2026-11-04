@@ -5,7 +5,7 @@
 //
 // Usage: node scripts/build/processes.ts [--watch] [name...]
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import type { BuildOptions, OutputFile, Plugin } from 'esbuild'
 import type { ModuleIndex } from './log-plugin.ts'
@@ -119,12 +119,16 @@ async function options({ entry, outfile, development = false }: Paths): Promise<
 }
 
 // An output identical to the one on disk is left unwritten: a running process
-// that watches its build (nodemon) restarts on a write, changed or not.
+// that watches its build (nodemon) restarts on a write, changed or not. A
+// changed one is written beside it, then renamed over it, so that process
+// never starts on an output still being written.
 function writeChanged(outputFiles: readonly OutputFile[]): void {
   for (const { path, contents } of outputFiles) {
     if (!existsSync(path) || !Buffer.from(contents).equals(readFileSync(path))) {
       mkdirSync(dirname(path), { recursive: true })
-      writeFileSync(path, contents)
+      const partial = `${path}.${process.pid}.partial`
+      writeFileSync(partial, contents)
+      renameSync(partial, path)
     }
   }
 }

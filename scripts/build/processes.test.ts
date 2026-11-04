@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -76,6 +76,17 @@ describe('building a Node process', () => {
     await bundleProcess(paths)
     expect(written()[0]).toBeGreaterThan(first[0] ?? 0)
     expect(readFileSync(paths.outfile, 'utf8')).toContain('console.log(2)')
+  })
+
+  it('replaces a changed output in one step, so a process watching it never reads it half written', async () => {
+    const root = fixture({ 'src/main.ts': 'console.log(1)\n' })
+    const paths = { entry: join(root, 'src', 'main.ts'), outfile: join(root, 'dist', 'main.js') }
+    await bundleProcess(paths)
+    const before = statSync(paths.outfile).ino
+    writeFileSync(paths.entry, 'console.log(2)\n')
+    await bundleProcess(paths)
+    expect(statSync(paths.outfile).ino).not.toBe(before)
+    expect(readdirSync(join(root, 'dist')).sort()).toEqual(['main.js', 'main.js.map'])
   })
 
   it('leaves an unchanged output unwritten in watch mode too, at its first build and at each rebuild', async () => {

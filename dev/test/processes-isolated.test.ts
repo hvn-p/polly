@@ -3,7 +3,7 @@
 // own build restarts it.
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, linkSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, linkSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { createConnection } from 'node:net'
 import { dirname, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -54,6 +54,12 @@ function starts(process: string): number {
 
 function startsOfEach(): Record<string, number> {
   return Object.fromEntries(['api', 'mcp', 'worker'].map((process) => [process, starts(process)]))
+}
+
+// Writes a build output as the build does: beside it, then renamed over it.
+function writeBuild(path: string, contents: string | Buffer): void {
+  writeFileSync(`${path}.partial`, contents)
+  renameSync(`${path}.partial`, path)
 }
 
 function setEnv(key: string, value: string): void {
@@ -113,13 +119,13 @@ describe("the worktree's processes", { timeout: 120_000 }, () => {
     const before = startsOfEach()
     const build = join(codeRoot, 'apps/api/dist/main.js')
     const original = readFileSync(build)
-    writeFileSync(build, `${original}\n// a rebuild\n`)
+    writeBuild(build, `${original}\n// a rebuild\n`)
     try {
       await until(() => starts('api') === (before['api'] ?? 0) + 1, 10_000)
       await sleep(2000)
       expect(startsOfEach()).toEqual({ ...before, api: (before['api'] ?? 0) + 1 })
     } finally {
-      writeFileSync(build, original)
+      writeBuild(build, original)
     }
   })
 
